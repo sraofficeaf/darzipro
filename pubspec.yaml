@@ -1,0 +1,75 @@
+name: darzi_pro
+description: "Darzi Pro — Professional Tailor Shop Management System"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.6.3
+
+  # Models / Code-gen
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # Date & Money Formatting
+  intl: ^0.19.0
+
+  # Charts
+  fl_chart: ^0.70.2
+
+  # PDF & Printing
+  pdf: ^3.11.2
+  printing: ^5.14.2
+
+  # Sharing
+  share_plus: ^10.1.4
+  url_launcher: ^6.3.1
+  package_info_plus: ^8.0.0
+  http: ^1.2.1
+
+  # Images
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  supabase_flutter: ^2.8.0
+
+  # Local Cache / Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Functional Error Handling
+  fpdart: ^1.1.0
+
+  # Utils
+  equatable: ^2.0.7
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: NotoNaskhArabic
+      fonts:
+        - asset: fonts/NotoNaskhArabic-Regular.ttf
+

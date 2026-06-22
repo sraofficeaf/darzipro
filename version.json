@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "build": 1,
+  "download_url": "https://github.com/sraofficeaf/darzi-pro/releases/download/v1.0.0/DarziPro-Setup-1.0.0.exe",
+  "release_notes": "Initial release — Bug fixes and performance improvements",
+  "mandatory": false
+}
