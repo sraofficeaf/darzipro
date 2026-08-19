@@ -1,9 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_enums.dart';
+import '../theme/theme_extensions.dart';
 
 // ── Money formatter ────────────────────────────────────────────────────
 String formatMoney(double amount) {
@@ -71,13 +71,56 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = statusColor(status);
-    final bg = statusBgColor(status);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    Color color;
+    Color bg;
+    Border? border;
+
+    if (isDark) {
+      color = statusColor(status);
+      bg = statusBgColor(status);
+    } else {
+      switch (status) {
+        case OrderStatus.pending:
+          color = AppColors.lightAccent;
+          bg = AppColors.lightAccentBg;
+          border = Border.all(color: AppColors.lightAccentBorder, width: 1);
+          break;
+        case OrderStatus.cutting:
+          color = AppColors.lightPurple;
+          bg = AppColors.lightPurpleBg;
+          border = Border.all(color: AppColors.lightPurpleBorder, width: 1);
+          break;
+        case OrderStatus.stitching:
+          color = AppColors.lightBlue;
+          bg = AppColors.lightBlueBg;
+          border = Border.all(color: AppColors.lightBlueBorder, width: 1);
+          break;
+        case OrderStatus.ready:
+          color = AppColors.lightTeal;
+          bg = AppColors.lightTealBg;
+          border = Border.all(color: AppColors.lightTealBorder, width: 1);
+          break;
+        case OrderStatus.delivered:
+          color = AppColors.lightText2;
+          bg = AppColors.lightSurface2;
+          border = Border.all(color: AppColors.lightBorder, width: 1);
+          break;
+        case OrderStatus.cancelled:
+          color = AppColors.lightRed;
+          bg = AppColors.lightRedBg;
+          border = Border.all(color: AppColors.lightRedBorder, width: 1);
+          break;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
+        border: border,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -256,9 +299,15 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surf = isDark ? AppColors.surfDark : AppColors.surfLight;
-    final borderCol = borderColor ?? (isDark ? AppColors.borderDark : AppColors.borderLight);
-    final borderTopCol = isDark ? AppColors.borderTopDark : AppColors.borderTopLight;
+    final surf = isDark ? const Color(0x09FFFFFF) : context.surface;
+    
+    final borderCol = borderColor ?? (isDark ? const Color(0x12FFFFFF) : context.border);
+    final borderTopCol = isDark ? const Color(0x1EFFFFFF) : context.border;
+    final radius = isDark ? 16.0 : 14.0;
+
+    final shadow = isDark
+        ? const [BoxShadow(color: Colors.black38, blurRadius: 20, offset: Offset(0, 4))]
+        : [BoxShadow(color: context.shadowColor, blurRadius: 12, offset: const Offset(0, 4))];
 
     Widget cardContent = Padding(
       padding: padding ?? const EdgeInsets.all(18),
@@ -275,70 +324,28 @@ class AppCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: gradientColors!,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(radius),
           border: Border.all(color: borderCol, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: shadow,
         ),
         child: cardContent,
-      );
-    } else if (isDark) {
-      cardBody = Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black38,
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: CustomPaint(
-          foregroundPainter: CardBorderPainter(
-            borderCol: borderCol,
-            borderTopCol: borderTopCol,
-            radius: 16,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                color: surf,
-                child: cardContent,
-              ),
-            ),
-          ),
-        ),
       );
     } else {
       cardBody = Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(radius),
+          boxShadow: shadow,
         ),
         child: CustomPaint(
           foregroundPainter: CardBorderPainter(
             borderCol: borderCol,
             borderTopCol: borderTopCol,
-            radius: 16,
+            radius: radius,
           ),
           child: Container(
             decoration: BoxDecoration(
               color: surf,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(radius),
             ),
             child: cardContent,
           ),
@@ -346,11 +353,10 @@ class AppCard extends StatelessWidget {
       );
     }
 
-
     if (onTap != null) {
       return InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radius),
         child: cardBody,
       );
     }
@@ -388,7 +394,9 @@ class SectionHeader extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColors.accent,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.accent
+                    : AppColors.lightAccent,
               ),
             ),
           ),
@@ -466,9 +474,12 @@ class _AppTextFieldState extends State<AppTextField> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final text1 = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final text2 = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final text3 = isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight;
+    final bg = isDark ? const Color(0x0AFFFFFF) : context.surface2;
+    final border = isDark ? const Color(0x12FFFFFF) : context.border;
+    final textCol = isDark ? const Color(0xFFEDF4FF) : context.text1;
+    final hintCol = isDark ? const Color(0xFF1E3050) : context.text3;
+    final prefixCol = isDark ? const Color(0xFF2D4060) : context.text3;
+    final labelCol = isDark ? AppColors.textSecondaryDark : context.text2;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,23 +492,23 @@ class _AppTextFieldState extends State<AppTextField> {
               fontSize: 10,
               fontWeight: FontWeight.w800,
               letterSpacing: 1,
-              color: text2,
+              color: labelCol,
             ),
           ),
           const SizedBox(height: 6),
         ],
         Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0x0FFFFFFF) : const Color(0xFFF4F6FA),
+            color: bg,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: _isFocused
-                  ? const Color(0xFFF5A623) // gold when focused
-                  : (isDark ? const Color(0x12FFFFFF) : const Color(0x1F000000)),
+                  ? context.accent
+                  : border,
               width: 1.5,
             ),
             boxShadow: _isFocused
-                ? const [BoxShadow(color: Color(0x25F5A623), blurRadius: 8)]
+                ? [BoxShadow(color: context.accent.withValues(alpha: 0.15), blurRadius: 8)]
                 : const [],
           ),
           child: Row(
@@ -508,7 +519,7 @@ class _AppTextFieldState extends State<AppTextField> {
                   padding: const EdgeInsets.only(left: 16),
                   child: Text(
                     widget.prefixIcon!,
-                    style: TextStyle(color: text3, fontSize: 16),
+                    style: TextStyle(color: prefixCol, fontSize: 16),
                   ),
                 )
               else if (widget.prefix != null)
@@ -527,10 +538,10 @@ class _AppTextFieldState extends State<AppTextField> {
                   maxLines: widget.maxLines,
                   autofocus: widget.autofocus,
                   focusNode: _focusNode,
-                  style: GoogleFonts.inter(fontSize: 14, color: text1),
+                  style: GoogleFonts.inter(fontSize: 14, color: textCol),
                   decoration: InputDecoration(
                     hintText: widget.hint,
-                    hintStyle: GoogleFonts.inter(fontSize: 14, color: text3),
+                    hintStyle: GoogleFonts.inter(fontSize: 14, color: hintCol),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
@@ -702,9 +713,10 @@ class LoadingWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
       child: CircularProgressIndicator(
-        color: AppColors.accent,
+        color: isDark ? AppColors.accent : AppColors.lightAccent,
         strokeWidth: 2.5,
       ),
     );
@@ -854,10 +866,7 @@ class GoldGradientText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = isDark
-        ? [const Color(0xFFF5A623), const Color(0xFFFFD080), const Color(0xFFF5A623)]
-        : [const Color(0xFFD97706), const Color(0xFFF59E0B), const Color(0xFFD97706)];
+    final colors = [const Color(0xFFF5A623), const Color(0xFFFFD080)];
 
     return ShaderMask(
       shaderCallback: (bounds) => LinearGradient(
@@ -924,9 +933,7 @@ class GoldButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = isDark
-        ? [const Color(0xFFF5A623), const Color(0xFFD4791A)]
-        : [const Color(0xFFD97706), const Color(0xFFB45309)];
+    final colors = [const Color(0xFFF5A623), const Color(0xFFD97706)];
     final glow = isDark
         ? const Color(0x59F5A623)
         : const Color(0x40D97706);
@@ -967,4 +974,133 @@ class GoldButton extends StatelessWidget {
     );
   }
 }
+
+// ── App Outline Button ──────────────────────────────────────────────────
+class AppOutlineButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final Color? borderColor;
+  final Color? textColor;
+  final Color? backgroundColor;
+  final Widget? icon;
+  final double height;
+  final double borderRadius;
+
+  const AppOutlineButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.borderColor,
+    this.textColor,
+    this.backgroundColor,
+    this.icon,
+    this.height = 46,
+    this.borderRadius = 16,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final defaultTextColor = textColor ?? (isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706));
+    final defaultBorderColor = borderColor ?? (isDark ? const Color(0x33F5A623) : const Color(0xFFD97706).withValues(alpha: 0.4));
+    final bg = backgroundColor ?? (isDark ? const Color(0x1AF5A623) : const Color(0xFFFFF8EE));
+
+    return SizedBox(
+      height: height,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: defaultTextColor,
+          backgroundColor: bg,
+          side: BorderSide(color: defaultBorderColor, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(borderRadius),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              icon!,
+              const SizedBox(width: 8),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Global SnackBar Helper ─────────────────────────────────────────────
+void showAppSnackBar({
+  required BuildContext context,
+  required String message,
+  bool isError = false,
+  Duration duration = const Duration(seconds: 2),
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  
+  final Color bg = isDark 
+      ? (isError ? const Color(0xFF1A2A40) : const Color(0xFF0E1A2E)) 
+      : const Color(0xFFFFFFFF);
+      
+  final Color borderCol = isDark 
+      ? (isError ? const Color(0xFFFF3A58) : const Color(0xFFF5A623)) 
+      : (isError ? const Color(0xFFDC2626) : const Color(0xFFD97706));
+      
+  final Color textCol = isDark 
+      ? const Color(0xFFEDF4FF) 
+      : const Color(0xFF0A0F1C);
+  
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      duration: duration,
+      dismissDirection: DismissDirection.horizontal,
+      content: Row(
+        children: [
+          Text(isError ? '⚠️ ' : '✅ ', style: const TextStyle(fontSize: 16)),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: textCol,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => messenger.hideCurrentSnackBar(),
+            child: Icon(Icons.close_rounded, size: 16, color: textCol),
+          ),
+        ],
+      ),
+      backgroundColor: bg,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      elevation: isDark ? 0 : 8,
+      shape: Border(
+        left: BorderSide(color: borderCol, width: 3),
+      ),
+    ),
+  );
+
+  Future.delayed(duration + const Duration(milliseconds: 200), () {
+    if (context.mounted) {
+      messenger.hideCurrentSnackBar();
+    }
+  });
+}
+
 

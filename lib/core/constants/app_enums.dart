@@ -90,4 +90,4 @@ enum PaymentMethod { cash, card, online }
 
 enum ReportPeriod { today, thisMonth, lastMonth, custom }
 
-enum NavSection { dashboard, clients, orders, measurements, reports, profile }
+enum NavSection { dashboard, clients, orders, measurements, reports, profile, reminders }

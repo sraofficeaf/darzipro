@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
+import 'core/config/supabase_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,15 +35,16 @@ void main() async {
   await safeOpenBox('customers_box');
   await safeOpenBox('orders_box');
   await safeOpenBox('measurements_box');
+  await safeOpenBox('naap_drafts_box');
   await safeOpenBox('offline_queue_box');
   await safeOpenBox('settings_box');
   await safeOpenBox('license_box');
 
-  // Initialize Supabase safely
+  // Initialize Supabase (self-hosted on Coolify / Hostinger VPS)
   try {
     await Supabase.initialize(
-      url: 'https://ztxrkijwfnegvquoblne.supabase.co',
-      publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0eHJraWp3Zm5lZ3ZxdW9ibG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNjU4NjcsImV4cCI6MjA5Njc0MTg2N30.wN5GHerEc4XHUmRlUvq-g-X4TpJoBDFD7Ov-Q51Zql0',
+      url: SupabaseConfig.url,
+      publishableKey: SupabaseConfig.anonKey,
     );
   } catch (e) {
     debugPrint('Supabase initialization failed: $e');

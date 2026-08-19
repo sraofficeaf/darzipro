@@ -90,26 +90,27 @@ class _SplashScreenState extends State<SplashScreen>
     final text3 = isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
+      backgroundColor: isDark ? const Color(0xFF060C18) : const Color(0xFFF8FAFC),
       body: Stack(
         children: [
-          // Background radial glow centered behind rings
-          Center(
-            child: Container(
-              width: 320,
-              height: 320,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Color(0x1AF5A623),
-                    Colors.transparent,
-                  ],
-                  stops: [0.0, 0.7],
+          // Background subtle aura
+          if (isDark)
+            Center(
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Color(0x18F5A623),
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.7],
+                  ),
                 ),
               ),
             ),
-          ),
           
           // Main content
           FadeTransition(
@@ -121,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SplashRings(),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 24),
 
                     // Title
                     GradientText(
@@ -131,25 +132,27 @@ class _SplashScreenState extends State<SplashScreen>
                         fontWeight: FontWeight.w900,
                         letterSpacing: -1,
                       ),
-                      colors: const [Color(0xFFF5A623), Color(0xFFFFD080)],
+                      colors: isDark
+                          ? const [Color(0xFFF5A623), Color(0xFFFFD080)]
+                          : const [Color(0xFFD97706), Color(0xFFF5A623)],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     
                     // Subtitle
                     Text(
                       'TAILOR SHOP MANAGEMENT',
                       style: GoogleFonts.inter(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: text3,
-                        letterSpacing: 2.5,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        letterSpacing: 2.2,
                       ),
                     ),
-                    const SizedBox(height: 38),
+                    const SizedBox(height: 36),
 
                     // Loading dots
                     const LoadingDots(),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 44),
 
                     // Get Started Button
                     GoldButton(
@@ -198,150 +201,26 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-class SplashRings extends StatefulWidget {
+class SplashRings extends StatelessWidget {
   const SplashRings({super.key});
 
   @override
-  State<SplashRings> createState() => _SplashRingsState();
-}
-
-class _SplashRingsState extends State<SplashRings>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _ring1;
-  late Animation<double> _ring2;
-  late Animation<double> _ring3;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat();
-
-    _ring1 = Tween<double>(begin: 1.0, end: 1.6).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
-      ),
-    );
-
-    _ring2 = Tween<double>(begin: 1.0, end: 1.6).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
-      ),
-    );
-
-    _ring3 = Tween<double>(begin: 1.0, end: 1.6).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      height: 220,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Ring 3 (Outer, Color(0x08F5A623))
-          ScaleTransition(
-            scale: _ring3,
-            child: FadeTransition(
-              opacity: Tween<double>(begin: 1.0, end: 0.0).animate(
-                CurvedAnimation(
-                  parent: _controller,
-                  curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
-                ),
-              ),
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0x08F5A623), width: 1.5),
-                ),
-              ),
-            ),
+    return Center(
+      child: Container(
+        width: 104,
+        height: 104,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Image.asset(
+            'assets/logo/app_logo.png',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
           ),
-          
-          // Ring 2 (Middle, Color(0x15F5A623))
-          ScaleTransition(
-            scale: _ring2,
-            child: FadeTransition(
-              opacity: Tween<double>(begin: 1.0, end: 0.0).animate(
-                CurvedAnimation(
-                  parent: _controller,
-                  curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
-                ),
-              ),
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0x15F5A623), width: 1.5),
-                ),
-              ),
-            ),
-          ),
-          
-          // Ring 1 (Inner, Color(0x25F5A623))
-          ScaleTransition(
-            scale: _ring1,
-            child: FadeTransition(
-              opacity: Tween<double>(begin: 1.0, end: 0.0).animate(
-                CurvedAnimation(
-                  parent: _controller,
-                  curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
-                ),
-              ),
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0x25F5A623), width: 1.5),
-                ),
-              ),
-            ),
-          ),
-          
-          // Core scissors
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFF5A623).withValues(alpha: 0.1),
-              border: Border.all(
-                color: const Color(0xFFF5A623).withValues(alpha: 0.3),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-                  blurRadius: 24,
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Text('✂️', style: TextStyle(fontSize: 38)),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

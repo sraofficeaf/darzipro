@@ -54,44 +54,53 @@ class RemindersNotifier extends StateNotifier<List<ReminderModel>> {
   void updateReminders(List<OrderModel> orders) {
     final List<ReminderModel> list = [];
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
     for (final order in orders) {
       if (order.status == OrderStatus.delivered || order.status == OrderStatus.cancelled) {
         continue;
       }
 
-      // Rule 1: Delivery Due within 24 hours or past due
-      if (order.deliveryDate != null) {
-        final difference = order.deliveryDate!.difference(now).inHours;
-        if (difference <= 24) {
-          final isPastDue = order.deliveryDate!.isBefore(now) && 
-              !(order.deliveryDate!.year == now.year && order.deliveryDate!.month == now.month && order.deliveryDate!.day == now.day);
-          list.add(ReminderModel(
-            id: 'rem_due_${order.id}',
-            orderId: order.id,
-            customerName: order.customerName,
-            tokenNumber: order.tokenNumber,
-            message: isPastDue 
-                ? 'Delivery overdue! Delivery date was ${formatDateShort(order.deliveryDate!)}.'
-                : 'Delivery due soon! Delivery date is today/tomorrow.',
-            type: 'due',
-            createdAt: DateTime.now(),
-          ));
-        }
-      }
-
-      // Rule 2: Order pending/stitching too long
-      final daysInStatus = now.difference(order.orderDate).inDays;
-      if (daysInStatus >= 5 && (order.status == OrderStatus.pending || order.status == OrderStatus.cutting || order.status == OrderStatus.stitching)) {
+      // Ready for pickup (teal icon ✅, title "Ready: [CustomerName]", sub "Order T-XXXX")
+      if (order.status == OrderStatus.ready) {
         list.add(ReminderModel(
-          id: 'rem_delay_${order.id}',
+          id: 'rem_ready_${order.id}',
           orderId: order.id,
           customerName: order.customerName,
           tokenNumber: order.tokenNumber,
-          message: 'Order remains in ${order.status.label} status for $daysInStatus days.',
-          type: 'delayed',
+          message: 'Order ${order.tokenNumber}',
+          type: 'ready',
           createdAt: DateTime.now(),
         ));
+        continue;
+      }
+
+      // Overdue or Today delivery
+      if (order.deliveryDate != null) {
+        final deliveryDate = DateTime(order.deliveryDate!.year, order.deliveryDate!.month, order.deliveryDate!.day);
+        if (deliveryDate.isBefore(today)) {
+          // Overdue delivery (red icon 🚨, title "Overdue: [CustomerName]", sub "Was due [date]")
+          list.add(ReminderModel(
+            id: 'rem_overdue_${order.id}',
+            orderId: order.id,
+            customerName: order.customerName,
+            tokenNumber: order.tokenNumber,
+            message: 'Was due ${formatDateShort(order.deliveryDate!)}',
+            type: 'overdue',
+            createdAt: DateTime.now(),
+          ));
+        } else if (deliveryDate.isAtSameMomentAs(today)) {
+          // Delivery today (gold icon ⏰, title "Due Today: [CustomerName]")
+          list.add(ReminderModel(
+            id: 'rem_today_${order.id}',
+            orderId: order.id,
+            customerName: order.customerName,
+            tokenNumber: order.tokenNumber,
+            message: 'Due today',
+            type: 'today',
+            createdAt: DateTime.now(),
+          ));
+        }
       }
     }
 

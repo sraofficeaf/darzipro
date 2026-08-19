@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,11 @@ import '../../shared/providers/app_providers.dart';
 import '../../shared/providers/license_provider.dart';
 import '../../shared/providers/supabase_providers.dart';
 import '../../shared/providers/reminders_provider.dart';
+import '../../core/services/license/license_model.dart';
+import '../config/supabase_config.dart';
+import '../widgets/shared_widgets.dart';
+import '../theme/theme_extensions.dart';
+import '../../shared/widgets/dashboard_switcher.dart';
 
 class AppShell extends ConsumerWidget {
   final Widget child;
@@ -109,8 +115,6 @@ class _MobileShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     return Scaffold(
       body: Column(
@@ -145,178 +149,145 @@ class _MobileShell extends ConsumerWidget {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xE0091220) : const Color(0xEBFFFFFF),
-          border: Border(top: BorderSide(color: border, width: 1)),
+          color: context.surface,
+          border: Border(
+            top: BorderSide(
+              color: context.border, 
+              width: 1,
+            ),
+          ),
         ),
-        child: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Consumer(
+              builder: (context, ref, _) {
+                final orders = ref.watch(ordersProvider).valueOrNull ?? [];
+                final activeOrdersCount = orders.where((o) => o.status != OrderStatus.delivered && o.status != OrderStatus.cancelled).length;
+
+                return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _BottomNavItem(
-                      icon: Icons.home_outlined,
-                      activeIcon: Icons.home,
-                      label: context.translate('dashboard'),
+                      icon: Icons.home_rounded,
+                      label: 'Home',
                       isActive: currentSection == NavSection.dashboard,
                       onTap: () => _navigate(context, ref, NavSection.dashboard),
                     ),
                     _BottomNavItem(
-                      icon: Icons.people_outline,
-                      activeIcon: Icons.people,
-                      label: context.translate('clients'),
+                      icon: Icons.people_rounded,
+                      label: 'Clients',
                       isActive: currentSection == NavSection.clients,
                       onTap: () => _navigate(context, ref, NavSection.clients),
                     ),
                     _BottomNavItem(
-                      icon: Icons.assignment_outlined,
-                      activeIcon: Icons.assignment,
-                      label: context.translate('orders'),
+                      icon: Icons.receipt_long_rounded,
+                      label: 'Orders',
                       isActive: currentSection == NavSection.orders,
                       onTap: () => _navigate(context, ref, NavSection.orders),
+                      badgeCount: activeOrdersCount,
                     ),
                     _BottomNavItem(
-                      icon: Icons.analytics_outlined,
-                      activeIcon: Icons.analytics,
-                      label: context.translate('reports'),
-                      isActive: currentSection == NavSection.reports,
-                      onTap: () => _navigate(context, ref, NavSection.reports),
+                      icon: Icons.straighten_rounded,
+                      label: 'Naap',
+                      isActive: currentSection == NavSection.measurements,
+                      onTap: () => _navigate(context, ref, NavSection.measurements),
                     ),
                     _BottomNavItem(
-                      icon: Icons.person_outline,
-                      activeIcon: Icons.person,
-                      label: context.translate('profile'),
+                      icon: Icons.person_rounded,
+                      label: 'Profile',
                       isActive: currentSection == NavSection.profile,
                       onTap: () => _navigate(context, ref, NavSection.profile),
                     ),
                   ],
-                ),
-              ),
+                );
+              },
             ),
           ),
         ),
       ),
     );
   }
-
-  void _navigate(BuildContext context, WidgetRef ref, NavSection section) {
-    ref.read(navSectionProvider.notifier).state = section;
-    switch (section) {
-      case NavSection.dashboard:
-        context.go('/dashboard');
-        break;
-      case NavSection.clients:
-        context.go('/customers');
-        break;
-      case NavSection.orders:
-        context.go('/orders');
-        break;
-      case NavSection.measurements:
-        context.go('/measurements');
-        break;
-      case NavSection.reports:
-        context.go('/reports');
-        break;
-      case NavSection.profile:
-        context.go('/profile');
-        break;
-    }
-  }
 }
 
 class _BottomNavItem extends StatelessWidget {
   final IconData icon;
-  final IconData activeIcon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _BottomNavItem({
     required this.icon,
-    required this.activeIcon,
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentCol = isDark ? AppColors.accent : AppColors.accentL;
-    final color = isActive ? accentCol : (isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight);
+    final activeColor = context.accent;
+    final inactiveColor = context.text3;
+    final activeBgColor = context.accentBg;
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Stack(
-        alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 66,
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
             decoration: BoxDecoration(
-              color: isActive
-                  ? (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.65))
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: isActive
-                  ? Border.all(
-                      color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06),
-                      width: 1,
-                    )
-                  : Border.all(color: Colors.transparent, width: 1),
-              boxShadow: isActive ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                )
-              ] : null,
+              color: isActive ? activeBgColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 Icon(
-                  isActive ? activeIcon : icon,
-                  size: isActive ? 24 : 21,
-                  color: color,
+                  icon,
+                  size: 20,
+                  color: isActive ? activeColor : inactiveColor,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  label.toUpperCase(),
-                  style: GoogleFonts.inter(
-                    fontSize: 8.5,
-                    fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
-                    color: color,
-                    letterSpacing: 0.3,
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF3A58),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
               ],
             ),
           ),
-          if (isActive)
-            Positioned(
-              bottom: 2,
-              child: Container(
-                width: 16,
-                height: 2.5,
-                decoration: BoxDecoration(
-                  color: accentCol,
-                  borderRadius: BorderRadius.circular(1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accentCol,
-                      blurRadius: 4,
-                    )
-                  ],
-                ),
-              ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+              color: isActive ? activeColor : inactiveColor,
             ),
+          ),
         ],
       ),
     );
@@ -330,18 +301,39 @@ class _Sidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentCol = isDark ? AppColors.accent : AppColors.accentL;
     final routeState = GoRouterState.of(context);
     final isTokenCardActive = routeState.uri.path.startsWith('/token-card');
 
+    final customers = ref.watch(customersProvider).valueOrNull ?? [];
+    final orders = ref.watch(ordersProvider).valueOrNull ?? [];
+    final activeOrdersCount = orders.where((o) => o.status != OrderStatus.delivered && o.status != OrderStatus.cancelled).length;
+
+    final reminders = ref.watch(remindersProvider);
+    final unreadRemindersCount = reminders.where((r) => !r.isRead).length;
+
+    final license = ref.watch(licenseProvider);
+
+    final shopAsync = ref.watch(currentShopProvider);
+    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
+    final logoUrl = shopAsync.value?['logo_url'] as String?;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
-      width: 256,
+      width: 240,
+      height: double.infinity,
       decoration: BoxDecoration(
-        color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
+        gradient: isDark
+            ? const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF0A1428), Color(0xFF08101E)],
+              )
+            : null,
+        color: isDark ? null : AppColors.lightSurface,
         border: Border(
           right: BorderSide(
-            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+            color: context.border,
             width: 1,
           ),
         ),
@@ -349,53 +341,66 @@ class _Sidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Brand header
+          // Brand Header
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 14),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06),
+                  color: context.border,
+                  width: 1,
                 ),
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [const Color(0xFFC8841A), accentCol],
-                    ),
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Center(
-                    child: Text('✂️', style: TextStyle(fontSize: 18)),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: logoUrl != null && logoUrl.isNotEmpty
+                        ? Image.network(
+                            logoUrl.startsWith('http') || logoUrl.startsWith('assets')
+                                ? logoUrl
+                                : '${SupabaseConfig.shopLogosUrl}/$logoUrl',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Image.asset(
+                              'assets/logo/app_logo.png',
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          )
+                        : Image.asset(
+                            'assets/logo/app_logo.png',
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 11),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Darzi Pro',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        letterSpacing: 0.3,
+                        fontWeight: FontWeight.w900,
+                        color: context.text1,
                       ),
                     ),
                     Text(
                       'TAILOR SUITE',
                       style: GoogleFonts.inter(
-                        fontSize: 9.5,
-                        color: isDark ? Colors.white.withValues(alpha: 0.4) : const Color(0xFF64748B),
-                        letterSpacing: 1.2,
+                        fontSize: 9,
                         fontWeight: FontWeight.w700,
+                        color: context.text3,
+                        letterSpacing: 1.5,
                       ),
                     ),
                   ],
@@ -407,143 +412,93 @@ class _Sidebar extends ConsumerWidget {
           // Scrollable nav items
           Expanded(
             child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SidebarSection(context.translate('shop_profile')),
-                  _SidebarNavItem(
-                    emoji: '🏠',
+                  _buildSectionLabel(context, 'SHOP PROFILE'),
+                  _NavItem(
+                    icon: Icons.dashboard_rounded,
                     label: context.translate('dashboard'),
                     isActive: currentSection == NavSection.dashboard && !isTokenCardActive,
                     onTap: () => _navigate(context, ref, NavSection.dashboard),
                   ),
-                  _SidebarNavItem(
-                    emoji: '👥',
+                  _NavItem(
+                    icon: Icons.people_rounded,
                     label: context.translate('clients'),
                     isActive: currentSection == NavSection.clients && !isTokenCardActive,
-                    badge: '48',
-                    badgeGold: true,
+                    badgeText: customers.length.toString(),
+                    badgeType: 'gold',
                     onTap: () => _navigate(context, ref, NavSection.clients),
                   ),
-                  _SidebarNavItem(
-                    emoji: '📋',
+                  _NavItem(
+                    icon: Icons.receipt_long_rounded,
                     label: context.translate('orders'),
                     isActive: currentSection == NavSection.orders && !isTokenCardActive,
-                    badge: '5',
+                    badgeText: activeOrdersCount.toString(),
+                    badgeType: 'red',
                     onTap: () => _navigate(context, ref, NavSection.orders),
                   ),
-                  _SidebarNavItem(
-                    emoji: '📏',
+                  _NavItem(
+                    icon: Icons.straighten_rounded,
                     label: context.translate('measurements'),
                     isActive: currentSection == NavSection.measurements && !isTokenCardActive,
                     onTap: () => _navigate(context, ref, NavSection.measurements),
                   ),
-                  _SidebarNavItem(
-                    emoji: '🎫',
+                  _NavItem(
+                    icon: Icons.badge_rounded,
                     label: 'Token Card',
                     isActive: isTokenCardActive,
                     onTap: () {
                       context.go('/token-card');
                     },
                   ),
-                  _SidebarNavItem(
-                    emoji: '📈',
+                  _NavItem(
+                    icon: Icons.bar_chart_rounded,
                     label: context.translate('reports'),
                     isActive: currentSection == NavSection.reports && !isTokenCardActive,
                     onTap: () => _navigate(context, ref, NavSection.reports),
                   ),
 
-                  // System nav
-                  _SidebarSection(context.translate('appearance')),
-                  _SidebarNavItem(
-                    emoji: '👤',
+                  _buildSectionLabel(context, 'APPEARANCE'),
+                  _NavItem(
+                    icon: Icons.person_rounded,
                     label: context.translate('profile'),
                     isActive: currentSection == NavSection.profile,
                     onTap: () => _navigate(context, ref, NavSection.profile),
                   ),
-                  _SidebarNavItem(
-                    emoji: '🔔',
+                  _NavItem(
+                    icon: Icons.notifications_rounded,
                     label: 'Reminders',
-                    isActive: false,
-                    badge: '3',
-                    onTap: () {},
-                  ),
-                  _SidebarNavItem(
-                    emoji: '⚙️',
-                    label: context.translate('settings'),
-                    isActive: false,
-                    onTap: () => context.push('/settings'),
+                    isActive: currentSection == NavSection.reminders,
+                    badgeText: unreadRemindersCount.toString(),
+                    badgeType: 'red',
+                    onTap: () => _navigate(context, ref, NavSection.reminders),
                   ),
                 ],
               ),
             ),
           ),
 
-          // User info footer
+          // Bottom section
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
-                  color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06),
+                  color: isDark ? const Color(0x0DFFFFFF) : const Color(0x1A000000),
+                  width: 1,
                 ),
               ),
             ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppColors.accentDark, accentCol],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        'S',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1A0F00),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SaifurRahman Tailors',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          'Owner · Peshawar',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            color: isDark ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPlanCard(context, license),
+                const SizedBox(height: 8),
+                _buildShopUserRow(context, shopName),
+              ],
             ),
           ),
         ],
@@ -551,154 +506,425 @@ class _Sidebar extends ConsumerWidget {
     );
   }
 
-  void _navigate(BuildContext context, WidgetRef ref, NavSection section) {
-    ref.read(navSectionProvider.notifier).state = section;
-    switch (section) {
-      case NavSection.dashboard:
-        context.go('/dashboard');
-        break;
-      case NavSection.clients:
-        context.go('/customers');
-        break;
-      case NavSection.orders:
-        context.go('/orders');
-        break;
-      case NavSection.measurements:
-        context.go('/measurements');
-        break;
-      case NavSection.reports:
-        context.go('/reports');
-        break;
-      case NavSection.profile:
-        context.go('/profile');
-        break;
-    }
-  }
-}
-
-class _SidebarSection extends StatelessWidget {
-  final String label;
-  const _SidebarSection(this.label);
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSectionLabel(BuildContext context, String label) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 4),
+    return Container(
+      margin: const EdgeInsets.only(top: 14, bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Text(
         label,
         style: GoogleFonts.inter(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          letterSpacing: 1.5,
-          color: isDark ? Colors.white.withValues(alpha: 0.25) : const Color(0xFF94A3B8),
+          color: isDark ? const Color(0xFF2A3E58) : const Color(0xFF94A3B8),
+          letterSpacing: 1.8,
         ),
       ),
     );
   }
+
+  Widget _buildPlanCard(BuildContext context, LicenseModel license) {
+    final isPro = license.isPro || license.isBusiness;
+    final daysRemaining = license.daysRemaining;
+    final expiryDate = license.expiresAt;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0x0FF5A623) : AppColors.lightAccentBg,
+        border: Border.all(
+          color: isDark ? const Color(0x26F5A623) : AppColors.lightAccentBorder, 
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isPro) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+                    border: Border.all(color: isDark ? const Color(0x3310CBA0) : const Color(0xFF059669).withValues(alpha: 0.3), width: 1),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    '✓ PRO PLAN',
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669),
+                    ),
+                  ),
+                ),
+                Text(
+                  '$daysRemaining Days Left',
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    color: isDark ? const Color(0xFF5A7090) : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Progress bar
+            Container(
+              height: 3,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: (daysRemaining / 30).clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+                    ),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (expiryDate != null)
+              RichText(
+                text: TextSpan(
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8),
+                  ),
+                  children: [
+                    const TextSpan(text: 'Renew before '),
+                    TextSpan(
+                      text: '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ] else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0x1AF5A623) : const Color(0xFFFFF8EE),
+                    border: Border.all(color: isDark ? const Color(0x33F5A623) : const Color(0xFFD97706).withValues(alpha: 0.3), width: 1),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    'FREE PLAN',
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => context.push('/upgrade'),
+                  child: Text(
+                    'Upgrade →',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShopUserRow(BuildContext context, String shopName) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? const [Color(0xFFD97706), Color(0xFFF5A623)]
+                  : const [Color(0xFFD97706), Color(0xFFD97706)],
+            ),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Center(
+            child: Text(
+              getInitials(shopName),
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isDark ? const Color(0xFF1A0A00) : const Color(0xFFFFFFFF),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                shopName,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF8AA0B8) : context.text2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                'Owner · Peshawar',
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  color: isDark ? const Color(0xFF3D5470) : context.text3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 7,
+          height: 7,
+          decoration: const BoxDecoration(
+            color: Color(0xFF10CBA0),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x8010CBA0),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _SidebarNavItem extends StatelessWidget {
-  final String emoji;
+String getInitials(String name) {
+  final parts = name.trim().split(' ');
+  if (parts.length >= 2) {
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+  return name.isNotEmpty ? name[0].toUpperCase() : '?';
+}
+
+void _navigate(BuildContext context, WidgetRef ref, NavSection section) {
+  ref.read(navSectionProvider.notifier).state = section;
+  switch (section) {
+    case NavSection.dashboard:
+      context.go('/dashboard');
+      break;
+    case NavSection.clients:
+      context.go('/customers');
+      break;
+    case NavSection.orders:
+      context.go('/orders');
+      break;
+    case NavSection.measurements:
+      context.go('/measurements');
+      break;
+    case NavSection.reports:
+      context.go('/reports');
+      break;
+    case NavSection.profile:
+      context.go('/profile');
+      break;
+    case NavSection.reminders:
+      context.go('/reminders');
+      break;
+  }
+}
+
+class _NavItem extends StatefulWidget {
+  final IconData icon;
   final String label;
   final bool isActive;
-  final String? badge;
-  final bool badgeGold;
+  final String? badgeText;
+  final String? badgeType;
   final VoidCallback onTap;
 
-  const _SidebarNavItem({
-    required this.emoji,
+  const _NavItem({
+    required this.icon,
     required this.label,
     required this.isActive,
-    this.badge,
-    this.badgeGold = false,
+    this.badgeText,
+    this.badgeType,
     required this.onTap,
   });
 
   @override
+  State<_NavItem> createState() => _NavItemState();
+}
+
+class _NavItemState extends State<_NavItem> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentCol = isDark ? AppColors.accent : AppColors.accentL;
-    final activeBg = isDark ? AppColors.accentS : const Color(0xFFFFF8EE);
-    final activeText = isDark ? accentCol : const Color(0xFFD97706);
-    final inactiveText = isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF4A5568);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? activeBg
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    child: Center(
-                      child: Text(emoji, style: const TextStyle(fontSize: 16)),
-                    ),
+    final activeBg = isDark ? const Color(0x1AF5A623) : AppColors.lightAccentBg;
+    final activeBorder = isDark ? const Color(0x26F5A623) : AppColors.lightAccentBorder;
+    final activeIconColor = isDark ? const Color(0xFFF5A623) : AppColors.lightAccent;
+    final activeLabelColor = isDark ? const Color(0xFFF5A623) : AppColors.lightAccent;
+
+    final inactiveBg = _isHovered 
+        ? (isDark ? const Color(0x08FFFFFF) : AppColors.lightSurfaceHover) 
+        : Colors.transparent;
+    final inactiveBorder = Colors.transparent;
+    final inactiveIconColor = isDark ? const Color(0xFF5A7090) : context.text2;
+    final inactiveLabelColor = isDark
+        ? (_isHovered ? const Color(0xFF8AA0B8) : const Color(0xFF5A7090))
+        : context.text2;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 2),
+          child: Stack(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                decoration: BoxDecoration(
+                  color: widget.isActive ? activeBg : inactiveBg,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: widget.isActive ? activeBorder : inactiveBorder,
+                    width: 1,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                        color: isActive
-                            ? activeText
-                            : inactiveText,
-                      ),
-                    ),
-                  ),
-                  if (badge != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                ),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
-                        color: badgeGold ? accentCol : AppColors.red,
-                        borderRadius: BorderRadius.circular(20),
+                        color: widget.isActive 
+                            ? (isDark ? const Color(0x26F5A623) : AppColors.lightAccentBg) 
+                            : (isDark ? const Color(0x0AFFFFFF) : AppColors.lightSurface2),
+                        border: widget.isActive 
+                            ? Border.all(color: isDark ? const Color(0x33F5A623) : AppColors.lightAccentBorder, width: 1)
+                            : null,
+                        borderRadius: BorderRadius.circular(9),
                       ),
-                      child: Text(
-                        badge!,
-                        style: GoogleFonts.inter(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: badgeGold ? const Color(0xFF1A0F00) : Colors.white,
+                      child: Center(
+                        child: Icon(
+                          widget.icon,
+                          size: 18,
+                          color: widget.isActive ? activeIconColor : inactiveIconColor,
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            if (isActive)
-              Positioned(
-                left: 0,
-                top: 10,
-                bottom: 10,
-                child: Container(
-                  width: 3,
-                  decoration: BoxDecoration(
-                    color: accentCol,
-                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(3)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accentCol,
-                        blurRadius: 8,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.label,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: widget.isActive ? activeLabelColor : inactiveLabelColor,
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                    if (widget.badgeText != null && widget.badgeText!.isNotEmpty && widget.badgeText != '0')
+                      _buildBadge(widget.badgeText!, widget.badgeType),
+                  ],
                 ),
               ),
-          ],
+              if (widget.isActive)
+                Positioned(
+                  left: 0,
+                  top: 6,
+                  bottom: 6,
+                  child: Container(
+                    width: 3,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? const [Color(0xFFF5A623), Color(0xFFD97706)]
+                            : const [Color(0xFFD97706), Color(0xFFD97706)],
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(2),
+                        bottomRight: Radius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadge(String text, String? type) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Color bg;
+    Color color;
+    Color border;
+
+    if (type == 'gold') {
+      bg = isDark ? const Color(0x1AF5A623) : const Color(0xFFFFF8EE);
+      color = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
+      border = isDark ? const Color(0x33F5A623) : const Color(0xFFD97706).withValues(alpha: 0.3);
+    } else if (type == 'red') {
+      bg = isDark ? const Color(0x1AFF3A58) : const Color(0xFFFEF2F2);
+      color = isDark ? const Color(0xFFFF3A58) : const Color(0xFFDC2626);
+      border = isDark ? const Color(0x33FF3A58) : const Color(0xFFDC2626).withValues(alpha: 0.3);
+    } else {
+      bg = isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5);
+      color = isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669);
+      border = isDark ? const Color(0x3310CBA0) : const Color(0xFF059669).withValues(alpha: 0.3);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border.all(color: border, width: 1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
       ),
     );
@@ -776,7 +1002,7 @@ void _showNotificationsDialog(BuildContext context, WidgetRef ref) {
                         ],
                       ),
                     ),
-                    const Divider(height: 1, color: Colors.white12),
+                    Divider(height: 1, color: border),
                     if (unreadReminders.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 40),
@@ -809,7 +1035,7 @@ void _showNotificationsDialog(BuildContext context, WidgetRef ref) {
                             return Container(
                               margin: const EdgeInsets.only(bottom: 6),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.03),
+                                color: isDark ? Colors.white.withValues(alpha: 0.03) : context.surface2,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: border),
                               ),
@@ -918,6 +1144,7 @@ class _TopBarState extends ConsumerState<_TopBar> {
   final LayerLink _layerLink = LayerLink();
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  bool _isFocused = false;
 
   @override
   void initState() {
@@ -926,6 +1153,9 @@ class _TopBarState extends ConsumerState<_TopBar> {
   }
 
   void _onFocusChange() {
+    setState(() {
+      _isFocused = _focusNode.hasFocus;
+    });
     if (_focusNode.hasFocus) {
       if (_controller.text.isNotEmpty) {
         _showOverlay();
@@ -944,11 +1174,11 @@ class _TopBarState extends ConsumerState<_TopBar> {
     _overlayEntry = OverlayEntry(
       builder: (context) {
         return Positioned(
-          width: 260,
+          width: 280,
           child: CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
-            offset: const Offset(0, 40),
+            offset: const Offset(0, 42),
             child: Material(
               elevation: 8,
               borderRadius: BorderRadius.circular(12),
@@ -1097,214 +1327,259 @@ class _TopBarState extends ConsumerState<_TopBar> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surf = isDark ? AppColors.surfDark : AppColors.surfLight;
-    final bg2 = isDark ? AppColors.bg2Dark : AppColors.bg2Light;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final t1 = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final t3 = isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight;
-
-    final reminders = ref.watch(remindersProvider);
-    final hasUnread = reminders.any((r) => !r.isRead);
-
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: surf,
-        border: Border(bottom: BorderSide(color: border)),
-      ),
-      child: Row(
-        children: [
-          Text(
-            widget.currentSection == NavSection.dashboard
-                ? context.translate('dashboard')
-                : widget.currentSection == NavSection.clients
-                    ? context.translate('clients')
-                    : widget.currentSection == NavSection.orders
-                        ? context.translate('orders')
-                        : widget.currentSection == NavSection.measurements
-                            ? context.translate('measurements')
-                            : widget.currentSection == NavSection.profile
-                                ? context.translate('profile')
-                                : context.translate('reports'),
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: t1,
-            ),
-          ),
-          const Spacer(),
-          // Search bar
-          CompositedTransformTarget(
-            link: _layerLink,
-            child: Container(
-              width: 260,
-              height: 36,
-              decoration: BoxDecoration(
-                color: bg2,
-                border: Border.all(color: border),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 12),
-                  Text('🔍', style: TextStyle(fontSize: 14, color: t3)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      onChanged: (val) {
-                        if (val.isNotEmpty) {
-                          _showOverlay();
-                        } else {
-                          _hideOverlay();
-                        }
-                      },
-                      style: GoogleFonts.inter(fontSize: 12.5, color: t1),
-                      decoration: InputDecoration(
-                        hintText: 'Search customer, order, token…',
-                        hintStyle: GoogleFonts.inter(fontSize: 12.5, color: t3),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Print button
-          _TopBarIconButton(
-            emoji: '🖨️',
-            onTap: () {
-              final selectedOrderId = ref.read(selectedOrderIdProvider);
-              if (selectedOrderId != null) {
-                context.push('/print/$selectedOrderId');
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Pehle ek order select karein! / Please select an order first!',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                    ),
-                    backgroundColor: AppColors.accent,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(width: 8),
-          // Notification button
-          _TopBarIconButton(
-            emoji: '🔔',
-            hasNotif: hasUnread,
-            onTap: () => _showNotificationsDialog(context, ref),
-          ),
-          const SizedBox(width: 8),
-          // Theme toggle
-          _TopBarIconButton(
-            emoji: isDark ? '☀️' : '🌙',
-            onTap: () {
-              ref.read(themeModeProvider.notifier).state =
-                  isDark ? ThemeMode.light : ThemeMode.dark;
-            },
-          ),
-          const SizedBox(width: 12),
-          // User Avatar showing shop name on hover
-          Consumer(
-            builder: (context, ref, _) {
-              final shopAsync = ref.watch(currentShopProvider);
-              final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
-              final logoUrl = shopAsync.value?['logo_url'] as String?;
-              
-              return Tooltip(
-                message: shopName,
-                child: GestureDetector(
-                  onTap: () => context.push('/profile'),
-                  child: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: AppColors.accent,
-                    backgroundImage: logoUrl != null && logoUrl.isNotEmpty
-                        ? NetworkImage(logoUrl.startsWith('http') || logoUrl.startsWith('assets')
-                            ? logoUrl
-                            : 'https://ztxrkijwfnegvquoblne.supabase.co/storage/v1/object/public/shop-logos/$logoUrl')
-                        : null,
-                    child: logoUrl == null || logoUrl.isEmpty
-                        ? Text(
-                            shopName.isNotEmpty ? shopName[0].toUpperCase() : 'S',
-                            style: const TextStyle(
-                              color: Color(0xFF1A0F00),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TopBarIconButton extends StatelessWidget {
-  final String emoji;
-  final bool hasNotif;
-  final VoidCallback onTap;
-
-  const _TopBarIconButton({
-    required this.emoji,
-    this.hasNotif = false,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg2 = isDark ? AppColors.bg2Dark : AppColors.bg2Light;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
-
+  Widget _buildTopBarIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool hasBadge = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: bg2,
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(8),
+          color: context.surface2,
+          shape: BoxShape.circle,
         ),
         child: Stack(
+          alignment: Alignment.center,
           children: [
-            Center(child: Text(emoji, style: const TextStyle(fontSize: 15))),
-            if (hasNotif)
+            Icon(
+              icon,
+              color: context.text2,
+              size: 18,
+            ),
+            if (hasBadge)
               Positioned(
-                top: 7,
-                right: 7,
+                top: 8,
+                right: 8,
                 child: Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: AppColors.red,
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF3A58),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isDark ? AppColors.surfDark : AppColors.surfLight,
-                      width: 1.5,
-                    ),
                   ),
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final reminders = ref.watch(remindersProvider);
+    final hasUnread = reminders.any((r) => !r.isRead);
+    final shopAsync = ref.watch(currentShopProvider);
+    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
+
+    String titleText = '';
+    switch (widget.currentSection) {
+      case NavSection.dashboard:
+        titleText = context.translate('dashboard');
+        break;
+      case NavSection.clients:
+        titleText = context.translate('clients');
+        break;
+      case NavSection.orders:
+        titleText = context.translate('orders');
+        break;
+      case NavSection.measurements:
+        titleText = context.translate('measurements');
+        break;
+      case NavSection.reports:
+        titleText = context.translate('reports');
+        break;
+      case NavSection.profile:
+        titleText = context.translate('profile');
+        break;
+      case NavSection.reminders:
+        titleText = 'Reminders';
+        break;
+    }
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          height: 58,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: context.surface.withValues(alpha: 0.8),
+            border: Border(
+              bottom: BorderSide(
+                color: context.border,
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Text(
+                titleText,
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: context.text1,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Flexible(
+                child: CompositedTransformTarget(
+                  link: _layerLink,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _isFocused 
+                          ? context.accentBg
+                          : context.surface2,
+                      border: Border.all(
+                        color: _isFocused 
+                            ? context.accent 
+                            : context.border,
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          color: context.text3,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            onChanged: (val) {
+                              if (val.isNotEmpty) {
+                                _showOverlay();
+                              } else {
+                                _hideOverlay();
+                              }
+                            },
+                            style: GoogleFonts.inter(
+                              fontSize: 12, 
+                              color: context.text1,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search...',
+                              hintStyle: GoogleFonts.inter(
+                                fontSize: 12, 
+                                color: context.text3,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Row(
+
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Green Dollar Earn Button ──
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      context.go('/invite-earn');
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+                        border: Border.all(
+                          color: isDark ? const Color(0x3310CBA0) : const Color(0x4010CBA0),
+                          width: 1.1,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.monetization_on_rounded,
+                          size: 19,
+                          color: Color(0xFF10CBA0),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  _buildTopBarIconButton(
+                    icon: Icons.print_rounded,
+                    onTap: () {
+                      final selectedOrderId = ref.read(selectedOrderIdProvider);
+                      if (selectedOrderId != null) {
+                        context.push('/print/$selectedOrderId');
+                      } else {
+                        showAppSnackBar(
+                          context: context,
+                          message: 'Pehle ek order select karein! / Please select an order first!',
+                          isError: true,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  _buildTopBarIconButton(
+                    icon: Icons.notifications_rounded,
+                    hasBadge: hasUnread,
+                    onTap: () => _showNotificationsDialog(context, ref),
+                  ),
+                  const SizedBox(width: 4),
+                  _buildTopBarIconButton(
+                    icon: Icons.settings_rounded,
+                    onTap: () => context.push('/profile'),
+                  ),
+                  const SizedBox(width: 10),
+                  // ── Unified Dashboard Switcher ────────────────
+                  const DashboardSwitcherDropdown(
+                    currentMode: DashboardMode.shop,
+                    compact: false,
+                  ),
+
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => context.push('/profile'),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFD97706), Color(0xFFF5A623)],
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          getInitials(shopName),
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1A0A00),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1523,9 +1798,9 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
     if (_isSearching) {
       return Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xE0060C18) : const Color(0xEBFFFFFF),
+          color: context.surface.withValues(alpha: 0.94),
           border: Border(
-            bottom: BorderSide(color: border, width: 1.2),
+            bottom: BorderSide(color: border, width: 1.0),
           ),
         ),
         child: ClipRect(
@@ -1534,7 +1809,7 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -1543,14 +1818,14 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
                         child: Container(
                           height: 38,
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfDark : AppColors.surfLight,
+                            color: context.surface2,
                             border: Border.all(color: border),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
                             children: [
-                              const SizedBox(width: 12),
-                              const Text('🔍', style: TextStyle(fontSize: 14)),
+                              const SizedBox(width: 10),
+                              Icon(Icons.search_rounded, size: 17, color: context.text2),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: TextField(
@@ -1579,7 +1854,7 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     GestureDetector(
                       onTap: () {
                         _controller.clear();
@@ -1589,12 +1864,15 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
                           _isSearching = false;
                         });
                       },
-                      child: Text(
-                        'Cancel',
-                        style: GoogleFonts.inter(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? AppColors.accent : AppColors.accentL,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.bold,
+                            color: context.accent,
+                          ),
                         ),
                       ),
                     ),
@@ -1607,33 +1885,18 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
       );
     }
 
-    String subtitle;
-    switch (widget.currentSection) {
-      case NavSection.dashboard:
-        subtitle = 'SaifurRahman Tailors';
-        break;
-      case NavSection.clients:
-        subtitle = 'All Clients';
-        break;
-      case NavSection.orders:
-        subtitle = 'Pipeline';
-        break;
-      case NavSection.measurements:
-        subtitle = 'Size Charts';
-        break;
-      case NavSection.reports:
-        subtitle = 'Analytics';
-        break;
-      case NavSection.profile:
-        subtitle = 'Settings & Profile';
-        break;
-    }
+
+    final profile = ref.watch(profileProvider);
+    final shop = ref.watch(currentShopProvider).value;
+    final ownerName = (shop?['owner_name'] as String?)?.trim().isNotEmpty == true
+        ? shop!['owner_name'] as String
+        : (profile.value?['full_name'] as String? ?? 'Saifur Rahman');
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xE0060C18) : const Color(0xEBFFFFFF),
+        color: context.surface.withValues(alpha: 0.94),
         border: Border(
-          bottom: BorderSide(color: border, width: 1.2),
+          bottom: BorderSide(color: border, width: 1.0),
         ),
       ),
       child: ClipRect(
@@ -1642,42 +1905,99 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
           child: SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Title and Subtitle
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // ── Left: Official Logo + Title + Owner Name Subtitle ──
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Darzi Pro',
-                        style: GoogleFonts.outfit(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: t1,
-                          letterSpacing: -0.3,
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.asset(
+                            'assets/logo/app_logo.png',
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: t3,
-                          letterSpacing: 0.3,
-                        ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Darzi Pro',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: t1,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          Text(
+                            ownerName,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: context.accent,
+                              letterSpacing: 0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ],
                   ),
 
-                  // Action Buttons
+                  // ── Right: Action Buttons Row ──
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Search Button
+                      // ── Green Dollar Earn Dashboard Button ──
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          context.go('/invite-earn');
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+                            border: Border.all(
+                              color: isDark ? const Color(0x3310CBA0) : const Color(0x4010CBA0),
+                              width: 1.1,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF10CBA0).withValues(alpha: isDark ? 0.15 : 0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.monetization_on_rounded,
+                              size: 19,
+                              color: Color(0xFF10CBA0),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+
+                      // Search Button (Professional Squircle)
                       GestureDetector(
                         onTap: () {
                           setState(() {
@@ -1685,51 +2005,70 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
                           });
                         },
                         child: Container(
-                          width: 38,
-                          height: 38,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfDark : AppColors.surfLight,
+                            color: context.surface2,
                             border: Border.all(color: border),
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Center(
-                            child: Text('🔍', style: TextStyle(fontSize: 16)),
+                          child: Center(
+                            child: Icon(
+                              Icons.search_rounded,
+                              size: 18,
+                              color: context.text2,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 7),
 
-                      // Notifications Button
+                      // Notifications Button with Pulsing Badge
                       GestureDetector(
                         onTap: () => _showNotificationsDialog(context, ref),
                         child: Stack(
+                          clipBehavior: Clip.none,
                           children: [
                             Container(
-                              width: 38,
-                              height: 38,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                color: isDark ? AppColors.surfDark : AppColors.surfLight,
+                                color: context.surface2,
                                 border: Border.all(color: border),
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Center(
-                                child: Text('🔔', style: TextStyle(fontSize: 16)),
+                              child: Center(
+                                child: Icon(
+                                  hasUnread
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.notifications_outlined,
+                                  size: 18,
+                                  color: hasUnread
+                                      ? const Color(0xFFF5A623)
+                                      : context.text2,
+                                ),
                               ),
                             ),
                             if (hasUnread)
                               Positioned(
-                                top: 2,
-                                right: 2,
+                                top: -2,
+                                right: -2,
                                 child: Container(
-                                  width: 8,
-                                  height: 8,
+                                  width: 9,
+                                  height: 9,
                                   decoration: BoxDecoration(
-                                    color: AppColors.red,
+                                    color: const Color(0xFFFF3A58),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: isDark ? AppColors.bgDark : AppColors.bgLight,
+                                      color: context.surface,
                                       width: 1.5,
                                     ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x66FF3A58),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),

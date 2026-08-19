@@ -1,38 +1,114 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/widgets/shared_widgets.dart';
+import '../../shared/providers/admin_providers.dart';
+import '../../shared/widgets/pro_field.dart';
 
-class LoginScreen extends StatefulWidget {
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:local_auth/local_auth.dart' show BiometricType;
+import '../../core/services/biometric_service.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   bool _obscure = true;
-  String _selectedLang = 'English';
   bool _isLoggingIn = false;
-  
-  final _emailController = TextEditingController(text: 'test@darzipro.com');
-  final _passwordController = TextEditingController(text: 'password');
+
+  final _emailController = TextEditingController(text: '');
+  final _passwordController = TextEditingController(text: '');
 
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
 
+  late AnimationController _animController;
+  late Animation<double> _logoScaleAnim;
+  late Animation<double> _logoFadeAnim;
+  late Animation<double> _titleFadeAnim;
+  late Animation<Offset> _titleSlideAnim;
+  late Animation<double> _cardFadeAnim;
+  late Animation<Offset> _cardSlideAnim;
+  late Animation<double> _bannerFadeAnim;
+  late Animation<Offset> _bannerSlideAnim;
+
   @override
   void initState() {
     super.initState();
-    _emailFocusNode.addListener(() => setState(() {}));
-    _passwordFocusNode.addListener(() => setState(() {}));
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+
+
+    // 1. Logo pop & scale (0.0 to 0.45)
+    _logoScaleAnim = Tween<double>(begin: 0.65, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animController,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
+
+      ),
+    );
+    _logoFadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+    );
+
+    // 2. App Name & Subtitle slide down (0.18 to 0.60)
+    _titleFadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.18, 0.55, curve: Curves.easeOut),
+    );
+    _titleSlideAnim = Tween<Offset>(
+      begin: const Offset(0, -0.25),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.18, 0.60, curve: Curves.easeOutCubic),
+    ));
+
+    // 3. Main Card slide up & scale (0.35 to 0.85)
+    _cardFadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.35, 0.80, curve: Curves.easeOut),
+    );
+    _cardSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.14),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic),
+    ));
+
+    // 4. Register Banner slide up (0.55 to 1.0)
+    _bannerFadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.55, 0.95, curve: Curves.easeOut),
+    );
+    _bannerSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.18),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
+    ));
+
+    _animController.forward();
   }
+
 
   @override
   void dispose() {
+    _animController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _emailFocusNode.dispose();
@@ -41,13 +117,133 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    HapticFeedback.lightImpact();
     setState(() => _isLoggingIn = true);
     try {
       final email = _emailController.text.trim();
-      final password = _passwordController.text.trim();
-      
-      await Supabase.instance.client.auth.signInWithPassword(
+      // SECURITY: Do not trim passwords — spaces can be valid characters
+      final password = _passwordController.text;
+
+      if (email.isEmpty || password.isEmpty) {
+        throw Exception('Please enter email/phone and password');
+      }
+
+      // ── Step 1: Authenticate with Supabase Auth ──────────────────────────
+      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = authResponse.user;
+      if (user == null) {
+        throw Exception('Invalid login response from authentication server.');
+      }
+
+      // ── Step 2: Dynamic Admin Check (Database-driven via admin_users) ─────
+      bool isAdminLoggedIn = false;
+      try {
+        final adminUser = await Supabase.instance.client
+            .from('admin_users')
+            .select('id, name, email, role')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (adminUser != null) {
+          final adminName = (adminUser['name'] as String?) ?? 'Super Admin';
+          ref.read(adminAuthProvider.notifier).setLoggedInAdmin(
+                email: email,
+                name: adminName,
+              );
+          isAdminLoggedIn = true;
+        }
+      } catch (adminErr) {
+        debugPrint('Dynamic admin verification error: $adminErr');
+      }
+
+      if (isAdminLoggedIn) {
+        if (mounted) {
+          context.go('/admin');
+        }
+        return;
+      }
+
+      // Fast single-pass platform check
+      try {
+        final profileData = await Supabase.instance.client
+            .from('profiles')
+            .select('shop_id, role, shops(invite_level_unlocked, status), licenses(plan)')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (profileData != null) {
+          final role = (profileData['role'] as String?) ?? 'owner';
+
+          if (role != 'super_admin' && role != 'admin') {
+            final shopData = profileData['shops'] as Map<String, dynamic>?;
+            final shopStatus = shopData?['status'] as String?;
+            final levelUnlocked = (shopData?['invite_level_unlocked'] as int?) ?? 1;
+
+            if (shopStatus == 'deleted') {
+              await Supabase.instance.client.auth.signOut();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'This account has been deleted and cannot be accessed.',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        fontSize: 13,
+                      ),
+                    ),
+                    backgroundColor: const Color(0xFFFF3A58),
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.all(16),
+                  ),
+                );
+              }
+              return;
+            }
+
+            String platform = 'web';
+            if (kIsWeb) {
+              platform = 'web';
+            } else if (Platform.isAndroid) {
+              platform = 'android';
+            } else if (Platform.isIOS) {
+              platform = 'ios';
+            } else if (Platform.isWindows) {
+              platform = 'windows';
+            } else if (Platform.isMacOS) {
+              platform = 'macos';
+            } else if (Platform.isLinux) {
+              platform = 'linux';
+            }
+
+            final licsList = profileData['licenses'] as List?;
+            final String plan = licsList != null && licsList.isNotEmpty
+                ? ((licsList.first as Map)['plan'] as String? ?? '').toLowerCase()
+                : '';
+
+            bool isBlocked = false;
+            if (platform == 'windows' || platform == 'web' || platform == 'macos' || platform == 'linux') {
+              if (plan == 'mobile_only' || (levelUnlocked == 1 && plan != 'full_access' && plan != 'full_access_3yr')) {
+                isBlocked = true;
+              }
+            }
+
+            if (isBlocked) {
+              await Supabase.instance.client.auth.signOut();
+              if (mounted) context.go('/platform-blocked');
+              return;
+            }
+          }
+        }
+      } catch (platformErr) {
+        debugPrint('Platform check error: $platformErr');
+      }
+
+      // Save credentials for quick biometric sign-in
+      await BiometricService.instance.saveCredentials(
         email: email,
         password: password,
       );
@@ -57,8 +253,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // Success/Error SnackBar matching guidelines:
-        // bg Color(0xFF1A2A40), left border Color(0xFFFF3A58) 3px (Error)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -66,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text('⚠️ ', style: TextStyle(fontSize: 16)),
                 Expanded(
                   child: Text(
-                    'Login failed: ${e.toString()}',
+                    'Login failed: ${e.toString().replaceAll('Exception:', '').trim()}',
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimaryDark,
@@ -81,7 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             shape: const Border(
-              left: BorderSide(color: AppColors.red, width: 3),
+              left: BorderSide(color: Color(0xFFFF3A58), width: 3),
             ),
           ),
         );
@@ -93,314 +287,462 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleBiometricLogin() async {
+    HapticFeedback.heavyImpact();
+    final service = BiometricService.instance;
+
+    final canAuth = await service.canAuthenticate();
+    if (!canAuth) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Fingerprint / Biometric authentication is not supported on this device.',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 13),
+            ),
+            backgroundColor: const Color(0xFF1A2A40),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final hasSaved = await service.hasSavedCredentials();
+    if (!hasSaved) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please log in with Email & Password once to activate Biometric sign-in.',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 13),
+            ),
+            backgroundColor: const Color(0xFF1A2A40),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final authenticated = await service.authenticate(
+      reason: 'Touch Fingerprint Sensor to log in to Darzi Pro',
+    );
+
+    if (authenticated) {
+      HapticFeedback.vibrate();
+      final creds = await service.getSavedCredentials();
+      if (creds != null && mounted) {
+        _emailController.text = creds['email'] ?? '';
+        _passwordController.text = creds['password'] ?? '';
+        _handleLogin();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    final text2 = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final text3 = isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight;
-    final accentCol = isDark ? AppColors.accent : AppColors.accentL;
+    final bg = isDark ? const Color(0xFF070D1A) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0x0EFFFFFF) : const Color(0xFFFFFFFF);
+    final cardBorder = isDark ? const Color(0x1AFFFFFF) : const Color(0x12000000);
+    final text1 = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C);
+    final textSecondary = isDark ? const Color(0xFF64748B) : const Color(0xFF64748B);
+    final textMuted = isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8);
+    final accent = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
 
     return Scaffold(
       backgroundColor: bg,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: SizedBox(
-            width: 380,
-            child: AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Logo box
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: const Color(0x25F5A623),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: const Color(0xFFF5A623).withValues(alpha: 0.3),
-                        width: 1.5,
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x25F5A623),
-                          blurRadius: 30,
-                        ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Ambient background glow
+            if (isDark)
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0, -0.4),
+                      radius: 1.1,
+                      colors: [
+                        Color(0x18F5A623),
+                        Colors.transparent,
                       ],
                     ),
-                    child: const Center(
-                      child: Text('✂️', style: TextStyle(fontSize: 34)),
-                    ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Title
-                  GradientText(
-                    'Darzi Pro',
-                    style: GoogleFonts.outfit(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                    ),
-                    colors: const [Color(0xFFF5A623), Color(0xFFFFD080)],
-                  ),
-                  const SizedBox(height: 6),
-                  
-                  // Subtitle
-                  Text(
-                    'Sign in to manage your shop',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: text2,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  AppTextField(
-                    label: 'PHONE NUMBER OR EMAIL',
-                    focusNode: _emailFocusNode,
-                    controller: _emailController,
-                    prefix: Icon(
-                      Icons.person_outline_rounded,
-                      size: 18,
-                      color: text3,
-                    ),
-                    hint: 'test@darzipro.com',
-                  ),
-                  const SizedBox(height: 2),
-
-                  AppTextField(
-                    label: 'PASSWORD',
-                    focusNode: _passwordFocusNode,
-                    controller: _passwordController,
-                    obscureText: _obscure,
-                    prefix: Icon(
-                      Icons.lock_outline_rounded,
-                      size: 18,
-                      color: text3,
-                    ),
-                    hint: '••••••••',
-                    suffix: IconButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        setState(() => _obscure = !_obscure);
-                      },
-                      icon: Icon(
-                        _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                        size: 18,
-                        color: text3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Forgot password
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                      },
-                      child: Text(
-                        'Forgot Password?',
-                        style: GoogleFonts.inter(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: accentCol,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Login button
-                  GoldButton(
-                    width: double.infinity,
-                    height: 48,
-                    borderRadius: 24,
-                    onPressed: _isLoggingIn ? null : _handleLogin,
-                    child: _isLoggingIn
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF1A0F00),
-                            ),
-                          )
-                        : Text(
-                            'LOGIN',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.0,
-                              color: const Color(0xFF1A0F00),
+                ),
+              ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(left: 24, right: 24, top: 56, bottom: 24),
+                child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 462),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── 1. HEADER OUTSIDE CARD (Floating Brand) ──────────
+                    ScaleTransition(
+                      scale: _logoScaleAnim,
+                      child: FadeTransition(
+                        opacity: _logoFadeAnim,
+                        child: Container(
+                          width: 82,
+                          height: 82,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: Image.asset(
+                              'assets/logo/app_logo.png',
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.high,
                             ),
                           ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // "OR" Divider
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Divider(
-                          color: isDark ? const Color(0x12FFFFFF) : const Color(0x0D0F172A),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        child: Text(
-                          'OR',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
-                            color: text3,
+                    ),
+                    const SizedBox(height: 14),
+                    SlideTransition(
+                      position: _titleSlideAnim,
+                      child: FadeTransition(
+                        opacity: _titleFadeAnim,
+                        child: Column(
+                          children: [
+                            Text(
+                              'Darzi Pro',
+                              style: GoogleFonts.outfit(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                color: text1,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Sign in to manage your shop',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // ── 2. MAIN LOGIN CARD (Tall, Spacious & Focused) ──────
+                    SlideTransition(
+                      position: _cardSlideAnim,
+                      child: FadeTransition(
+                        opacity: _cardFadeAnim,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: cardBorder,
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+                                blurRadius: 32,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome Back 👋',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: text1,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Enter your credentials to access your account',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              ProField(
+                                label: 'Email or Phone',
+                                hint: 'yourshop@email.com',
+                                icon: Icons.person_rounded,
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                focusNode: _emailFocusNode,
+                              ),
+                              ProField(
+                                label: 'Password',
+                                hint: 'Enter your password',
+                                icon: Icons.lock_rounded,
+                                obscure: _obscure,
+                                controller: _passwordController,
+                                keyboardType: TextInputType.visiblePassword,
+                                focusNode: _passwordFocusNode,
+                                suffix: GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    setState(() => _obscure = !_obscure);
+                                  },
+                                  child: Icon(
+                                    _obscure
+                                        ? Icons.visibility_rounded
+                                        : Icons.visibility_off_rounded,
+                                    size: 18,
+                                    color: textMuted,
+                                  ),
+                                ),
+                              ),
+
+                              // FORGOT PASSWORD
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    context.push('/forgot-password');
+                                  },
+                                  child: Text(
+                                    'Forgot Password?',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: accent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // ── LOGIN & BIOMETRIC BUTTON ROW ─────────
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _LoginButton(
+                                      onTap: _isLoggingIn ? null : _handleLogin,
+                                      isLoading: _isLoggingIn,
+                                      label: 'LOGIN',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  _BiometricButton(
+                                    onTap: _handleBiometricLogin,
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      Expanded(
-                        child: Divider(
-                          color: isDark ? const Color(0x12FFFFFF) : const Color(0x0D0F172A),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── 3. OUTSIDE CARD (New Shop Register Banner) ──────
+                    SlideTransition(
+                      position: _bannerSlideAnim,
+                      child: FadeTransition(
+                        opacity: _bannerFadeAnim,
+                        child: _RegisterBanner(
+                          onTap: () {
+                            context.push('/join');
+                          },
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Biometric Button
-                  BiometricButton(
-                    onTap: () {
-                      // Trigger biometric action
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'BIOMETRIC',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: text2,
-                      letterSpacing: 0.5,
                     ),
-                  ),
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 20),
 
-                  // Language selector
-                  AppCard(
-                    padding: const EdgeInsets.all(5),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    // SECURE FOOTER
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _langBtn('English', isDark, accentCol, text2),
-                        _langBtn('اردو', isDark, accentCol, text2),
-                        _langBtn('پښتو', isDark, accentCol, text2),
+                        Icon(Icons.shield_outlined, size: 14, color: textMuted),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Enterprise-grade encryption & biometric security',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Secure text
-                  Text(
-                    'Securely access your shop records with enterprise-grade encryption.',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: text3,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
-    );
-  }
-
-
-
-  Widget _langBtn(String label, bool isDark, Color accentColor, Color text2Color) {
-    final isActive = _selectedLang == label;
-    final activeBg = isDark ? const Color(0x14FFFFFF) : const Color(0x0D0F172A);
-    final activeBorder = isDark ? const Color(0x2EFFFFFF) : const Color(0x240F172A);
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() => _selectedLang = label);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? activeBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isActive ? activeBorder : Colors.transparent,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: isActive ? accentColor : text2Color,
-          ),
-        ),
-      ),
-    );
+    ),
+  );
   }
 }
 
-class BiometricButton extends StatefulWidget {
-  final VoidCallback onTap;
 
-  const BiometricButton({super.key, required this.onTap});
+
+
+
+
+
+// _AuthField replaced by shared ProField widget (lib/shared/widgets/pro_field.dart)
+
+// ── CUSTOM SCALE TRANSITION LOGIN BUTTON ───────────────────────────────
+class _LoginButton extends StatefulWidget {
+  final VoidCallback? onTap;
+  final bool isLoading;
+  final String label;
+
+  const _LoginButton({
+    required this.onTap,
+    required this.isLoading,
+    required this.label,
+  });
 
   @override
-  State<BiometricButton> createState() => _BiometricButtonState();
+  State<_LoginButton> createState() => _LoginButtonState();
 }
 
-class _BiometricButtonState extends State<BiometricButton> {
+class _LoginButtonState extends State<_LoginButton> {
   double _scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0x09FFFFFF) : const Color(0x0F000000);
-    final border = isDark ? const Color(0x1FFFFFFF) : const Color(0x1F000000);
-
+    final isDisabled = widget.onTap == null;
     return GestureDetector(
-      onTapDown: (_) => setState(() => _scale = 0.92),
-      onTapUp: (_) {
-        setState(() => _scale = 1.0);
-        HapticFeedback.lightImpact();
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _scale = 1.0),
+      onTapDown: isDisabled ? null : (_) => setState(() => _scale = 0.97),
+      onTapUp: isDisabled
+          ? null
+          : (_) {
+              setState(() => _scale = 1.0);
+              HapticFeedback.lightImpact();
+              widget.onTap!();
+            },
+      onTapCancel: isDisabled ? null : () => setState(() => _scale = 1.0),
       child: AnimatedScale(
         scale: _scale,
-        duration: const Duration(milliseconds: 120),
+        duration: const Duration(milliseconds: 100),
         child: Container(
-          width: 64,
-          height: 64,
+          width: double.infinity,
+          height: 52,
           decoration: BoxDecoration(
-            color: bg,
-            shape: BoxShape.circle,
-            border: Border.all(color: border, width: 1.5),
-          ),
-          child: const Center(
-            child: Icon(
-              Icons.fingerprint_rounded,
-              size: 28,
-              color: Color(0xFFF5A623),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x55F5A623),
+                blurRadius: 20,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: widget.isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Color(0xFF1A0A00),
+                  ),
+                )
+              : Text(
+                  widget.label.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1A0A00),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── PRO BIOMETRIC BUTTON (DYNAMICAL FINGERPRINT / FACE ID) ────────────────
+class _BiometricButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _BiometricButton({required this.onTap});
+
+  @override
+  State<_BiometricButton> createState() => _BiometricButtonState();
+}
+
+class _BiometricButtonState extends State<_BiometricButton> {
+  IconData _icon = Icons.fingerprint_rounded;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkType();
+  }
+
+  Future<void> _checkType() async {
+    final type = await BiometricService.instance.getPrimaryBiometricType();
+    if (type == BiometricType.face && mounted) {
+      setState(() => _icon = Icons.face_rounded);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
+    final btnBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+
+    return InkWell(
+      onTap: () {
+        HapticFeedback.heavyImpact();
+        widget.onTap();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: btnBg,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: accent.withValues(alpha: isDark ? 0.25 : 0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Icon(
+            _icon,
+            size: 34,
+            color: accent,
           ),
         ),
       ),
@@ -408,30 +750,65 @@ class _BiometricButtonState extends State<BiometricButton> {
   }
 }
 
-class GradientText extends StatelessWidget {
-  final String text;
-  final TextStyle style;
-  final List<Color> colors;
 
-  const GradientText(
-    this.text, {
-    super.key,
-    required this.style,
-    required this.colors,
-  });
+
+
+// ── CLEAN CARDLESS REGISTER SHOP LINK ROW ──────────────────────────────
+class _RegisterBanner extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _RegisterBanner({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) => LinearGradient(
-        colors: colors,
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Offset.zero & bounds.size),
-      child: Text(
-        text,
-        style: style.copyWith(color: Colors.white),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C);
+    final subColor = const Color(0xFF64748B);
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add_business_rounded,
+              size: 16,
+              color: subColor,
+            ),
+            const SizedBox(width: 8),
+            RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(fontSize: 12.5, color: subColor),
+                children: [
+                  const TextSpan(text: 'New Shop Owner? '),
+                  TextSpan(
+                    text: 'Register Your Shop',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w700,
+                      color: accentColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_forward_rounded,
+              size: 14,
+              color: accentColor,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+
+
+

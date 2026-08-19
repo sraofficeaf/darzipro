@@ -11,8 +11,11 @@ dependencies:
     sdk: flutter
 
   # State Management
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^2.6.1
   riverpod_annotation: ^2.6.1
+  arabic_reshaper: any
 
   # Navigation
   go_router: ^14.6.3
@@ -25,7 +28,7 @@ dependencies:
   google_fonts: ^6.2.1
 
   # Date & Money Formatting
-  intl: ^0.19.0
+  intl: ^0.20.2
 
   # Charts
   fl_chart: ^0.70.2
@@ -36,6 +39,7 @@ dependencies:
 
   # Sharing
   share_plus: ^10.1.4
+  path_provider: ^2.1.5
   url_launcher: ^6.3.1
   package_info_plus: ^8.0.0
   http: ^1.2.1
@@ -44,6 +48,9 @@ dependencies:
   image_picker: ^1.1.2
   cached_network_image: ^3.4.1
   supabase_flutter: ^2.8.0
+  qr_flutter: ^4.1.0
+  flutter_image_compress: ^2.3.0
+  google_mobile_ads: ^5.3.0
 
   # Local Cache / Storage
   hive: ^2.2.3
@@ -55,6 +62,10 @@ dependencies:
   # Utils
   equatable: ^2.0.7
   uuid: ^4.5.1
+  local_auth: ^3.0.2
+  flutter_secure_storage: ^10.3.1
+  crypto: ^3.0.7
+  bcrypt: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -64,9 +75,41 @@ dev_dependencies:
   freezed: ^2.5.7
   json_serializable: ^6.9.0
   riverpod_generator: ^2.6.3
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/logo/app_logo.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/logo/app_logo.png"
+    background_color: "#0B1525"
+    theme_color: "#F5A623"
+  windows:
+    generate: true
+    image_path: "assets/logo/app_logo.png"
+    icon_size: 256
+
+flutter_native_splash:
+  color: "#F8FAFC"
+  image: "assets/logo/app_logo.png"
+  color_dark: "#060C18"
+  image_dark: "assets/logo/app_logo.png"
+  android_12:
+    image: "assets/logo/app_logo.png"
+    color: "#F8FAFC"
+    color_dark: "#060C18"
+  web: false
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/logo/
 
   fonts:
     - family: NotoNaskhArabic

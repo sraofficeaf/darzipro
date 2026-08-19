@@ -7,15 +7,16 @@ class AppTheme {
 
   static ThemeData get dark => _buildTheme(isDark: true);
   static ThemeData get light => _buildTheme(isDark: false);
+  static ThemeData get lightTheme => light;
 
   static ThemeData _buildTheme({required bool isDark}) {
-    final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    final surf = isDark ? AppColors.surfDark : AppColors.surfLight;
-    final surf2 = isDark ? AppColors.surf2Dark : AppColors.surf2Light;
-    final t1 = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final bg = isDark ? AppColors.bgDark : AppColors.lightBg;
+    final surf = isDark ? AppColors.surfDark : AppColors.lightSurface;
+    final surf2 = isDark ? AppColors.surf2Dark : AppColors.lightSurface2;
+    final t1 = isDark ? AppColors.textPrimaryDark : AppColors.lightText1;
     final t2 =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+        isDark ? AppColors.textSecondaryDark : AppColors.lightText2;
+    final border = isDark ? AppColors.borderDark : AppColors.lightBorder;
 
     final textTheme = GoogleFonts.interTextTheme().copyWith(
       displayLarge: GoogleFonts.outfit(
@@ -90,17 +91,23 @@ class AppTheme {
       useMaterial3: true,
       brightness: isDark ? Brightness.dark : Brightness.light,
       scaffoldBackgroundColor: bg,
-      colorScheme: ColorScheme(
-        brightness: isDark ? Brightness.dark : Brightness.light,
-        primary: isDark ? AppColors.accent : AppColors.accentL,
-        onPrimary: const Color(0xFF1A0F00),
-        secondary: isDark ? AppColors.teal : AppColors.tealLight,
-        onSecondary: Colors.white,
-        error: isDark ? AppColors.red : AppColors.redLight,
-        onError: Colors.white,
-        surface: surf,
-        onSurface: t1,
-      ),
+      cardColor: surf,
+      colorScheme: isDark
+          ? ColorScheme(
+              brightness: Brightness.dark,
+              primary: AppColors.accent,
+              onPrimary: const Color(0xFF1A0F00),
+              secondary: AppColors.teal,
+              onSecondary: Colors.white,
+              error: AppColors.red,
+              onError: Colors.white,
+              surface: surf,
+              onSurface: t1,
+            )
+          : const ColorScheme.light(
+              primary: AppColors.lightAccent,
+              surface: AppColors.lightSurface,
+            ),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: surf,
@@ -115,7 +122,8 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: surf,
-        elevation: 0,
+        elevation: isDark ? 0 : 0.5,
+        shadowColor: isDark ? Colors.transparent : const Color(0x0A000000),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: border, width: 1),
@@ -149,8 +157,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: isDark ? AppColors.accent : AppColors.accentL,
-          foregroundColor: const Color(0xFF1A0F00),
+          backgroundColor: isDark ? AppColors.accent : AppColors.lightAccent,
+          foregroundColor: isDark ? const Color(0xFF1A0F00) : AppColors.lightTextOnGold,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
@@ -177,26 +185,26 @@ class AppTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
         selectedIconTheme:
-            IconThemeData(color: isDark ? AppColors.accent : AppColors.accentL, size: 20),
+            IconThemeData(color: isDark ? AppColors.accent : AppColors.lightAccent, size: 20),
         unselectedIconTheme: IconThemeData(
           color: isDark
               ? Colors.white.withValues(alpha: 0.45)
-              : Colors.white.withValues(alpha: 0.6),
+              : AppColors.lightText2,
           size: 20,
         ),
         selectedLabelTextStyle: GoogleFonts.inter(
-          color: isDark ? AppColors.accent : AppColors.accentL,
+          color: isDark ? AppColors.accent : AppColors.lightAccent,
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
         unselectedLabelTextStyle: GoogleFonts.inter(
           color: isDark
               ? Colors.white.withValues(alpha: 0.45)
-              : Colors.white.withValues(alpha: 0.6),
+              : AppColors.lightText2,
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
-        indicatorColor: AppColors.accentS,
+        indicatorColor: isDark ? AppColors.accentS : AppColors.lightAccentBg,
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: surf,

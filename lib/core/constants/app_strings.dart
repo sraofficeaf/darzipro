@@ -129,4 +129,11 @@ class AppStrings {
   // Currency
   static const String pkr = 'PKR';
   static const String rsSymbol = '₨';
+
+  // Billing & Support Constants
+  static const String easypaisaNumber = '0334-8591152';
+  static const String easypaisaName = 'Muhammad Ishaq';
+  static const String jazzCashNumber = '0309-9766115';
+  static const String jazzCashName = 'Muhammad Ishaq';
+  static const String supportNumber = '+92 309 9766115';
 }

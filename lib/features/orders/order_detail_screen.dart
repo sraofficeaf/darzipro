@@ -4,22 +4,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_enums.dart';
+import '../../core/config/supabase_config.dart';
 import '../../core/widgets/shared_widgets.dart';
-import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
+import '../../shared/models/models.dart';
+import 'widgets/add_payment_modal.dart';
+import 'widgets/update_status_modal.dart';
+import 'widgets/delivery_date_modal.dart';
+import '../../shared/providers/supabase_providers.dart';
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
-
   const OrderDetailScreen({super.key, required this.orderId});
 
   void _pickImage(BuildContext context, WidgetRef ref, String orderId) async {
     final picker = ImagePicker();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: AppColors.surfDark,
+      backgroundColor: isDark ? const Color(0xFF0B1525) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -31,12 +35,22 @@ class OrderDetailScreen extends ConsumerWidget {
             children: [
               ListTile(
                 leading: const Text('📷', style: TextStyle(fontSize: 20)),
-                title: Text('Camera se photo lein', style: GoogleFonts.inter(color: Colors.white)),
+                title: Text(
+                  'Camera se photo lein',
+                  style: GoogleFonts.inter(
+                    color: isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C),
+                  ),
+                ),
                 onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
               ListTile(
                 leading: const Text('🖼️', style: TextStyle(fontSize: 20)),
-                title: Text('Gallery se select karein', style: GoogleFonts.inter(color: Colors.white)),
+                title: Text(
+                  'Gallery se select karein',
+                  style: GoogleFonts.inter(
+                    color: isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C),
+                  ),
+                ),
                 onTap: () => Navigator.pop(context, ImageSource.gallery),
               ),
             ],
@@ -53,7 +67,7 @@ class OrderDetailScreen extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('✅ Design image add ho gayi!', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-              backgroundColor: AppColors.teal,
+              backgroundColor: const Color(0xFF10CBA0),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -63,80 +77,17 @@ class OrderDetailScreen extends ConsumerWidget {
     }
   }
 
-  void _changeStatus(BuildContext context, WidgetRef ref, String orderId, OrderStatus currentStatus) async {
-    final OrderStatus? selectedStatus = await showModalBottomSheet<OrderStatus>(
-      context: context,
-      backgroundColor: AppColors.surfDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  'CHANGE STATUS',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
-                    color: AppColors.accent,
-                  ),
-                ),
-              ),
-              ...OrderStatus.values.map((status) {
-                final isCurrent = status == currentStatus;
-                return ListTile(
-                  leading: Text(status.emoji, style: const TextStyle(fontSize: 18)),
-                  title: Text(
-                    status.label,
-                    style: GoogleFonts.inter(
-                      color: isCurrent ? AppColors.accent : Colors.white,
-                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  trailing: isCurrent ? const Text('✓', style: TextStyle(color: AppColors.accent, fontSize: 16)) : null,
-                  onTap: () => Navigator.pop(context, status),
-                );
-              }),
-            ],
-          ),
-        ),
-      ),
-    );
 
-    if (selectedStatus != null && selectedStatus != currentStatus) {
-      ref.read(ordersProvider.notifier).updateOrderStatus(orderId, selectedStatus);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '✅ Status updated to: ${selectedStatus.label}',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
-            backgroundColor: AppColors.teal,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(ordersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    final surf = isDark ? AppColors.surfDark : AppColors.surfLight;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final t1 = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final t2 = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final bg = isDark ? const Color(0xFF070D1A) : const Color(0xFFFFFFFF);
+    final text1 = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C);
+    final text2 = isDark ? const Color(0xFF4A6080) : const Color(0xFF4A5568);
+    final text3 = isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8);
+    final accent = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
 
     return PopScope(
       canPop: false,
@@ -146,468 +97,802 @@ class OrderDetailScreen extends ConsumerWidget {
           context.pop();
         }
       },
-      child: ordersAsync.when(
-      loading: () => Scaffold(backgroundColor: bg, body: const Center(child: CircularProgressIndicator())),
-      error: (err, _) => Scaffold(
+      child: Scaffold(
         backgroundColor: bg,
-        appBar: AppBar(title: const Text('Order Detail')),
-        body: Center(child: Text('Error: $err', style: const TextStyle(color: AppColors.red))),
-      ),
-      data: (orders) {
-        OrderModel? order;
-        try {
-          order = orders.firstWhere((o) => o.id == orderId);
-        } catch (_) {}
-
-        if (order == null) {
-          return Scaffold(
-            backgroundColor: bg,
-            appBar: AppBar(title: const Text('Order')),
-            body: const EmptyState(emoji: '🔍', title: 'Order Not Found'),
-          );
-        }
-
-        return Scaffold(
+        appBar: AppBar(
           backgroundColor: bg,
-          appBar: AppBar(
-            backgroundColor: surf,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  order.tokenNumber,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? AppColors.accent : AppColors.accentL,
-                  ),
-                ),
-                Text(
-                  order.customerName,
-                  style: GoogleFonts.inter(fontSize: 12, color: t2),
-                ),
-              ],
-            ),
-            leading: IconButton(
-              icon: const Text('←', style: TextStyle(fontSize: 20)),
-              onPressed: () => context.pop(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => context.push('/token-card/${order!.id}'),
-                child: Text(
-                  '🎫 Card',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? AppColors.accent : AppColors.accentL,
-                  ),
-                ),
+          elevation: 0,
+          leadingWidth: 56,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Center(
+              child: _BackButton(
+                onPressed: () => context.pop(),
               ),
-            ],
+            ),
           ),
-          body: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              // Customer Row: AppCard with avatar + name + phone + status pill
-              AppCard(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  context.push('/customers/${order!.customerId}');
-                },
-                child: Row(
+          titleSpacing: 16,
+          title: Text(
+            'Order Detail',
+            style: GoogleFonts.outfit(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: text1,
+            ),
+          ),
+          actions: [
+            ordersAsync.when(
+              data: (orders) {
+                final order = orders.where((o) => o.id == orderId).firstOrNull;
+                if (order == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(right: 20),
+                  child: Center(
+                    child: _OutlineButton(
+                      label: '🪪 Card',
+                      onPressed: () {
+                        context.push('/token-card/${order.id}');
+                      },
+                    ),
+                  ),
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (err, stack) => const SizedBox.shrink(),
+            ),
+          ],
+        ),
+        body: ordersAsync.when(
+          loading: () => Center(child: CircularProgressIndicator(color: accent)),
+          error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
+          data: (orders) {
+            final order = orders.where((o) => o.id == orderId).firstOrNull;
+
+            if (order == null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CustomerAvatar(name: order.customerName, size: 44),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    const Text('🔍', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Order Not Found',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: text1,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            final isOverdue = order.deliveryDate != null &&
+                order.deliveryDate!.isBefore(today) &&
+                order.status != OrderStatus.delivered;
+
+            final cardBg = isDark ? const Color(0x08FFFFFF) : const Color(0xFFFFFFFF);
+            final cardBorder = isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000);
+
+            return ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              children: [
+                // CLIENT ROW CARD
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    border: Border.all(color: cardBorder, width: 1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      CustomerAvatar(name: order.customerName, size: 42, borderRadius: 12),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              order.customerName,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: text1,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    context.push('/customers/${order.customerId}');
+                                  },
+                                  child: Text(
+                                    'Client Details',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: text2,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  width: 3,
+                                  height: 3,
+                                  decoration: BoxDecoration(
+                                    color: text3,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    context.push('/measurements/${order.customerId}/${Uri.encodeComponent(order.customerName)}');
+                                  },
+                                  child: Text(
+                                    'View Naap 📏',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: accent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildStatusPill(context, order.status),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // STATUS STEPPER CARD
+                AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            order.customerName,
+                            'ORDER STATUS',
                             style: GoogleFonts.inter(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
-                              color: t1,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: text3,
+                              letterSpacing: 1.8,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Client Details',
-                            style: GoogleFonts.inter(
-                              fontSize: 11.5,
-                              color: t2,
+                          GestureDetector(
+                            onTap: () => UpdateStatusModal.show(context, order: order),
+                            child: Text(
+                              'Tap to Update',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    StatusPill(status: order.status),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Progress Stepper Title
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'ORDER STATUS',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                      color: isDark ? AppColors.accent : AppColors.accentL,
-                    ),
+                      const SizedBox(height: 16),
+                      _StatusStepper(order: order),
+                    ],
                   ),
-                  Text(
-                    'TAP TO UPDATE',
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: t2,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Progress stepper wrapped inside an AppCard
-              GestureDetector(
-                onTap: () => _changeStatus(context, ref, order!.id, order.status),
-                child: AppCard(
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-                  child: _StatusStepper(status: order.status),
                 ),
-              ),
-              const SizedBox(height: 18),
+                const SizedBox(height: 18),
 
-              // Order dates card
-              AppCard(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // DATES ROW
+                Row(
                   children: [
-                    _InfoChip('📅 Ordered', formatDateShort(order.orderDate)),
-                    _InfoChip(
-                      '🚚 Delivery',
-                      order.deliveryDate != null
-                          ? formatDateShort(order.deliveryDate!)
-                          : 'Not set',
-                      urgent: order.isUrgent,
+                    Expanded(
+                      child: _DateCard(
+                        label: 'Ordered',
+                        value: formatDateShort(order.orderDate),
+                        isOverdue: false,
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Items Header
-              Text(
-                'ORDER ITEMS',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                  color: isDark ? AppColors.accent : AppColors.accentL,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...order.items.map((item) => _ItemCard(item: item)),
-              const SizedBox(height: 18),
-
-              // Payment summary Header
-              Text(
-                'PAYMENT SUMMARY',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                  color: isDark ? AppColors.accent : AppColors.accentL,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Money Card: Gradient [Color(0xFF060E1E), Color(0xFF112040)]
-              Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF060E1E), Color(0xFF112040)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  children: [
-                    _MoneyRow('Total Amount', formatMoney(order.totalAmount)),
-                    if (order.discount > 0)
-                      _MoneyRow('Discount', '- ${formatMoney(order.discount)}'),
-                    _MoneyRow('Advance Paid', formatMoney(order.paidAmount)),
-                    Container(
-                      height: 1.0,
-                      margin: const EdgeInsets.symmetric(vertical: 10),
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Outstanding',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: const Color(0x80FFFFFF),
-                          ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => DeliveryDateModal.show(context, order: order),
+                        child: _DateCard(
+                          label: 'Delivery',
+                          value: order.deliveryDate != null
+                              ? formatDateShort(order.deliveryDate!)
+                              : 'Not set',
+                          isOverdue: isOverdue,
                         ),
-                        order.isFullyPaid
-                            ? Text(
-                                'Fully Paid ✓',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.teal,
-                                ),
-                              )
-                            : GradientText(
-                                formatMoney(order.remainingAmount),
-                                style: GoogleFonts.outfit(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                                colors: const [Color(0xFFF5A623), Color(0xFFFFD080)],
-                              ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 18),
+                const SizedBox(height: 18),
 
-              // Notes
-              if (order.notes != null && order.notes!.isNotEmpty) ...[
-                Text(
-                  'NOTES',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
-                    color: isDark ? AppColors.accent : AppColors.accentL,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                // ORDER ITEMS CARD
                 Container(
-                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0x1FF5A623) : const Color(0xFFFFFBEB),
+                    color: isDark ? const Color(0x06FFFFFF) : const Color(0xFFFFFFFF),
                     border: Border.all(
-                      color: isDark ? AppColors.accent : AppColors.accentL,
-                      style: BorderStyle.solid,
-                      width: 1.5,
+                      color: isDark ? const Color(0x12FFFFFF) : const Color(0x1A000000),
+                      width: 1,
                     ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('📌 ', style: TextStyle(fontSize: 14)),
-                      Expanded(
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
                         child: Text(
-                          order.notes!,
+                          'ORDER ITEMS',
                           style: GoogleFonts.inter(
-                            fontSize: 12.5,
-                            color: isDark ? AppColors.accent : const Color(0xFF78350F),
-                            height: 1.5,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: text3,
+                            letterSpacing: 1.8,
                           ),
+                        ),
+                      ),
+                      Divider(
+                        color: isDark ? const Color(0x08FFFFFF) : const Color(0x1A000000),
+                        height: 1,
+                      ),
+                      ...order.items.map(
+                        (item) => Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: accent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${item.dressType} × ${item.quantity}',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: text1,
+                                          ),
+                                        ),
+                                        if (item.clothDetails.isNotEmpty)
+                                          Text(
+                                            item.clothDetails,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: text2,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    formatMoney(item.total),
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: text1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Divider(
+                              color: isDark ? const Color(0x08FFFFFF) : const Color(0x1A000000),
+                              height: 1,
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 18),
-              ],
 
-              // Design Reference Images Header
-              Text(
-                'DESIGN REFERENCE IMAGES',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                  color: isDark ? AppColors.accent : AppColors.accentL,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 90,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    GestureDetector(
-                      onTap: () => _pickImage(context, ref, order!.id),
-                      child: Container(
-                        width: 90,
-                        height: 90,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surf2Dark : AppColors.surf2Light,
-                          border: Border.all(color: border),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('📷', style: TextStyle(fontSize: 20)),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Add Image',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: t2,
-                                ),
-                              ),
-                            ],
-                          ),
+                // PAYMENT SUMMARY CARD
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF060E1E), Color(0xFF0D1E3A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: const Color(0x12FFFFFF), width: 1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PAYMENT SUMMARY',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF3D5470),
+                          letterSpacing: 1.8,
                         ),
                       ),
-                    ),
-                    if (order.images.isEmpty)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            'No images added',
-                            style: GoogleFonts.inter(fontSize: 12, color: t2, fontStyle: FontStyle.italic),
-                          ),
-                        ),
-                      )
-                    else
-                      ...order.images.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final path = entry.value;
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => _GalleryViewer(
-                                  images: order!.images,
-                                  initialIndex: idx,
-                                  onDelete: (index) {
-                                    ref.read(ordersProvider.notifier).deleteOrderImage(order!.id, order.images[index]);
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 90,
-                            height: 90,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: border),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.network(
-                              path.startsWith('http') || path.startsWith('assets')
-                                  ? path
-                                  : 'https://ztxrkijwfnegvquoblne.supabase.co/storage/v1/object/public/design-images/$path',
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Center(
-                                  child: Icon(Icons.broken_image, color: Colors.grey),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Action buttons: Print Card (GoldButton) + Add Payment (OutlineButton) in Row
-              Row(
-                children: [
-                  Expanded(
-                    child: GoldButton(
-                      height: 46,
-                      borderRadius: 16,
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        context.push('/print/${order!.id}');
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      const SizedBox(height: 14),
+                      _MoneyRow(label: 'Total Amount', value: formatMoney(order.totalAmount)),
+                      _MoneyRow(label: 'Advance Paid', value: formatMoney(order.paidAmount)),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Icon(Icons.print_rounded, size: 16, color: Color(0xFF1A0F00)),
-                          const SizedBox(width: 6),
                           Text(
-                            'PRINT CARD',
+                            'Outstanding',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF1A0F00),
+                              color: const Color(0xFF5A7090),
                             ),
                           ),
+                          order.isFullyPaid
+                              ? Text(
+                                  'Fully Paid ✓',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF10CBA0),
+                                  ),
+                                )
+                              : Text(
+                                  formatMoney(order.remainingAmount),
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFFF5A623),
+                                  ),
+                                ),
                         ],
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: SizedBox(
-                      height: 46,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          context.push('/payment/${order!.id}');
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.teal,
-                          backgroundColor: isDark ? const Color(0x1F10CBA0) : const Color(0xFFCBEFF5),
-                          side: BorderSide(color: const Color(0xFF10CBA0).withValues(alpha: 0.3), width: 1.5),
-                          shape: RoundedRectangleBorder(
+                ),
+                const SizedBox(height: 18),
+
+                // DESIGN REFERENCE IMAGES
+                Text(
+                  'DESIGN REFERENCE IMAGES',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: text3,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 90,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      GestureDetector(
+                        onTap: () => _pickImage(context, ref, order.id),
+                        child: Container(
+                          width: 90,
+                          height: 90,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0x05FFFFFF) : const Color(0xFFFFFFFF),
+                            border: Border.all(
+                              color: isDark ? const Color(0x12FFFFFF) : const Color(0x1A000000),
+                            ),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.payment_rounded, size: 16, color: Color(0xFF10CBA0)),
-                            const SizedBox(width: 6),
-                            Text(
-                              'ADD PAYMENT',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? const Color(0xFF10CBA0) : const Color(0xFF056475),
-                              ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('📷', style: TextStyle(fontSize: 20)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Add Image',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: text2,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                      if (order.images.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              'No images added',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: text2,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        ...order.images.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final path = entry.value;
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => _GalleryViewer(
+                                    images: order.images,
+                                    initialIndex: idx,
+                                    onDelete: (index) {
+                                      ref.read(ordersProvider.notifier).deleteOrderImage(order.id, order.images[index]);
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 90,
+                              height: 90,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: isDark ? const Color(0x12FFFFFF) : const Color(0x1A000000),
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Image.network(
+                                path.startsWith('http') || path.startsWith('assets')
+                                    ? path
+                                    : '${SupabaseConfig.designImagesUrl}/$path',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => const Center(
+                                  child: Icon(Icons.broken_image, color: Colors.grey),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
-    ));
+                ),
+                const SizedBox(height: 24),
+
+                // ACTION BUTTONS GRID
+                Row(
+                  children: [
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final shopPlan = ref.watch(shopPlanProvider).value;
+                          final isLocked = shopPlan == 'mobile_only';
+                          return _PrintLockedButton(
+                            label: '🪪 Print Card',
+                            isLocked: isLocked,
+                            onUnlocked: () {
+                              context.push('/print/${order.id}');
+                            },
+                          );
+                        }
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _TealButton(
+                        label: '＋ Add Payment',
+                        onPressed: () {
+                          AddPaymentModal.show(context, order: order);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 40),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusPill(BuildContext context, OrderStatus status) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Color bg;
+    Color text;
+    Color border;
+
+    switch (status) {
+      case OrderStatus.pending:
+        bg = isDark ? const Color(0x1FF5A623) : const Color(0xFFFFF8EE);
+        text = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
+        border = isDark ? const Color(0x40F5A623) : const Color(0xFFD97706).withValues(alpha: 0.3);
+        break;
+      case OrderStatus.cutting:
+        bg = isDark ? const Color(0x1F9B5CF5) : const Color(0xFFF5F3FF);
+        text = isDark ? const Color(0xFF9B5CF5) : const Color(0xFF7C3AED);
+        border = isDark ? const Color(0x409B5CF5) : const Color(0xFF7C3AED).withValues(alpha: 0.3);
+        break;
+      case OrderStatus.stitching:
+        bg = isDark ? const Color(0x1F5B72F5) : const Color(0xFFEFF6FF);
+        text = isDark ? const Color(0xFF5B72F5) : const Color(0xFF2563EB);
+        border = isDark ? const Color(0x405B72F5) : const Color(0xFF2563EB).withValues(alpha: 0.3);
+        break;
+      case OrderStatus.ready:
+        bg = isDark ? const Color(0x1F10CBA0) : const Color(0xFFECFDF5);
+        text = isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669);
+        border = isDark ? const Color(0x4010CBA0) : const Color(0xFF059669).withValues(alpha: 0.3);
+        break;
+      case OrderStatus.delivered:
+      default:
+        bg = isDark ? const Color(0x0FFFFFFF) : const Color(0xFFF8FAFF);
+        text = isDark ? const Color(0xFF5A7090) : const Color(0xFF94A3B8);
+        border = isDark ? const Color(0x1AFFFFFF) : const Color(0xFF94A3B8).withValues(alpha: 0.3);
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        status.label.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: text,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
   }
 }
 
+class _DateCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isOverdue;
+
+  const _DateCard({
+    required this.label,
+    required this.value,
+    required this.isOverdue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final text1 = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C);
+    final text3 = isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8);
+
+    final bg = isDark ? const Color(0x08FFFFFF) : const Color(0xFFFFFFFF);
+    final border = isOverdue
+        ? (isDark ? const Color(0x33FF3A58) : const Color(0xFFDC2626).withValues(alpha: 0.3))
+        : (isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000));
+
+    final labelColor = isOverdue
+        ? (isDark ? const Color(0xFFFF3A58) : const Color(0xFFDC2626))
+        : text3;
+
+    final valueColor = isOverdue
+        ? (isDark ? const Color(0xFFFF3A58) : const Color(0xFFDC2626))
+        : text1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border.all(
+          color: border,
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: labelColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoneyRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MoneyRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: const Color(0xFF5A7090),
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFEDF4FF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusStepper extends StatelessWidget {
+  final OrderModel order;
+  const _StatusStepper({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final steps = [
+      OrderStatus.pending,
+      OrderStatus.cutting,
+      OrderStatus.stitching,
+      OrderStatus.ready,
+      OrderStatus.delivered,
+    ];
+    final currentIdx = steps.indexOf(order.status);
+
+    return Row(
+      children: List.generate(steps.length * 2 - 1, (i) {
+        if (i.isOdd) {
+          final stepIdx = i ~/ 2;
+          final isDone = stepIdx < currentIdx;
+          return Expanded(
+            child: Container(
+              height: 2,
+              color: isDone 
+                  ? (isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669)) 
+                  : (isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000)),
+            ),
+          );
+        }
+
+        final stepIdx = i ~/ 2;
+        final isDone = stepIdx < currentIdx;
+        final isCurrent = stepIdx == currentIdx;
+        final step = steps[stepIdx];
+
+        BoxDecoration boxDeco;
+        if (isCurrent) {
+          boxDeco = BoxDecoration(
+            color: isDark ? const Color(0x26F5A623) : const Color(0x1AF5A623),
+            shape: BoxShape.circle,
+            border: Border.all(color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? const Color(0x4DF5A623) : const Color(0x26D97706),
+                blurRadius: 16,
+              ),
+            ],
+          );
+        } else if (isDone) {
+          boxDeco = BoxDecoration(
+            color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+            shape: BoxShape.circle,
+            border: Border.all(color: isDark ? const Color(0x3310CBA0) : const Color(0xFF059669).withValues(alpha: 0.3), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? const Color(0x3310CBA0) : const Color(0x1F059669),
+                blurRadius: 12,
+              ),
+            ],
+          );
+        } else {
+          boxDeco = BoxDecoration(
+            color: isDark ? const Color(0x0AFFFFFF) : const Color(0xFFF4F6FA),
+            shape: BoxShape.circle,
+            border: Border.all(color: isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000), width: 1),
+          );
+        }
+
+        Color textColor;
+        if (isCurrent) {
+          textColor = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
+        } else if (isDone) {
+          textColor = isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669);
+        } else {
+          textColor = isDark ? const Color(0xFF2D4060) : const Color(0xFF94A3B8);
+        }
+
+        return GestureDetector(
+          onTap: () {
+            UpdateStatusModal.show(context, order: order);
+          },
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: boxDeco,
+                child: Center(
+                  child: Text(
+                    step.emoji,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                step.label.toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// GALLERY VIEWER CLASS
 class _GalleryViewer extends StatefulWidget {
   final List<String> images;
   final int initialIndex;
@@ -686,7 +971,7 @@ class _GalleryViewerState extends State<_GalleryViewer> {
               child: Image.network(
                 path.startsWith('http') || path.startsWith('assets')
                     ? path
-                    : 'https://ztxrkijwfnegvquoblne.supabase.co/storage/v1/object/public/design-images/$path',
+                    : '${SupabaseConfig.designImagesUrl}/$path',
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image, color: Colors.grey, size: 48),
@@ -700,228 +985,278 @@ class _GalleryViewerState extends State<_GalleryViewer> {
   }
 }
 
-class _StatusStepper extends StatelessWidget {
-  final OrderStatus status;
-
-  const _StatusStepper({required this.status});
+// PREMIUM BUTTONS IN DETAIL
+class _BackButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _BackButton({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final steps = [
-      OrderStatus.pending,
-      OrderStatus.cutting,
-      OrderStatus.stitching,
-      OrderStatus.ready,
-      OrderStatus.delivered,
-    ];
-    final currentIdx = steps.indexOf(status);
-
-    return Row(
-      children: List.generate(steps.length * 2 - 1, (i) {
-        if (i.isOdd) {
-          // Connector line: done=Color(0xFF10CBA0), pending=0x12FFFFFF, width 2.5
-          final stepIdx = i ~/ 2;
-          final isDone = stepIdx < currentIdx;
-          return Expanded(
-            child: Container(
-              height: 2.5,
-              color: isDone ? const Color(0xFF10CBA0) : const Color(0x12FFFFFF),
-            ),
-          );
-        }
-        final stepIdx = i ~/ 2;
-        final isDone = stepIdx < currentIdx;
-        final isCurrent = stepIdx == currentIdx;
-        final step = steps[stepIdx];
-
-        Color circleBg;
-        BoxShadow? shadow;
-
-        if (isCurrent) {
-          circleBg = const Color(0xFFF5A623);
-          shadow = const BoxShadow(
-            color: Color(0x59F5A623),
-            blurRadius: 12,
-            spreadRadius: 1.5,
-          );
-        } else if (isDone) {
-          circleBg = const Color(0xFF10CBA0);
-          shadow = const BoxShadow(
-            color: Color(0x4010CBA0),
-            blurRadius: 8,
-            spreadRadius: 1,
-          );
-        } else {
-          circleBg = const Color(0x12FFFFFF);
-        }
-
-        return Column(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: circleBg,
-                shape: BoxShape.circle,
-                boxShadow: shadow != null ? [shadow] : [],
-              ),
-              child: Center(
-                child: Text(
-                  step.emoji,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              step.label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: isCurrent
-                    ? const Color(0xFFF5A623)
-                    : (isDone
-                        ? const Color(0xFF10CBA0)
-                        : (isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight)),
-              ),
-            ),
-          ],
-        );
-      }),
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onPressed();
+      },
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0x0DFFFFFF) : const Color(0x0D000000),
+          border: Border.all(
+            color: isDark ? const Color(0x14FFFFFF) : const Color(0x1A000000),
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.arrow_back_rounded,
+            color: isDark ? const Color(0xFF5A7090) : const Color(0xFF4A5568),
+            size: 18,
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
+class _GoldButton extends StatefulWidget {
   final String label;
-  final String value;
-  final bool urgent;
+  final IconData? icon;
+  final VoidCallback onPressed;
 
-  const _InfoChip(this.label, this.value, {this.urgent = false});
+  const _GoldButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  State<_GoldButton> createState() => _GoldButtonState();
+}
+
+class _GoldButtonState extends State<_GoldButton> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.97),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        HapticFeedback.lightImpact();
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          height: 46,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x59F5A623),
+                blurRadius: 20,
+                offset: Offset(0, 4),
+              )
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 16, color: const Color(0xFF1A0A00)),
+                const SizedBox(width: 7),
+              ],
+              Text(
+                widget.label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1A0A00),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TealButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _TealButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  State<_TealButton> createState() => _TealButtonState();
+}
+
+class _TealButtonState extends State<_TealButton> {
+  double _scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final t2 = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final t1 = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final bg = isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5);
+    final border = isDark ? const Color(0x4010CBA0) : const Color(0xFF059669).withValues(alpha: 0.3);
+    final text = isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.97),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        HapticFeedback.lightImpact();
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          height: 46,
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border.all(color: border, width: 1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_rounded, size: 16, color: text),
+              const SizedBox(width: 4),
+              Text(
+                widget.label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: text,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _OutlineButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  State<_OutlineButton> createState() => _OutlineButtonState();
+}
+
+class _OutlineButtonState extends State<_OutlineButton> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0x0AFFFFFF) : const Color(0xFFFFF8EE);
+    final border = isDark ? const Color(0x14FFFFFF) : const Color(0xFFD97706).withValues(alpha: 0.3);
+    final text = isDark ? const Color(0xFF8AA0B8) : const Color(0xFFD97706);
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.97),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        HapticFeedback.lightImpact();
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border.all(color: border, width: 1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Center(
+            child: Text(
+              widget.label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: text,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrintLockedButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onUnlocked;
+  final bool isLocked;
+  
+  const _PrintLockedButton({required this.label, required this.onUnlocked, required this.isLocked});
+  
+  @override
+  Widget build(BuildContext context) {
+    if (!isLocked) {
+      // Show original button - call onUnlocked
+      return ElevatedButton.icon(
+        onPressed: onUnlocked,
+        icon: const Icon(Icons.print_rounded),
+        label: Text(label),
+      );
+    }
+    return Stack(
       children: [
-        Text(label.toUpperCase(),
-            style: GoogleFonts.inter(
-                fontSize: 9, fontWeight: FontWeight.w700, color: t2)),
-        Text(
-          value,
-          style: GoogleFonts.jetBrainsMono(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: urgent ? AppColors.red : t1,
+        ElevatedButton.icon(
+          onPressed: () => _showUpgradeDialog(context),
+          icon: const Icon(Icons.lock_rounded, color: Colors.grey),
+          label: Text(label, style: const TextStyle(color: Colors.grey)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.grey.withValues(alpha: 0.15),
+            foregroundColor: Colors.grey,
           ),
         ),
       ],
     );
   }
-}
-
-class _ItemCard extends StatelessWidget {
-  final OrderItemModel item;
-
-  const _ItemCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final t1 = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final t2 = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: AppCard(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${item.dressType} × ${item.quantity}',
-                    style: GoogleFonts.inter(
-                        fontSize: 14, fontWeight: FontWeight.w700, color: t1),
-                  ),
-                  if (item.clothDetails.isNotEmpty)
-                    Text(item.clothDetails,
-                        style: GoogleFonts.inter(fontSize: 11.5, color: t2)),
-                  if (item.designDetails != null)
-                    Text(item.designDetails!,
-                        style: GoogleFonts.inter(fontSize: 11.5, color: t2)),
-                ],
-              ),
-            ),
-            Text(
-              formatMoney(item.total),
-              style: GoogleFonts.jetBrainsMono(
-                  fontSize: 13, fontWeight: FontWeight.w800, color: t1),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MoneyRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _MoneyRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: GoogleFonts.inter(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
-          Text(value,
-              style: GoogleFonts.jetBrainsMono(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
+  
+  void _showUpgradeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: const [Icon(Icons.lock_rounded, color: Color(0xFFF5A623)), SizedBox(width: 8), Text('Print Locked')]),
+        content: const Text('Print feature is available on the Full Access plan.\n\nUpgrade for Rs 23,000 to unlock printing.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () { Navigator.pop(ctx); context.go('/upgrade-plan'); },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5A623), foregroundColor: Colors.black),
+            child: const Text('Upgrade Now'),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class GradientText extends StatelessWidget {
-  final String text;
-  final TextStyle style;
-  final List<Color> colors;
-
-  const GradientText(
-    this.text, {
-    super.key,
-    required this.style,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) => LinearGradient(
-        colors: colors,
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Offset.zero & bounds.size),
-      child: Text(
-        text,
-        style: style.copyWith(color: Colors.white),
       ),
     );
   }

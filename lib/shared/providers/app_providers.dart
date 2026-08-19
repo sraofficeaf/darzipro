@@ -12,7 +12,7 @@ import 'license_provider.dart';
 // ── Theme Provider ─────────────────────────────────────────────────────
 final themeModeProvider = StateProvider<ThemeMode>((ref) {
   final box = Hive.box('settings_box');
-  final savedTheme = box.get('themeMode', defaultValue: 'dark') as String;
+  final savedTheme = box.get('themeMode', defaultValue: 'light') as String;
   return savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light;
 });
 
@@ -38,12 +38,18 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
     final Box customersBox = Hive.box('customers_box');
     
     // Load from cache first
-    final cachedData = customersBox.get(shopId);
-    if (cachedData != null) {
-      final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
-      final list = listJson.map((json) => CustomerModel.fromJson(Map<String, dynamic>.from(json as Map), 0)).toList();
-      state = AsyncValue.data(list);
-    } else {
+    dynamic cachedData;
+    try {
+      cachedData = customersBox.get(shopId);
+      if (cachedData != null) {
+        final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
+        final list = listJson.map((json) => CustomerModel.fromJson(Map<String, dynamic>.from(json as Map), 0)).toList();
+        state = AsyncValue.data(list);
+      } else {
+        state = const AsyncValue.loading();
+      }
+    } catch (e) {
+      debugPrint('Error loading cached customers: $e');
       state = const AsyncValue.loading();
     }
 
@@ -56,19 +62,35 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
 
     try {
       final supabase = _ref.read(supabaseClientProvider);
-      final List<dynamic> data = await supabase
-          .from('customers')
-          .select()
-          .eq('shop_id', shopId)
-          .order('created_at', ascending: false);
+      
+      // Parallel batch query: Fetch all customers and all order customer_ids in 2 parallel requests (zero N+1 loops)
+      final results = await Future.wait([
+        supabase
+            .from('customers')
+            .select()
+            .eq('shop_id', shopId)
+            .order('created_at', ascending: false),
+        supabase
+            .from('orders')
+            .select('customer_id')
+            .eq('shop_id', shopId),
+      ]);
+
+      final List<dynamic> data = results[0] as List<dynamic>;
+      final List<dynamic> orderRows = results[1] as List<dynamic>;
+
+      // Build customer order count map in memory
+      final Map<String, int> orderCounts = {};
+      for (final o in orderRows) {
+        final cid = o['customer_id'] as String?;
+        if (cid != null) {
+          orderCounts[cid] = (orderCounts[cid] ?? 0) + 1;
+        }
+      }
 
       final List<CustomerModel> list = [];
       for (final json in data) {
-        final countResponse = await supabase
-            .from('orders')
-            .select('id')
-            .eq('customer_id', json['id']);
-        final count = countResponse.length;
+        final count = orderCounts[json['id']] ?? 0;
         list.add(CustomerModel.fromJson(json, count));
       }
 
@@ -242,34 +264,40 @@ class OrdersNotifier extends StateNotifier<AsyncValue<List<OrderModel>>> {
     final Box ordersBox = Hive.box('orders_box');
 
     // Load from cache first
-    final cachedData = ordersBox.get(shopId);
-    if (cachedData != null) {
-      final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
-      final List<OrderModel> list = listJson.map((json) {
-        final map = Map<String, dynamic>.from(json as Map);
-        final customerName = map['customers'] != null
-            ? map['customers']['name'] as String? ?? 'Unknown'
-            : 'Unknown';
+    dynamic cachedData;
+    try {
+      cachedData = ordersBox.get(shopId);
+      if (cachedData != null) {
+        final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
+        final List<OrderModel> list = listJson.map((json) {
+          final map = Map<String, dynamic>.from(json as Map);
+          final customerName = map['customers'] != null
+              ? map['customers']['name'] as String? ?? 'Unknown'
+              : 'Unknown';
 
-        final List<OrderItemModel> items = (map['order_items'] as List<dynamic>?)
-                ?.map((item) => OrderItemModel.fromJson(Map<String, dynamic>.from(item as Map)))
-                .toList() ??
-            [];
+          final List<OrderItemModel> items = (map['order_items'] as List<dynamic>?)
+                  ?.map((item) => OrderItemModel.fromJson(Map<String, dynamic>.from(item as Map)))
+                  .toList() ??
+              [];
 
-        final List<PaymentModel> payments = (map['payments'] as List<dynamic>?)
-                ?.map((pay) => PaymentModel.fromJson(Map<String, dynamic>.from(pay as Map)))
-                .toList() ??
-            [];
+          final List<PaymentModel> payments = (map['payments'] as List<dynamic>?)
+                  ?.map((pay) => PaymentModel.fromJson(Map<String, dynamic>.from(pay as Map)))
+                  .toList() ??
+              [];
 
-        final List<String> images = (map['order_images'] as List<dynamic>?)
-                ?.map((img) => img['storage_path'] as String)
-                .toList() ??
-            [];
+          final List<String> images = (map['order_images'] as List<dynamic>?)
+                  ?.map((img) => img['storage_path'] as String)
+                  .toList() ??
+              [];
 
-        return OrderModel.fromJson(map, customerName, items, payments, images);
-      }).toList();
-      state = AsyncValue.data(list);
-    } else {
+          return OrderModel.fromJson(map, customerName, items, payments, images);
+        }).toList();
+        state = AsyncValue.data(list);
+      } else {
+        state = const AsyncValue.loading();
+      }
+    } catch (e) {
+      debugPrint('Error loading cached orders: $e');
       state = const AsyncValue.loading();
     }
 
@@ -468,6 +496,46 @@ class OrdersNotifier extends StateNotifier<AsyncValue<List<OrderModel>>> {
     }
   }
 
+  Future<void> updateDeliveryDate(String orderId, DateTime date, String? notes) async {
+    final currentList = state.value ?? [];
+    final newList = [
+      for (final order in currentList)
+        if (order.id == orderId) order.copyWith(deliveryDate: date, notes: notes) else order
+    ];
+
+    await _updateLocalCache(newList);
+
+    if (isCloudEnabled) {
+      final supabase = _ref.read(supabaseClientProvider);
+      try {
+        await supabase.from('orders').update({
+          'delivery_date': date.toIso8601String(),
+          'notes': notes,
+        }).eq('id', orderId);
+        await _fetchOrders();
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        final isNetwork = e is PostgrestException && (e.message.contains('Failed host lookup') || e.message.contains('network')) ||
+            errStr.contains('socketexception') || errStr.contains('network') || errStr.contains('failed to connect') || errStr.contains('handshake_failed');
+
+        if (isNetwork) {
+          await _ref.read(syncManagerProvider.notifier).queueOperation(
+            type: 'update',
+            table: 'orders',
+            payload: {
+              'id': orderId,
+              'delivery_date': date.toIso8601String(),
+              'notes': notes,
+            },
+          );
+        } else {
+          await _fetchOrders();
+          rethrow;
+        }
+      }
+    }
+  }
+
   Future<void> addPayment(String orderId, PaymentModel payment) async {
     final shopId = _ref.read(currentShopIdProvider);
     final userId = _ref.read(currentUserIdProvider);
@@ -653,12 +721,29 @@ final dashboardStatsProvider = Provider<AsyncValue<DashboardStats>>((ref) {
     int readyOrders = orders.where((o) => o.status == OrderStatus.ready).length;
     int urgentOrders = orders.where((o) => o.isUrgent).length;
 
-    final weeklyRevenue = [dailyRevenue > 0 ? dailyRevenue / 1000.0 : 45.0, 60.0, 72.0, 100.0, 65.0, 80.0, 55.0];
-    final weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // Real weekly revenue calculation for past 7 days (in thousands k)
+    final List<double> weeklyRevenue = [];
+    final List<String> weekLabels = [];
+    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    for (int i = 6; i >= 0; i--) {
+      final dayStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      double dayTotal = 0;
+      for (final order in orders) {
+        for (final payment in order.payments) {
+          if ((payment.paidAt.isAfter(dayStart) || payment.paidAt.isAtSameMomentAs(dayStart)) &&
+              payment.paidAt.isBefore(dayEnd)) {
+            dayTotal += payment.amount;
+          }
+        }
+      }
+      weeklyRevenue.add(dayTotal / 1000.0);
+      weekLabels.add(dayNames[dayStart.weekday - 1]);
+    }
 
     return DashboardStats(
-      dailyRevenue: dailyRevenue > 0 ? dailyRevenue : 4500.0,
-      monthlyRevenue: monthlyRevenue > 0 ? monthlyRevenue : 85000.0,
+      dailyRevenue: dailyRevenue,
+      monthlyRevenue: monthlyRevenue,
       totalOrders: totalOrders,
       pendingOrders: pendingOrders,
       readyOrders: readyOrders,
@@ -688,12 +773,18 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
     final Box measurementsBox = Hive.box('measurements_box');
 
     // Load from cache first
-    final cachedData = measurementsBox.get(shopId);
-    if (cachedData != null) {
-      final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
-      final list = listJson.map((json) => MeasurementModel.fromJson(Map<String, dynamic>.from(json as Map))).toList();
-      state = AsyncValue.data(list);
-    } else {
+    dynamic cachedData;
+    try {
+      cachedData = measurementsBox.get(shopId);
+      if (cachedData != null) {
+        final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
+        final list = listJson.map((json) => MeasurementModel.fromJson(Map<String, dynamic>.from(json as Map))).toList();
+        state = AsyncValue.data(list);
+      } else {
+        state = const AsyncValue.loading();
+      }
+    } catch (e) {
+      debugPrint('Error loading cached measurements: $e');
       state = const AsyncValue.loading();
     }
 

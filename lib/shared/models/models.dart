@@ -364,7 +364,7 @@ class MeasurementSectionModel {
     return MeasurementSectionModel(
       title: json['title'] as String? ?? '',
       fields: (json['fields'] as List<dynamic>?)
-              ?.map((e) => MeasurementFieldModel.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => MeasurementFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [],
     );
@@ -378,6 +378,8 @@ class MeasurementModel {
   final MeasurementCategory category;
   final List<MeasurementSectionModel> sections;
   final DateTime updatedAt;
+  final List<Map<String, dynamic>>? silaiOptions;
+  final String? silaiNotes;
 
   const MeasurementModel({
     required this.id,
@@ -386,16 +388,27 @@ class MeasurementModel {
     required this.category,
     required this.sections,
     required this.updatedAt,
+    this.silaiOptions,
+    this.silaiNotes,
   });
 
   factory MeasurementModel.fromJson(Map<String, dynamic> json) {
-    final values = json['values'] as Map<String, dynamic>? ?? {};
+    final rawValues = json['values'];
+    final values = rawValues is Map ? Map<String, dynamic>.from(rawValues) : <String, dynamic>{};
     List<MeasurementSectionModel> parsedSections = [];
     if (values.containsKey('sections')) {
       parsedSections = (values['sections'] as List<dynamic>)
-          .map((s) => MeasurementSectionModel.fromJson(s as Map<String, dynamic>))
+          .map((s) => MeasurementSectionModel.fromJson(Map<String, dynamic>.from(s as Map)))
           .toList();
     }
+
+    List<Map<String, dynamic>>? parsedSilaiOptions;
+    if (values.containsKey('silai_options')) {
+      parsedSilaiOptions = (values['silai_options'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+
     return MeasurementModel(
       id: json['id'] as String,
       customerId: json['customer_id'] as String,
@@ -406,6 +419,8 @@ class MeasurementModel {
       ),
       sections: parsedSections,
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      silaiOptions: parsedSilaiOptions,
+      silaiNotes: values['silai_notes'] as String?,
     );
   }
 
@@ -418,6 +433,8 @@ class MeasurementModel {
       'title': title,
       'values': {
         'sections': sections.map((s) => s.toJson()).toList(),
+        'silai_options': silaiOptions,
+        'silai_notes': silaiNotes,
       },
       'updated_at': updatedAt.toIso8601String(),
     };

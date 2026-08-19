@@ -43,3 +43,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ── SECURITY: Never commit secrets, mockups or sensitive config ──────────────
+# Supabase config (contains anon key + URL)
+lib/core/config/supabase_config.dart
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Scratch / debug / mockups
+scratch/
+bin/
+*.txt
+*.html
+!web/index.html
+tailor_management_prd.md
+node_modules/

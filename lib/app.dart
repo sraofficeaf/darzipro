@@ -4,6 +4,8 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'shared/providers/app_providers.dart';
 
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 class DarziProApp extends ConsumerWidget {
   const DarziProApp({super.key});
 
@@ -70,6 +72,11 @@ class DarziProApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: appRouter,
       locale: Locale(currentLocale),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       supportedLocales: const [
         Locale('en'),
         Locale('ur'),
