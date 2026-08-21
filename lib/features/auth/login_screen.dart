@@ -9,8 +9,7 @@ import '../../core/constants/app_colors.dart';
 import '../../shared/providers/admin_providers.dart';
 import '../../shared/widgets/pro_field.dart';
 
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:local_auth/local_auth.dart' show BiometricType;
 import '../../core/services/biometric_service.dart';
 
@@ -207,15 +206,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
             String platform = 'web';
             if (kIsWeb) {
               platform = 'web';
-            } else if (Platform.isAndroid) {
+            } else if (defaultTargetPlatform == TargetPlatform.android) {
               platform = 'android';
-            } else if (Platform.isIOS) {
+            } else if (defaultTargetPlatform == TargetPlatform.iOS) {
               platform = 'ios';
-            } else if (Platform.isWindows) {
+            } else if (defaultTargetPlatform == TargetPlatform.windows) {
               platform = 'windows';
-            } else if (Platform.isMacOS) {
+            } else if (defaultTargetPlatform == TargetPlatform.macOS) {
               platform = 'macos';
-            } else if (Platform.isLinux) {
+            } else if (defaultTargetPlatform == TargetPlatform.linux) {
               platform = 'linux';
             }
 

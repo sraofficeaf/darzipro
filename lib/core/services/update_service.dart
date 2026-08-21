@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -35,7 +34,7 @@ class UpdateService {
 
   Future<UpdateInfo?> checkForUpdate() async {
     // Only check on Windows and Web
-    if (!kIsWeb && !Platform.isWindows) return null;
+    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.windows) return null;
     try {
       final info = await PackageInfo.fromPlatform();
       final currentBuild = int.tryParse(info.buildNumber) ?? 0;

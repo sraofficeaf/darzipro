@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -22,12 +21,12 @@ class AdsService {
 
   String get bannerAdUnitId {
     if (kIsWeb) return '';
-    return Platform.isAndroid ? _testBannerAndroid : _testBannerIOS;
+    return defaultTargetPlatform == TargetPlatform.android ? _testBannerAndroid : _testBannerIOS;
   }
 
   String get interstitialAdUnitId {
     if (kIsWeb) return '';
-    return Platform.isAndroid ? _testInterstitialAndroid : _testInterstitialIOS;
+    return defaultTargetPlatform == TargetPlatform.android ? _testInterstitialAndroid : _testInterstitialIOS;
   }
 
   bool _initialized = false;

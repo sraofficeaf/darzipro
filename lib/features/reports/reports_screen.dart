@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -141,10 +141,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
 
     try {
-      final tempDir = Directory.systemTemp;
-      final file = File('${tempDir.path}/darzi_pro_report.csv');
-      await file.writeAsString(buffer.toString());
-      await Share.shareXFiles([XFile(file.path)], text: 'Darzi Pro Report Export');
+      final bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, mimeType: 'text/csv', name: 'darzi_pro_report.csv')],
+        text: 'Darzi Pro Report Export',
+      );
     } catch (e) {
       await Share.share(buffer.toString(), subject: 'Darzi Pro Report Export');
     }
