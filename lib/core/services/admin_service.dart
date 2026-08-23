@@ -948,6 +948,85 @@ class AdminService {
     }
   }
 
+  Future<Map<String, dynamic>> getPlanConfig() async {
+    final Map<String, dynamic> config = {
+      'basic_price': '12000',
+      'basic_active': true,
+      'pro_price': '35000',
+      'pro_active': true,
+      'enterprise_price': '70000',
+      'enterprise_active': true,
+      'storage_monthly_price': '1200',
+      'storage_monthly_active': true,
+      'storage_annual_price': '10000',
+      'storage_annual_active': true,
+      'storage_commission': '0',
+    };
+    try {
+      final res = await http.get(
+        _restUri('/app_settings?key=in.(plan_price_basic,plan_active_basic,plan_price_professional,plan_active_professional,plan_price_enterprise,plan_active_enterprise,storage_addon_price_monthly,storage_active_monthly,storage_addon_price_annual,storage_active_annual,storage_addon_commission_percent)'),
+        headers: _restHeaders,
+      );
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List;
+        for (final item in list) {
+          final k = item['key'] as String?;
+          final v = item['value'] as String?;
+          if (v == null) continue;
+          if (k == 'plan_price_basic') config['basic_price'] = v;
+          if (k == 'plan_active_basic') config['basic_active'] = v == 'true';
+          if (k == 'plan_price_professional') config['pro_price'] = v;
+          if (k == 'plan_active_professional') config['pro_active'] = v == 'true';
+          if (k == 'plan_price_enterprise') config['enterprise_price'] = v;
+          if (k == 'plan_active_enterprise') config['enterprise_active'] = v == 'true';
+          if (k == 'storage_addon_price_monthly') config['storage_monthly_price'] = v;
+          if (k == 'storage_active_monthly') config['storage_monthly_active'] = v == 'true';
+          if (k == 'storage_addon_price_annual') config['storage_annual_price'] = v;
+          if (k == 'storage_active_annual') config['storage_annual_active'] = v == 'true';
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading plan config: $e');
+    }
+    return config;
+  }
+
+  Future<bool> setPlanConfig(Map<String, dynamic> config) async {
+    try {
+      final entries = [
+        {'key': 'plan_price_basic', 'value': config['basic_price']?.toString() ?? '12000'},
+        {'key': 'plan_active_basic', 'value': (config['basic_active'] ?? true).toString()},
+        {'key': 'plan_price_professional', 'value': config['pro_price']?.toString() ?? '35000'},
+        {'key': 'plan_active_professional', 'value': (config['pro_active'] ?? true).toString()},
+        {'key': 'plan_price_enterprise', 'value': config['enterprise_price']?.toString() ?? '70000'},
+        {'key': 'plan_active_enterprise', 'value': (config['enterprise_active'] ?? true).toString()},
+        {'key': 'storage_addon_price_monthly', 'value': config['storage_monthly_price']?.toString() ?? '1200'},
+        {'key': 'storage_active_monthly', 'value': (config['storage_monthly_active'] ?? true).toString()},
+        {'key': 'storage_addon_price_annual', 'value': config['storage_annual_price']?.toString() ?? '10000'},
+        {'key': 'storage_active_annual', 'value': (config['storage_annual_active'] ?? true).toString()},
+        {'key': 'storage_addon_commission_percent', 'value': '0'},
+      ];
+
+      for (final entry in entries) {
+        await http.post(
+          _restUri('/app_settings'),
+          headers: {
+            ..._adminHeaders,
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body: jsonEncode({
+            ...entry,
+            'updated_at': DateTime.now().toIso8601String(),
+          }),
+        );
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error saving plan config: $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> processPayout(String periodMonth) async {
     try {
       final threshold = await getMinPayoutThreshold();
@@ -1635,6 +1714,100 @@ class AdminService {
       return result;
     } catch (e) {
       debugPrint('Error fetching payout recipients: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchShopVpsUsage() async {
+    try {
+      final shopsRes = await http.get(
+        _restUri('/shops?select=id,name,phone,city,plan,storage_used_bytes,storage_addon_active,created_at,is_active'),
+        headers: _adminHeaders,
+      );
+      if (shopsRes.statusCode != 200) return [];
+      final List shops = jsonDecode(shopsRes.body);
+
+      // Fetch customer count per shop
+      final customersRes = await http.get(
+        _restUri('/customers?select=shop_id'),
+        headers: _adminHeaders,
+      );
+      Map<String, int> customerCounts = {};
+      if (customersRes.statusCode == 200) {
+        final List custs = jsonDecode(customersRes.body);
+        for (var c in custs) {
+          final sId = c['shop_id']?.toString();
+          if (sId != null) customerCounts[sId] = (customerCounts[sId] ?? 0) + 1;
+        }
+      }
+
+      // Fetch measurement count per shop
+      final measurementsRes = await http.get(
+        _restUri('/measurements?select=shop_id'),
+        headers: _adminHeaders,
+      );
+      Map<String, int> measurementCounts = {};
+      if (measurementsRes.statusCode == 200) {
+        final List meas = jsonDecode(measurementsRes.body);
+        for (var m in meas) {
+          final sId = m['shop_id']?.toString();
+          if (sId != null) measurementCounts[sId] = (measurementCounts[sId] ?? 0) + 1;
+        }
+      }
+
+      // Fetch order count per shop
+      final ordersRes = await http.get(
+        _restUri('/orders?select=shop_id'),
+        headers: _adminHeaders,
+      );
+      Map<String, int> orderCounts = {};
+      if (ordersRes.statusCode == 200) {
+        final List ords = jsonDecode(ordersRes.body);
+        for (var o in ords) {
+          final sId = o['shop_id']?.toString();
+          if (sId != null) orderCounts[sId] = (orderCounts[sId] ?? 0) + 1;
+        }
+      }
+
+      List<Map<String, dynamic>> results = [];
+      for (var shop in shops) {
+        final shopId = shop['id'] as String;
+        final usedBytes = (shop['storage_used_bytes'] as num?)?.toInt() ?? 0;
+        final cCount = customerCounts[shopId] ?? 0;
+        final mCount = measurementCounts[shopId] ?? 0;
+        final oCount = orderCounts[shopId] ?? 0;
+
+        final totalRecords = cCount + mCount + oCount;
+        final estDbOps = (totalRecords * 4) + (usedBytes ~/ 1024);
+        final estCpuPct = ((totalRecords * 0.15) + (usedBytes / 50000)).clamp(0.1, 12.5);
+
+        results.add({
+          'id': shopId,
+          'name': shop['name'] ?? 'Unnamed Shop',
+          'phone': shop['phone'] ?? '-',
+          'city': shop['city'] ?? '-',
+          'plan': shop['plan'] ?? 'mobile_only',
+          'storage_used_bytes': usedBytes,
+          'storage_addon_active': shop['storage_addon_active'] == true,
+          'is_active': shop['is_active'] != false,
+          'created_at': shop['created_at'],
+          'customer_count': cCount,
+          'measurement_count': mCount,
+          'order_count': oCount,
+          'total_records': totalRecords,
+          'est_db_ops': estDbOps,
+          'est_cpu_pct': double.parse(estCpuPct.toStringAsFixed(2)),
+          'customer_bytes': cCount * 320,
+          'measurement_bytes': mCount * 650,
+          'order_bytes': oCount * 480,
+          'other_bytes': (usedBytes - (cCount * 320 + mCount * 650 + oCount * 480)).clamp(0, 99999999),
+        });
+      }
+
+      results.sort((a, b) => (b['storage_used_bytes'] as int).compareTo(a['storage_used_bytes'] as int));
+      return results;
+    } catch (e) {
+      debugPrint('Error fetching shop VPS usage: $e');
       return [];
     }
   }

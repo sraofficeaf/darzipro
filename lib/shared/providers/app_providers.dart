@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_enums.dart';
+import '../../core/services/storage_service.dart';
 import '../models/models.dart';
 import 'supabase_providers.dart';
 import 'sync_manager.dart';
@@ -131,6 +133,8 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
       final json = customer.toJson(shopId);
       try {
         await supabase.from('customers').insert(json);
+        final bytes = utf8.encode(jsonEncode(json)).length;
+        await StorageService.instance.incrementStorageUsed(shopId, bytes);
         await _fetchCustomers();
       } catch (e) {
         final errStr = e.toString().toLowerCase();
@@ -840,6 +844,8 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
       final json = measurement.toJson(shopId);
       try {
         await supabase.from('measurements').upsert(json);
+        final bytes = utf8.encode(jsonEncode(json)).length;
+        await StorageService.instance.incrementStorageUsed(shopId, bytes);
         await _fetchMeasurements();
       } catch (e) {
         final errStr = e.toString().toLowerCase();

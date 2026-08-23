@@ -15,6 +15,7 @@ import '../../core/widgets/shared_widgets.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/providers/supabase_providers.dart';
 import '../../shared/providers/license_provider.dart';
+import '../../shared/providers/sync_manager.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../settings/add_template_modal.dart';
@@ -671,6 +672,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Future<void> _handleLogout() async {
+    try {
+      await ref.read(syncManagerProvider.notifier).replayQueue();
+    } catch (_) {}
     try {
       await Supabase.instance.client.auth.signOut();
       if (mounted) context.go('/login');

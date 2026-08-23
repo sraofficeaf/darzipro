@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/theme_extensions.dart';
@@ -14,6 +15,18 @@ class AdminSettingsScreen extends StatefulWidget {
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final _thresholdCtrl = TextEditingController(text: '1000');
   final _delayCtrl = TextEditingController(text: '0');
+  final _basicPriceCtrl = TextEditingController(text: '12000');
+  final _proPriceCtrl = TextEditingController(text: '35000');
+  final _enterprisePriceCtrl = TextEditingController(text: '70000');
+  final _storageMonthlyCtrl = TextEditingController(text: '1200');
+  final _storageAnnualCtrl = TextEditingController(text: '10000');
+  
+  bool _basicActive = true;
+  bool _proActive = true;
+  bool _enterpriseActive = true;
+  bool _storageMonthlyActive = true;
+  bool _storageAnnualActive = true;
+  
   bool _notifyOnNewRegistration = true;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -27,10 +40,21 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Future<void> _loadSettings() async {
     final threshold = await AdminService.instance.getMinPayoutThreshold();
     final delayDays = await AdminService.instance.getPayoutDelayDays();
+    final config = await AdminService.instance.getPlanConfig();
     if (mounted) {
       setState(() {
         _thresholdCtrl.text = threshold.toString();
         _delayCtrl.text = delayDays.toString();
+        _basicPriceCtrl.text = config['basic_price']?.toString() ?? '12000';
+        _basicActive = config['basic_active'] as bool? ?? true;
+        _proPriceCtrl.text = config['pro_price']?.toString() ?? '35000';
+        _proActive = config['pro_active'] as bool? ?? true;
+        _enterprisePriceCtrl.text = config['enterprise_price']?.toString() ?? '70000';
+        _enterpriseActive = config['enterprise_active'] as bool? ?? true;
+        _storageMonthlyCtrl.text = config['storage_monthly_price']?.toString() ?? '1200';
+        _storageMonthlyActive = config['storage_monthly_active'] as bool? ?? true;
+        _storageAnnualCtrl.text = config['storage_annual_price']?.toString() ?? '10000';
+        _storageAnnualActive = config['storage_annual_active'] as bool? ?? true;
         _isLoading = false;
       });
     }
@@ -56,16 +80,28 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     setState(() => _isSaving = true);
     final ok1 = await AdminService.instance.setMinPayoutThreshold(thresholdVal);
     final ok2 = await AdminService.instance.setPayoutDelayDays(delayVal);
+    final ok3 = await AdminService.instance.setPlanConfig({
+      'basic_price': _basicPriceCtrl.text.trim(),
+      'basic_active': _basicActive,
+      'pro_price': _proPriceCtrl.text.trim(),
+      'pro_active': _proActive,
+      'enterprise_price': _enterprisePriceCtrl.text.trim(),
+      'enterprise_active': _enterpriseActive,
+      'storage_monthly_price': _storageMonthlyCtrl.text.trim(),
+      'storage_monthly_active': _storageMonthlyActive,
+      'storage_annual_price': _storageAnnualCtrl.text.trim(),
+      'storage_annual_active': _storageAnnualActive,
+    });
 
     if (mounted) {
       setState(() => _isSaving = false);
-      if (ok1 && ok2) {
+      if (ok1 && ok2 && ok3) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Settings saved! Threshold: Rs $thresholdVal · Delay: $delayVal Days')),
+          SnackBar(content: Text('Settings saved! Plan status (Active/Inactive) & pricing updated successfully.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update payout settings')),
+          const SnackBar(content: Text('Failed to update some settings')),
         );
       }
     }
@@ -75,6 +111,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   void dispose() {
     _thresholdCtrl.dispose();
     _delayCtrl.dispose();
+    _basicPriceCtrl.dispose();
+    _proPriceCtrl.dispose();
+    _enterprisePriceCtrl.dispose();
+    _storageMonthlyCtrl.dispose();
+    _storageAnnualCtrl.dispose();
     super.dispose();
   }
 
@@ -240,7 +281,220 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Section 2: Notifications
+                        // Section 2: Plan Customization & Price Controls
+                        Text('🏷️ Plan Pricing & Storage Customization', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Membership Tier Pricing & Active Status', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text('📱 Basic (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Switch(
+                                              value: _basicActive,
+                                              onChanged: (v) => setState(() => _basicActive = v),
+                                              activeTrackColor: AppColors.accent,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        TextField(
+                                          controller: _basicPriceCtrl,
+                                          keyboardType: TextInputType.number,
+                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                          decoration: InputDecoration(
+                                            prefixText: 'Rs ',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text('🚀 Pro (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Switch(
+                                              value: _proActive,
+                                              onChanged: (v) => setState(() => _proActive = v),
+                                              activeTrackColor: AppColors.accent,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        TextField(
+                                          controller: _proPriceCtrl,
+                                          keyboardType: TextInputType.number,
+                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                          decoration: InputDecoration(
+                                            prefixText: 'Rs ',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text('👑 Enterprise', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Switch(
+                                              value: _enterpriseActive,
+                                              onChanged: (v) => setState(() => _enterpriseActive = v),
+                                              activeTrackColor: AppColors.accent,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        TextField(
+                                          controller: _enterprisePriceCtrl,
+                                          keyboardType: TextInputType.number,
+                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                          decoration: InputDecoration(
+                                            prefixText: 'Rs ',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              const Divider(),
+                              const SizedBox(height: 12),
+                              Text('💾 Extra Storage Add-on Pricing & Active Status', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text('Monthly (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Switch(
+                                              value: _storageMonthlyActive,
+                                              onChanged: (v) => setState(() => _storageMonthlyActive = v),
+                                              activeTrackColor: AppColors.accent,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        TextField(
+                                          controller: _storageMonthlyCtrl,
+                                          keyboardType: TextInputType.number,
+                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                          decoration: InputDecoration(
+                                            prefixText: 'Rs ',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text('Annual (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Switch(
+                                              value: _storageAnnualActive,
+                                              onChanged: (v) => setState(() => _storageAnnualActive = v),
+                                              activeTrackColor: AppColors.accent,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        TextField(
+                                          controller: _storageAnnualCtrl,
+                                          keyboardType: TextInputType.number,
+                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                          decoration: InputDecoration(
+                                            prefixText: 'Rs ',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x0FFF3A58),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0x26FF3A58)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.block_rounded, color: Color(0xFFFF3A58), size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Referral Commission for Storage Add-ons: 0% (Disabled globally for storage purchases).',
+                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFFF3A58)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => context.go('/admin/vps-resources'),
+                                  icon: const Icon(Icons.dns_rounded, size: 16),
+                                  label: const Text('🖥️ View Live VPS & Shop Resource Usage Analytics'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.accent,
+                                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
+                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Section 3: Notifications
                         Text('🔔 Admin Notifications', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
                         const SizedBox(height: 12),
                         Container(

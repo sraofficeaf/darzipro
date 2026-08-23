@@ -29,6 +29,7 @@ import '../../features/admin/admin_invites_screen.dart';
 import '../../features/admin/admin_support_screen.dart';
 import '../../features/admin/admin_reports_screen.dart';
 import '../../features/admin/admin_settings_screen.dart';
+import '../../features/admin/admin_vps_resources_screen.dart';
 
 import '../../features/invite_earn/invite_earn_shell.dart';
 import '../../features/registration/registration_flow_screen.dart';
@@ -302,6 +303,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/admin/settings',
           pageBuilder: (context, state) => const NoTransitionPage(child: AdminSettingsScreen()),
+        ),
+        GoRoute(
+          path: '/admin/vps-resources',
+          pageBuilder: (context, state) => const NoTransitionPage(child: AdminVpsResourcesScreen()),
         ),
         // Legacy redirects to Approvals
         GoRoute(path: '/admin/registrations', redirect: (context, state) => '/admin/approvals'),

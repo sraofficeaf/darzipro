@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/services/admin_service.dart';
 import '../../shared/providers/supabase_providers.dart';
 
 class StorageAddonModal extends ConsumerStatefulWidget {
@@ -28,10 +29,40 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
   String _paymentMethod = 'Easypaisa';
   String _selectedAddonType = 'monthly'; // 'monthly' or 'annual'
   int _selectedAmount = 1200;            // 1200 or 10000
+  bool _monthlyActive = true;
+  bool _annualActive = true;
+  int _monthlyPrice = 1200;
+  int _annualPrice = 10000;
   Uint8List? _screenshotBytes;
   bool _isLoading = false;
   String? _error;
   bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    final config = await AdminService.instance.getPlanConfig();
+    if (mounted) {
+      setState(() {
+        _monthlyActive = config['storage_monthly_active'] as bool? ?? true;
+        _annualActive = config['storage_annual_active'] as bool? ?? true;
+        _monthlyPrice = int.tryParse(config['storage_monthly_price']?.toString() ?? '1200') ?? 1200;
+        _annualPrice = int.tryParse(config['storage_annual_price']?.toString() ?? '10000') ?? 10000;
+
+        if (!_monthlyActive && _annualActive) {
+          _selectedAddonType = 'annual';
+          _selectedAmount = _annualPrice;
+        } else {
+          _selectedAddonType = 'monthly';
+          _selectedAmount = _monthlyPrice;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -186,36 +217,38 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
           // Plan Option Cards: Monthly vs Annual
           Row(
             children: [
-              Expanded(
-                child: _buildTypeOption(
-                  id: 'monthly',
-                  title: 'Monthly',
-                  price: 'Rs 1,200',
-                  subtitle: '/ month',
-                  amount: 1200,
-                  isSelected: _selectedAddonType == 'monthly',
-                  accentColor: amber,
-                  surface: surfaceBg(isDark),
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
+              if (_monthlyActive)
+                Expanded(
+                  child: _buildTypeOption(
+                    id: 'monthly',
+                    title: 'Monthly',
+                    price: 'Rs ${_monthlyPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                    subtitle: '/ month',
+                    amount: _monthlyPrice,
+                    isSelected: _selectedAddonType == 'monthly',
+                    accentColor: amber,
+                    surface: surfaceBg(isDark),
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildTypeOption(
-                  id: 'annual',
-                  title: 'Annual',
-                  price: 'Rs 10,000',
-                  subtitle: '/ year',
-                  badge: 'SAVE 31%',
-                  amount: 10000,
-                  isSelected: _selectedAddonType == 'annual',
-                  accentColor: teal,
-                  surface: surfaceBg(isDark),
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
+              if (_monthlyActive && _annualActive) const SizedBox(width: 12),
+              if (_annualActive)
+                Expanded(
+                  child: _buildTypeOption(
+                    id: 'annual',
+                    title: 'Annual',
+                    price: 'Rs ${_annualPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                    subtitle: '/ year',
+                    badge: 'BEST VALUE',
+                    amount: _annualPrice,
+                    isSelected: _selectedAddonType == 'annual',
+                    accentColor: teal,
+                    surface: surfaceBg(isDark),
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),

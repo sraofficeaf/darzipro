@@ -384,7 +384,7 @@ class _IeGuideScreenState extends State<IeGuideScreen> {
               context,
               title: '📦 Storage Add-on Earnings',
               description:
-                  'If someone you invited buys extra storage, you earn from that too (Level 1 shown below — same level rules apply for deeper levels).',
+                  'Note: Storage Add-on purchases carry 0% referral commission (Commissions apply exclusively to Membership Plan subscriptions & upgrades).',
               child: Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Container(

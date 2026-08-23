@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:darzi_pro/core/theme/theme_extensions.dart';
 import 'package:darzi_pro/core/constants/app_strings.dart';
 import 'package:darzi_pro/shared/providers/license_provider.dart';
+import 'package:darzi_pro/core/utils/plan_utils.dart';
 
 class UpgradeScreen extends ConsumerStatefulWidget {
   const UpgradeScreen({super.key});
@@ -447,52 +448,47 @@ class _UpgradeScreenState extends ConsumerState<UpgradeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        license.isFree
-                            ? 'Free Plan (Offline)'
-                            : '${license.plan.toUpperCase()} Plan Active',
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xFFEDF4FF) : context.text1,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: license.isFree
-                              ? (isDark ? const Color(0x0F5A7090) : context.surface2)
-                              : const Color(0x0F10CBA0),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: license.isFree
-                                ? (isDark ? const Color(0x265A7090) : context.border)
-                                : const Color(0x2610CBA0),
-                            width: 1,
+                  Builder(
+                    builder: (context) {
+                      final planInfo = AppPlanUtils.getDisplayInfo(license.plan);
+                      return Row(
+                        children: [
+                          Text(
+                            '${planInfo.$1} Active',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? const Color(0xFFEDF4FF) : context.text1,
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          license.isFree ? 'OFFLINE' : 'PRO',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            color: license.isFree
-                                ? (isDark ? const Color(0xFF5A7090) : context.text3)
-                                : const Color(0xFF10CBA0),
-                            letterSpacing: 0.5,
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0x0F10CBA0),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0x2610CBA0),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              'ACTIVE',
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF10CBA0),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    license.isFree
-                        ? 'All data is stored locally on this device.'
-                        : 'Shop: ${license.shopName} • Cloud Sync Enabled',
+                    'Shop: ${license.shopName.isNotEmpty ? license.shopName : "Darzi Pro Shop"} • Cloud Sync Enabled',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: isDark ? const Color(0xFF5A7090) : context.text2,

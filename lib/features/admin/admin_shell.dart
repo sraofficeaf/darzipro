@@ -32,6 +32,7 @@ const _navItems = [
   _NavItem(icon: Icons.notifications_outlined, iconActive: Icons.notifications_rounded, label: 'Notifications', route: '/admin/notifications'),
   _NavItem(icon: Icons.system_update_outlined, iconActive: Icons.system_update_rounded, label: 'App Versions', route: '/admin/versions'),
   _NavItem(icon: Icons.assessment_outlined, iconActive: Icons.assessment_rounded, label: 'Reports', route: '/admin/reports'),
+  _NavItem(icon: Icons.dns_outlined, iconActive: Icons.dns_rounded, label: 'VPS & Shop Resources', route: '/admin/vps-resources'),
   _NavItem(icon: Icons.menu_book_outlined, iconActive: Icons.menu_book_rounded, label: 'Help & Reference', route: '/admin/support'),
   _NavItem(icon: Icons.settings_outlined, iconActive: Icons.settings_rounded, label: 'Settings', route: '/admin/settings'),
 ];

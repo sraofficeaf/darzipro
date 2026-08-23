@@ -93,15 +93,11 @@ class StorageService {
   /// Increments storage_used_bytes by [addedBytes] for [shopId].
   Future<void> incrementStorageUsed(String shopId, int addedBytes) async {
     try {
-      final info = await getStorageInfo(shopId);
-      final current = info['storage_used_bytes'] as int? ?? 0;
+      final client = Supabase.instance.client;
+      final shop = await client.from('shops').select('storage_used_bytes').eq('id', shopId).maybeSingle();
+      final current = (shop?['storage_used_bytes'] as int?) ?? 0;
       final newValue = current + addedBytes;
-
-      await http.patch(
-        Uri.parse('${SupabaseConfig.url}/rest/v1/shops?id=eq.$shopId'),
-        headers: _headers,
-        body: jsonEncode({'storage_used_bytes': newValue}),
-      );
+      await client.from('shops').update({'storage_used_bytes': newValue}).eq('id', shopId);
     } catch (e) {
       debugPrint('StorageService.incrementStorageUsed error: $e');
     }

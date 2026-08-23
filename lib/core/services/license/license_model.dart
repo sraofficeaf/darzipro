@@ -17,10 +17,14 @@ class LicenseModel {
     this.activatedAt,
   });
 
-  bool get isFree => plan == 'free';
-  bool get isPro => plan == 'pro' && isActive;
-  bool get isBusiness => plan == 'business' && isActive;
-  bool get isCloudEnabled => isPro || isBusiness;
+  bool get isBasic => plan == 'mobile_only' || plan == 'basic';
+  bool get isProfessional => plan == 'full_access' || plan == 'pro';
+  bool get isEnterprise => plan == 'full_access_3yr' || plan == 'business';
+
+  bool get isFree => false; // All plans in Darzi Pro are paid lifetime tiers
+  bool get isPro => isProfessional || isEnterprise || isActive;
+  bool get isBusiness => isEnterprise;
+  bool get isCloudEnabled => true; // All Darzi Pro plans have Cloud Database Storage enabled
 
   int get daysRemaining {
     if (expiresAt == null) return 0;

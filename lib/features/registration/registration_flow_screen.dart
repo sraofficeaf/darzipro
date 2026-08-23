@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/registration_service.dart';
+import '../../core/services/admin_service.dart';
 import '../../core/utils/image_compressor.dart';
 import '../../shared/widgets/pro_field.dart';
 import '../../shared/widgets/pricing_plan_card.dart';
@@ -165,6 +166,46 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
       CurvedAnimation(parent: _animCtrl, curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic)));
 
     _animCtrl.forward();
+    _loadPlanConfig();
+  }
+
+  Future<void> _loadPlanConfig() async {
+    final config = await AdminService.instance.getPlanConfig();
+    if (!mounted) return;
+
+    final bool basicActive = config['basic_active'] as bool? ?? true;
+    final bool proActive = config['pro_active'] as bool? ?? true;
+    final bool enterpriseActive = config['enterprise_active'] as bool? ?? true;
+    final String basicPrice = config['basic_price']?.toString() ?? '12000';
+    final String proPrice = config['pro_price']?.toString() ?? '35000';
+    final String enterprisePrice = config['enterprise_price']?.toString() ?? '70000';
+
+    setState(() {
+      _plans.removeWhere((p) {
+        final id = p['id'];
+        if (id == 'mobile_only' && !basicActive) return true;
+        if (id == 'full_access' && !proActive) return true;
+        if (id == 'full_access_3yr' && !enterpriseActive) return true;
+        return false;
+      });
+
+      for (final p in _plans) {
+        final id = p['id'];
+        if (id == 'mobile_only') p['price'] = 'Rs ${_fmtPrice(basicPrice)}';
+        if (id == 'full_access') p['price'] = 'Rs ${_fmtPrice(proPrice)}';
+        if (id == 'full_access_3yr') p['price'] = 'Rs ${_fmtPrice(enterprisePrice)}';
+      }
+
+      if (_plans.isNotEmpty && !_plans.any((p) => p['id'] == _selectedPlan)) {
+        _selectedPlan = _plans.first['id'] as String;
+      }
+    });
+  }
+
+  String _fmtPrice(String p) {
+    final n = int.tryParse(p);
+    if (n == null) return p;
+    return n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
   @override

@@ -1583,12 +1583,26 @@ class _StorageWarningBanner extends StatelessWidget {
               GestureDetector(
                 onTap: () => StorageAddonModal.show(context),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFF6B00),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text('Subscribe', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.shopping_cart_rounded, color: Colors.white, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Buy Extra Storage',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1632,8 +1646,8 @@ class _StorageWarningBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 isFull
-                    ? '⚠️ Storage full (Limited Storage reached). Upgrade to unlimited storage.'
-                    : '⚠️ You\'ve used $percentStr% of your storage (Limited Storage). Upgrade Now.',
+                    ? '⚠️ Storage full. Upgrade to unlimited storage.'
+                    : '⚠️ You\'ve used $percentStr% of your storage. Upgrade to unlimited storage.',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1652,7 +1666,7 @@ class _StorageWarningBanner extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Upgrade',
+                  'Buy Extra Storage',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
