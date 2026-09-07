@@ -159,6 +159,8 @@ final appRouter = GoRouter(
                 final customerId = state.pathParameters['customerId']!;
                 final customerName = state.pathParameters['customerName']!;
                 final categoryStr = state.uri.queryParameters['category'];
+                final measurementId = state.uri.queryParameters['measurementId'];
+                final profileName = state.uri.queryParameters['profileName'];
                 MeasurementCategory? category;
                 if (categoryStr != null) {
                   try {
@@ -171,6 +173,8 @@ final appRouter = GoRouter(
                   customerId: customerId,
                   customerName: customerName,
                   category: category,
+                  measurementId: measurementId,
+                  profileName: profileName,
                 );
               },
             ),

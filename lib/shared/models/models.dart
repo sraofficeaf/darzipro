@@ -89,6 +89,7 @@ class OrderItemModel {
   final String? designDetails;
   final double unitPrice;
   final String? notes;
+  final String? measurementProfileId;
 
   const OrderItemModel({
     required this.id,
@@ -98,6 +99,7 @@ class OrderItemModel {
     this.designDetails,
     required this.unitPrice,
     this.notes,
+    this.measurementProfileId,
   });
 
   double get total => unitPrice * quantity;
@@ -111,6 +113,7 @@ class OrderItemModel {
       designDetails: json['design_details'] as String?,
       unitPrice: (json['unit_price'] as num?)?.toDouble() ?? 0.0,
       notes: json['notes'] as String?,
+      measurementProfileId: json['measurement_profile_id'] as String?,
     );
   }
 
@@ -124,6 +127,7 @@ class OrderItemModel {
       'design_details': designDetails,
       'unit_price': unitPrice,
       'notes': notes,
+      if (measurementProfileId != null) 'measurement_profile_id': measurementProfileId,
     };
   }
 }
@@ -375,6 +379,7 @@ class MeasurementModel {
   final String id;
   final String customerId;
   final String title;
+  final String profileName;
   final MeasurementCategory category;
   final List<MeasurementSectionModel> sections;
   final DateTime updatedAt;
@@ -385,6 +390,7 @@ class MeasurementModel {
     required this.id,
     required this.customerId,
     required this.title,
+    this.profileName = 'Naap',
     required this.category,
     required this.sections,
     required this.updatedAt,
@@ -413,6 +419,7 @@ class MeasurementModel {
       id: json['id'] as String,
       customerId: json['customer_id'] as String,
       title: json['title'] as String? ?? 'Naap',
+      profileName: json['profile_name'] as String? ?? json['title'] as String? ?? 'Naap',
       category: MeasurementCategory.values.firstWhere(
         (c) => c.name == json['category'],
         orElse: () => MeasurementCategory.men,
@@ -431,6 +438,7 @@ class MeasurementModel {
       'customer_id': customerId,
       'category': category.name,
       'title': title,
+      'profile_name': profileName,
       'values': {
         'sections': sections.map((s) => s.toJson()).toList(),
         'silai_options': silaiOptions,

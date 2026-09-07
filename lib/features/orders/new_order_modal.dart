@@ -60,6 +60,9 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
   // Stepper quantity
   int _qty = 1;
 
+  // Selected measurement profile for item being added
+  String? _selectedMeasurementProfileId;
+
   // Search state
   String _searchQuery = '';
   Timer? _debounce;
@@ -269,6 +272,7 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
         quantity: item['qty'] as int,
         clothDetails: item['cloth'] as String,
         unitPrice: item['price'] as double,
+        measurementProfileId: item['measurementProfileId'] as String?,
       );
     }).toList();
 
@@ -770,6 +774,10 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
                 prefix: const Text('🎨', style: TextStyle(fontSize: 14)),
               ),
               const SizedBox(height: 10),
+              // Measurement Profile Picker (if customer has profiles)
+              if (_selectedCustomer != null)
+                _buildMeasurementProfilePicker(),
+              const SizedBox(height: 10),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -831,11 +839,13 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
                       'cloth': _clothCtrl.text.trim(),
                       'price': double.tryParse(_priceCtrl.text) ?? 0.0,
                       'qty': _qty,
+                      'measurementProfileId': _selectedMeasurementProfileId,
                     });
                     _dressTypeCtrl.clear();
                     _clothCtrl.clear();
                     _priceCtrl.clear();
                     _qty = 1;
+                    _selectedMeasurementProfileId = null;
                     _step2Error = null;
                   });
                 },
@@ -863,6 +873,80 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
           ),
         ),
         const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildMeasurementProfilePicker() {
+    final allMeasurements = ref.watch(customerMeasurementsProvider).valueOrNull ?? [];
+    final profiles = allMeasurements
+        .where((m) => m.customerId == _selectedCustomer?.id)
+        .toList();
+
+    if (profiles.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MEASUREMENT PROFILE (OPTIONAL)',
+          style: GoogleFonts.inter(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF5A7090),
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          decoration: BoxDecoration(
+            color: context.isDark ? const Color(0x08FFFFFF) : context.surface2,
+            border: Border.all(
+              color: context.isDark ? const Color(0x0FFFFFFF) : context.border,
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: _selectedMeasurementProfileId,
+              isExpanded: true,
+              dropdownColor: context.isDark ? const Color(0xFF0D1628) : Colors.white,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: context.text1,
+              ),
+              items: [
+                DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text(
+                    'None — no profile linked',
+                    style: GoogleFonts.inter(fontSize: 12, color: context.text3),
+                  ),
+                ),
+                ...profiles.map((p) => DropdownMenuItem<String?>(
+                  value: p.id,
+                  child: Row(
+                    children: [
+                      const Text('📏', style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          p.profileName,
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.text1),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+              onChanged: (val) => setState(() => _selectedMeasurementProfileId = val),
+            ),
+          ),
+        ),
       ],
     );
   }

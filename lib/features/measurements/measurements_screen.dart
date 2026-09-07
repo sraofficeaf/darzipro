@@ -524,11 +524,15 @@ class MeasurementsScreen extends ConsumerStatefulWidget {
   final String? customerId;
   final String? customerName;
   final MeasurementCategory? category;
+  final String? measurementId;
+  final String? profileName;
   const MeasurementsScreen({
     super.key,
     this.customerId,
     this.customerName,
     this.category,
+    this.measurementId,
+    this.profileName,
   });
 
   @override
@@ -843,12 +847,19 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
     }
 
     if (!draftLoaded) {
-      // Load from saved measurements
+      // Load from saved measurements — prefer specific measurementId if provided
       try {
         final existingMeasurements = ref.read(customerMeasurementsProvider).valueOrNull ?? [];
-        final existing = existingMeasurements
-            .where((m) => m.customerId == customerId)
-            .firstOrNull;
+        MeasurementModel? existing;
+        if (widget.measurementId != null) {
+          existing = existingMeasurements
+              .where((m) => m.id == widget.measurementId)
+              .firstOrNull;
+        } else {
+          existing = existingMeasurements
+              .where((m) => m.customerId == customerId)
+              .firstOrNull;
+        }
 
         if (existing != null) {
           _selectedCategory = existing.category;
@@ -958,10 +969,24 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
       ];
 
       final existingMeasurements = ref.read(customerMeasurementsProvider).valueOrNull ?? [];
-      final existing = existingMeasurements
-          .where((m) => m.customerId == customerId)
-          .firstOrNull;
+      // If a specific measurementId was passed (editing existing profile), use it;
+      // otherwise find existing record for this customer (legacy single-profile path) or create new.
+      MeasurementModel? existing;
+      if (widget.measurementId != null) {
+        existing = existingMeasurements
+            .where((m) => m.id == widget.measurementId)
+            .firstOrNull;
+      } else {
+        existing = existingMeasurements
+            .where((m) => m.customerId == customerId)
+            .firstOrNull;
+      }
       final measurementId = existing?.id ?? const Uuid().v4();
+      // Determine profile name: prefer explicit param, then existing, then fallback
+      final resolvedProfileName = widget.profileName ??
+          existing?.profileName ??
+          'Naap - ${_selectedCategory.label}';
+      final resolvedTitle = resolvedProfileName;
 
       final wishesText = _customerWishes
           .where((w) => w['checked'] == true)
@@ -976,7 +1001,8 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen>
       final measurement = MeasurementModel(
         id: measurementId,
         customerId: customerId,
-        title: 'Naap - ${_selectedCategory.label}',
+        title: resolvedTitle,
+        profileName: resolvedProfileName,
         category: _selectedCategory,
         sections: updatedSections,
         updatedAt: DateTime.now(),

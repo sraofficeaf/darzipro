@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
 import '../orders/new_order_modal.dart';
+import '../orders/widgets/add_payment_modal.dart';
 import 'edit_customer_modal.dart';
 import '../../core/widgets/confirm_delete_modal.dart';
 
@@ -365,6 +367,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
                           buildTab("Profile", 0, isDark: isDark),
                           buildTab("Naap", 1, isDark: isDark),
                           buildTab("Orders", 2, isDark: isDark),
+                          buildTab("کھاتہ", 3, isDark: isDark),
                         ],
                       ),
                     ),
@@ -549,36 +552,26 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
                         ),
                       ),
                     ] else if (_activeTab == 1) ...[
-                      // NAAP TAB
+                      // NAAP TAB — Multiple Profiles
                       if (measurements.isEmpty)
                         _buildEmptyTabState(
                           '📏',
-                          'No Measurements Yet',
-                          'Add measurements to track this client\'s naap.',
-                          '+ Add Naap',
-                          () {
-                            HapticFeedback.lightImpact();
-                            context.push(
-                              '/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}',
-                            );
-                          },
+                          'No Measurement Profiles Yet',
+                          'Add a naap profile to save this client\'s measurements.',
+                          '+ Add First Profile',
+                          () => _showAddProfileDialog(context, customer, isDark: isDark),
                           isDark: isDark,
                         )
                       else ...[
                         ...measurements.map(
-                          (m) => _MeasurementCard(
+                          (m) => _MeasurementProfileCard(
                             measurement: m,
                             customerName: customer.name,
                           ),
                         ),
                         const SizedBox(height: 16),
                         GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            context.push(
-                              '/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}',
-                            );
-                          },
+                          onTap: () => _showAddProfileDialog(context, customer, isDark: isDark),
                           child: Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -607,7 +600,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  "ADD NAAP CARD",
+                                  "+ ADD NEW PROFILE",
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -619,7 +612,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
                           ),
                         ),
                       ]
-                    ] else ...[
+                    ] else if (_activeTab == 2) ...[
                       // ORDERS TAB
                       if (orders.isEmpty)
                         _buildEmptyTabState(
@@ -635,6 +628,12 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
                         )
                       else
                         ...orders.map((o) => _OrderMini(order: o)),
+                    ] else ...[
+                      // KHAATA TAB (کھاتہ)
+                      _CustomerLedgerTab(
+                        customer: customer,
+                        orders: orders,
+                      ),
                     ],
                     const SizedBox(height: 30),
                   ],
@@ -827,6 +826,31 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
       ),
     );
   }
+
+  // ── Add Profile Dialog ────────────────────────────────────────────────────
+  Future<void> _showAddProfileDialog(
+    BuildContext context,
+    CustomerModel customer, {
+    required bool isDark,
+  }) async {
+    HapticFeedback.lightImpact();
+    final result = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddProfileNameDialog(isDark: isDark),
+    );
+    if (result != null && context.mounted) {
+      final profileName = result['profileName'] ?? 'Naap';
+      final categoryName = result['category'];
+      String route = '/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}'
+          '?profileName=${Uri.encodeComponent(profileName)}';
+      if (categoryName != null && categoryName.isNotEmpty) {
+        route += '&category=$categoryName';
+      }
+      context.push(route);
+    }
+  }
 }
 
 // ── Glass Back Button with Hover ────────────────────────────────────
@@ -978,11 +1002,11 @@ class _StatCardState extends State<_StatCard> {
   }
 }
 
-// ── Measurement Card ────────────────────────────────────────────────
-class _MeasurementCard extends StatelessWidget {
+// ── Measurement Profile Card (Multi-Profile) ─────────────────────────
+class _MeasurementProfileCard extends StatelessWidget {
   final MeasurementModel measurement;
   final String customerName;
-  const _MeasurementCard({
+  const _MeasurementProfileCard({
     required this.measurement,
     required this.customerName,
   });
@@ -994,6 +1018,16 @@ class _MeasurementCard extends StatelessWidget {
     final cardBorder = isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
     final titleColor = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0F172A);
     final subtitleColor = isDark ? const Color(0xFF5A7090) : const Color(0xFF64748B);
+
+    // Build field preview text (first 3 non-design fields with values)
+    final previewFields = measurement.sections
+        .where((s) => s.title == 'Measurements')
+        .expand((s) => s.fields)
+        .where((f) => f.value.isNotEmpty)
+        .take(4)
+        .toList();
+
+    final dateStr = DateFormat('dd MMM yy').format(measurement.updatedAt);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1017,7 +1051,10 @@ class _MeasurementCard extends StatelessWidget {
           onTap: () {
             HapticFeedback.lightImpact();
             context.push(
-              '/measurements/${measurement.customerId}/${Uri.encodeComponent(customerName)}?category=${measurement.category.name}',
+              '/measurements/${measurement.customerId}/${Uri.encodeComponent(customerName)}'
+              '?measurementId=${measurement.id}'
+              '&profileName=${Uri.encodeComponent(measurement.profileName)}'
+              '&category=${measurement.category.name}',
             );
           },
           child: Padding(
@@ -1027,17 +1064,44 @@ class _MeasurementCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text('📏', style: TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    Text(
-                      measurement.title,
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: titleColor,
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0x1AF5A623) : const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark ? const Color(0x33F5A623) : const Color(0xFFFCD34D),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text('📏', style: TextStyle(fontSize: 16)),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            measurement.profileName,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: titleColor,
+                            ),
+                          ),
+                          Text(
+                            'Updated $dateStr',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -1046,7 +1110,7 @@ class _MeasurementCard extends StatelessWidget {
                         border: Border.all(color: isDark ? const Color(0x33F5A623) : const Color(0xFFFCD34D), width: 1),
                       ),
                       child: Text(
-                        measurement.category.name.toUpperCase(),
+                        measurement.category.label.toUpperCase(),
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -1055,41 +1119,38 @@ class _MeasurementCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.chevron_right_rounded, size: 18, color: subtitleColor),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Container(height: 1, color: isDark ? const Color(0x08FFFFFF) : const Color(0xFFF1F5F9)),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  children: measurement.sections
-                      .expand((s) => s.fields)
-                      .take(6)
-                      .map((f) => Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                f.label,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: subtitleColor,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${f.value} ${f.unit}',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: titleColor,
-                                ),
-                              ),
-                            ],
-                          ))
-                      .toList(),
-                ),
+                if (previewFields.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(height: 1, color: isDark ? const Color(0x08FFFFFF) : const Color(0xFFF1F5F9)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
+                    children: previewFields.map((f) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0x0AFFFFFF) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isDark ? const Color(0x10FFFFFF) : const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        '${f.label}: ${f.value}${f.unit.isNotEmpty ? ' ${f.unit}' : ''}',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: titleColor,
+                        ),
+                      ),
+                    )).toList(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1369,6 +1430,719 @@ class _DetailError extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Add Profile Name Dialog ───────────────────────────────────────────────────
+class _AddProfileNameDialog extends StatefulWidget {
+  final bool isDark;
+  const _AddProfileNameDialog({required this.isDark});
+
+  @override
+  State<_AddProfileNameDialog> createState() => _AddProfileNameDialogState();
+}
+
+class _AddProfileNameDialogState extends State<_AddProfileNameDialog> {
+  static const _presets = [
+    {'label': 'شلوار قمیض', 'value': 'شلوار قمیض', 'category': 'men'},
+    {'label': 'واسکٹ', 'value': 'واسکٹ', 'category': 'men'},
+    {'label': 'شیروانی', 'value': 'شیروانی', 'category': 'men'},
+    {'label': 'کرتا پاجامہ', 'value': 'کرتا پاجامہ', 'category': 'men'},
+    {'label': 'پینٹ کوٹ', 'value': 'پینٹ کوٹ', 'category': 'men'},
+    {'label': 'سوٹ / قمیض', 'value': 'سوٹ / قمیض', 'category': 'women'},
+    {'label': 'فراک', 'value': 'فراک', 'category': 'women'},
+    {'label': 'Custom...', 'value': '__custom__', 'category': ''},
+  ];
+
+  String _selectedPreset = 'شلوار قمیض';
+  String _selectedCategory = 'men';
+  final _customCtrl = TextEditingController();
+  bool _isCustom = false;
+
+  @override
+  void dispose() {
+    _customCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg = isDark ? const Color(0xFF0D1628) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? const Color(0xFF5A7090) : const Color(0xFF64748B);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      padding: EdgeInsets.only(
+        left: 24, right: 24, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0x30FFFFFF) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'نیا پروفائل بنائیں',
+            style: GoogleFonts.outfit(
+              fontSize: 20, fontWeight: FontWeight.w800, color: titleColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select a profile type or enter a custom name',
+            style: GoogleFonts.inter(fontSize: 13, color: subtitleColor),
+          ),
+          const SizedBox(height: 20),
+          // Dropdown
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x08FFFFFF) : const Color(0xFFF8FAFC),
+              border: Border.all(color: borderColor, width: 1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedPreset,
+                isExpanded: true,
+                dropdownColor: isDark ? const Color(0xFF0D1628) : Colors.white,
+                style: GoogleFonts.inter(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: titleColor,
+                ),
+                items: _presets.map((p) => DropdownMenuItem<String>(
+                  value: p['value'],
+                  child: Text(
+                    p['label']!,
+                    style: GoogleFonts.inter(fontSize: 14, color: titleColor),
+                  ),
+                )).toList(),
+                onChanged: (val) {
+                  if (val == null) return;
+                  final preset = _presets.firstWhere((p) => p['value'] == val);
+                  setState(() {
+                    _selectedPreset = val;
+                    _isCustom = val == '__custom__';
+                    _selectedCategory = preset['category']!;
+                  });
+                },
+              ),
+            ),
+          ),
+          if (_isCustom) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _customCtrl,
+              autofocus: true,
+              style: GoogleFonts.inter(fontSize: 14, color: titleColor),
+              decoration: InputDecoration(
+                hintText: 'Enter profile name...',
+                hintStyle: GoogleFonts.inter(fontSize: 14, color: subtitleColor),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                filled: true,
+                fillColor: isDark ? const Color(0x08FFFFFF) : const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: borderColor, width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: borderColor, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFF5A623), width: 1.5),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: borderColor, width: 1),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Center(
+                      child: Text('Cancel',
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: subtitleColor)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    final name = _isCustom
+                        ? (_customCtrl.text.trim().isEmpty ? 'Naap' : _customCtrl.text.trim())
+                        : _selectedPreset;
+                    Navigator.pop(context, {
+                      'profileName': name,
+                      'category': _selectedCategory,
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(13),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x33F5A623), blurRadius: 12, offset: Offset(0, 4)),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text('Create Profile →',
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1A0A00))),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Customer Ledger Tab (کھاتہ) ───────────────────────────────────────────────
+class _CustomerLedgerTab extends ConsumerWidget {
+  final CustomerModel customer;
+  final List<OrderModel> orders;
+  const _CustomerLedgerTab({required this.customer, required this.orders});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? const Color(0xFF5A7090) : const Color(0xFF64748B);
+    final cardBg = isDark ? const Color(0xFF0D1628) : const Color(0xFFFFFFFF);
+    final cardBorder = isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
+
+    // ── Aggregate Totals ──────────────────────────────────────────────
+    final totalBusiness = orders.fold(0.0, (s, o) => s + o.totalAmount);
+    final totalPaid = orders.fold(0.0, (s, o) => s + o.paidAmount);
+    final totalOutstanding = orders.fold(0.0, (s, o) => s + (o.remainingAmount > 0 ? o.remainingAmount : 0));
+
+    // ── Timeline Events ───────────────────────────────────────────────
+    final List<Map<String, dynamic>> events = [];
+    for (final order in orders) {
+      events.add({
+        'type': 'order',
+        'date': order.orderDate,
+        'order': order,
+      });
+      for (final payment in order.payments) {
+        events.add({
+          'type': 'payment',
+          'date': payment.paidAt,
+          'payment': payment,
+          'order': order,
+        });
+      }
+    }
+    events.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
+    // ── Unpaid Orders ─────────────────────────────────────────────────
+    final unpaidOrders = orders.where((o) => o.remainingAmount > 0).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Summary Cards Row ──────────────────────────────────────────
+        Row(
+          children: [
+            Expanded(child: _LedgerSummaryCard(
+              emoji: '💼',
+              label: 'Total Business',
+              value: 'Rs. ${totalBusiness.toInt()}',
+              color: const Color(0xFF5B72F5),
+              isDark: isDark,
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: _LedgerSummaryCard(
+              emoji: '✅',
+              label: 'Total Paid',
+              value: 'Rs. ${totalPaid.toInt()}',
+              color: const Color(0xFF10CBA0),
+              isDark: isDark,
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: _LedgerSummaryCard(
+              emoji: '⏳',
+              label: 'Outstanding',
+              value: 'Rs. ${totalOutstanding.toInt()}',
+              color: totalOutstanding > 0 ? const Color(0xFFFF3A58) : const Color(0xFF10CBA0),
+              isDark: isDark,
+            )),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ── Add Payment Button ─────────────────────────────────────────
+        if (unpaidOrders.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            decoration: BoxDecoration(
+              color: const Color(0x1A10CBA0),
+              border: Border.all(color: const Color(0x4010CBA0), width: 1),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10CBA0), size: 16),
+                const SizedBox(width: 8),
+                Text('Fully Paid Up ✓ — No Outstanding Balance',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF10CBA0))),
+              ],
+            ),
+          )
+        else
+          GestureDetector(
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              if (unpaidOrders.length == 1) {
+                await AddPaymentModal.show(context, order: unpaidOrders.first);
+              } else {
+                if (!context.mounted) return;
+                final chosen = await showModalBottomSheet<OrderModel>(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => _OrderSelectorSheet(unpaidOrders: unpaidOrders, isDark: isDark),
+                );
+                if (chosen != null && context.mounted) {
+                  await AddPaymentModal.show(context, order: chosen);
+                }
+              }
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10CBA0), Color(0xFF0EA88A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(13),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x3310CBA0), blurRadius: 12, offset: Offset(0, 4)),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    unpaidOrders.length == 1
+                        ? '+ Add Payment  (Rs. ${unpaidOrders.first.remainingAmount.toInt()} due)'
+                        : '+ Add Payment  (${unpaidOrders.length} orders unpaid)',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 20),
+
+        // ── Timeline Header ────────────────────────────────────────────
+        Text(
+          'TIMELINE',
+          style: GoogleFonts.inter(
+            fontSize: 10, fontWeight: FontWeight.w800,
+            color: subtitleColor, letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        if (events.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text('No activity yet.',
+                style: GoogleFonts.inter(fontSize: 13, color: subtitleColor)),
+            ),
+          )
+        else
+          ...events.map((e) => _LedgerTimelineItem(event: e, isDark: isDark)),
+
+        const SizedBox(height: 20),
+
+        // ── All Orders Table ───────────────────────────────────────────
+        Text(
+          'ALL ORDERS',
+          style: GoogleFonts.inter(
+            fontSize: 10, fontWeight: FontWeight.w800,
+            color: subtitleColor, letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        if (orders.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text('No orders yet.',
+                style: GoogleFonts.inter(fontSize: 13, color: subtitleColor)),
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              border: Border.all(color: cardBorder, width: 1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              children: orders.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final order = entry.value;
+                final isLast = idx == orders.length - 1;
+                return InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/orders/${order.id}');
+                  },
+                  borderRadius: BorderRadius.only(
+                    topLeft: idx == 0 ? const Radius.circular(13) : Radius.zero,
+                    topRight: idx == 0 ? const Radius.circular(13) : Radius.zero,
+                    bottomLeft: isLast ? const Radius.circular(13) : Radius.zero,
+                    bottomRight: isLast ? const Radius.circular(13) : Radius.zero,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: isLast
+                          ? null
+                          : Border(bottom: BorderSide(color: cardBorder, width: 1)),
+                    ),
+                    child: Row(
+                      children: [
+                        // Token
+                        SizedBox(
+                          width: 52,
+                          child: Text(
+                            order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 10, fontWeight: FontWeight.w800,
+                              color: const Color(0xFFF5A623),
+                            ),
+                          ),
+                        ),
+                        // Garment + date
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Order',
+                                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                DateFormat('dd MMM yy').format(order.orderDate),
+                                style: GoogleFonts.inter(fontSize: 10, color: subtitleColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Paid / Remaining
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Rs. ${order.totalAmount.toInt()}',
+                              style: GoogleFonts.jetBrainsMono(fontSize: 11, fontWeight: FontWeight.w700, color: titleColor),
+                            ),
+                            if (order.remainingAmount > 0)
+                              Text(
+                                'Due: ${order.remainingAmount.toInt()}',
+                                style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFFFF3A58), fontWeight: FontWeight.w600),
+                              )
+                            else
+                              Text(
+                                'Paid ✓',
+                                style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF10CBA0), fontWeight: FontWeight.w600),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        StatusPill(status: order.status),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Ledger Summary Card ───────────────────────────────────────────────────────
+class _LedgerSummaryCard extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final String value;
+  final Color color;
+  final bool isDark;
+  const _LedgerSummaryCard({
+    required this.emoji,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? color.withValues(alpha: 0.08) : color.withValues(alpha: 0.06),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 12, fontWeight: FontWeight.w900, color: color,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.inter(
+              fontSize: 8, fontWeight: FontWeight.w700,
+              color: color.withValues(alpha: 0.7), letterSpacing: 0.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Ledger Timeline Item ──────────────────────────────────────────────────────
+class _LedgerTimelineItem extends StatelessWidget {
+  final Map<String, dynamic> event;
+  final bool isDark;
+  const _LedgerTimelineItem({required this.event, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final isOrder = event['type'] == 'order';
+    final date = event['date'] as DateTime;
+    final titleColor = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? const Color(0xFF5A7090) : const Color(0xFF64748B);
+
+    final Color dotColor = isOrder ? const Color(0xFF5B72F5) : const Color(0xFF10CBA0);
+    final Color bgColor = isOrder
+        ? (isDark ? const Color(0x0A5B72F5) : const Color(0xFFEFF6FF))
+        : (isDark ? const Color(0x0A10CBA0) : const Color(0xFFECFDF5));
+    final Color borderColor = isOrder
+        ? (isDark ? const Color(0x205B72F5) : const Color(0xFFBFDBFE))
+        : (isDark ? const Color(0x2010CBA0) : const Color(0xFFBBF7D0));
+
+    String title;
+    String subtitle;
+    String emoji;
+
+    if (isOrder) {
+      final order = event['order'] as OrderModel;
+      emoji = '📋';
+      title = 'New Order — ${order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Order'}';
+      subtitle = 'Rs. ${order.totalAmount.toInt()}  ·  ${order.tokenNumber}  ·  ${order.status.label}';
+    } else {
+      final payment = event['payment'] as PaymentModel;
+      final order = event['order'] as OrderModel;
+      emoji = '💳';
+      title = 'Payment Received — Rs. ${payment.amount.toInt()}';
+      subtitle = 'via ${payment.method.name}  ·  Order ${order.tokenNumber}';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: borderColor, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: dotColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 14))),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor)),
+                Text(subtitle, style: GoogleFonts.inter(fontSize: 10, color: subtitleColor)),
+              ],
+            ),
+          ),
+          Text(
+            DateFormat('dd MMM').format(date),
+            style: GoogleFonts.inter(fontSize: 10, color: subtitleColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Order Selector Sheet (for multi-unpaid case) ──────────────────────────────
+class _OrderSelectorSheet extends StatelessWidget {
+  final List<OrderModel> unpaidOrders;
+  final bool isDark;
+  const _OrderSelectorSheet({required this.unpaidOrders, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF0D1628) : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0F172A);
+    final subtitleColor = isDark ? const Color(0xFF5A7090) : const Color(0xFF64748B);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0x30FFFFFF) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Which order is this payment for?',
+            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w700, color: titleColor),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select the order to apply this payment to.',
+            style: GoogleFonts.inter(fontSize: 13, color: subtitleColor),
+          ),
+          const SizedBox(height: 16),
+          ...unpaidOrders.map((order) => GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.pop(context, order);
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0x08FFFFFF) : const Color(0xFFF8FAFC),
+                border: Border.all(color: borderColor, width: 1),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 12, fontWeight: FontWeight.w800,
+                            color: const Color(0xFFF5A623),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Order',
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Due',
+                        style: GoogleFonts.inter(fontSize: 10, color: subtitleColor),
+                      ),
+                      Text(
+                        'Rs. ${order.remainingAmount.toInt()}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 15, fontWeight: FontWeight.w900,
+                          color: const Color(0xFFFF3A58),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right_rounded, color: subtitleColor, size: 20),
+                ],
+              ),
+            ),
+          )),
+        ],
       ),
     );
   }
