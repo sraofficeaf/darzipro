@@ -6,7 +6,7 @@ class AdsService {
   static final AdsService instance = AdsService._();
   AdsService._();
 
-  // TODO: Replace with real AdMob IDs from admob.google.com after account setup
+  // NOTE: Replace with real AdMob IDs from admob.google.com after account setup
   // These are Google's official TEST ad unit IDs - safe for development
   static const String _testBannerAndroid = 'ca-app-pub-3940256099942544/6300978111';
   static const String _testBannerIOS = 'ca-app-pub-3940256099942544/2934735716';

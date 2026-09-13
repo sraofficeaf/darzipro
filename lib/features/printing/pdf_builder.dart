@@ -7,36 +7,13 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:arabic_reshaper/arabic_reshaper.dart';
 import '../../shared/models/models.dart';
 import '../../core/widgets/shared_widgets.dart';
-import '../../core/constants/app_enums.dart';
 
-class _PdfIsolateArgs {
-  final Uint8List pngBytes;
-  final PdfPageFormat pageFormat;
 
-  _PdfIsolateArgs({required this.pngBytes, required this.pageFormat});
-}
 
-Future<Uint8List> _buildPdfIsolate(_PdfIsolateArgs args) async {
-  final pdf = pw.Document();
-  final pdfImage = pw.MemoryImage(args.pngBytes);
-  pdf.addPage(
-    pw.Page(
-      pageFormat: args.pageFormat,
-      margin: pw.EdgeInsets.zero,
-      build: (context) => pw.FullPage(
-        ignoreMargins: true,
-        child: pw.Center(
-          child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
-        ),
-      ),
-    ),
-  );
-  return await pdf.save();
-}
 
 /// Builds printable PDFs for Darzi Pro
-/// – A4 branded layout
-/// – 80mm thermal layout
+/// â€“ A4 branded layout
+/// â€“ 80mm thermal layout
 class DarziPdfBuilder {
   DarziPdfBuilder._();
 
@@ -46,10 +23,21 @@ class DarziPdfBuilder {
     Uint8List pngBytes, {
     PdfPageFormat pageFormat = PdfPageFormat.a5,
   }) async {
-    return await compute(
-      _buildPdfIsolate,
-      _PdfIsolateArgs(pngBytes: pngBytes, pageFormat: pageFormat),
+    final pdf = pw.Document();
+    final pdfImage = pw.MemoryImage(pngBytes);
+    pdf.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        margin: pw.EdgeInsets.zero,
+        build: (context) => pw.FullPage(
+          ignoreMargins: true,
+          child: pw.Center(
+            child: pw.Image(pdfImage, fit: pw.BoxFit.contain),
+          ),
+        ),
+      ),
     );
+    return await pdf.save();
   }
 
   static pw.Font? _cachedUrduFont;
@@ -64,7 +52,7 @@ class DarziPdfBuilder {
         return _cachedUrduFont!;
       }
     } catch (e) {
-      debugPrint('DarziPdfBuilder: Failed to load local font — $e');
+      debugPrint('DarziPdfBuilder: Failed to load local font â€” $e');
     }
 
     try {
@@ -99,7 +87,7 @@ class DarziPdfBuilder {
   static const _text = PdfColor.fromInt(0xFF0F1623);
   static const _textSub = PdfColor.fromInt(0xFF5A6478);
 
-  // ── A4 LAYOUT ──────────────────────────────────────────────────────
+  // â”€â”€ A4 LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static Future<List<int>> buildA4(
       OrderModel order, CustomerModel? customer, {bool isUrdu = false}) async {
     final arabicFont = await _loadUrduFont();
@@ -153,7 +141,7 @@ class DarziPdfBuilder {
     return pdf.save();
   }
 
-  // ── THERMAL 80MM LAYOUT ────────────────────────────────────────────
+  // â”€â”€ THERMAL 80MM LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static Future<List<int>> buildThermal(
       OrderModel order, CustomerModel? customer, {bool isUrdu = false}) async {
     final arabicFont = await _loadUrduFont();
@@ -183,12 +171,12 @@ class DarziPdfBuilder {
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      isUrdu ? 'سیف الرحمن ٹیلرز' : 'SAIFURRAHMAN TAILORS',
+                      isUrdu ? 'Ø³ÛŒÙ Ø§Ù„Ø±Ø­Ù…Ù† Ù¹ÛŒÙ„Ø±Ø²' : 'SAIFURRAHMAN TAILORS',
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 11),
                     ),
                     pw.Text(
-                      isUrdu ? 'صدر، پشاور · 0300-1234567' : 'Saddar, Peshawar · 0300-1234567',
+                      isUrdu ? 'ØµØ¯Ø±ØŒ Ù¾Ø´Ø§ÙˆØ± Â· 0300-1234567' : 'Saddar, Peshawar Â· 0300-1234567',
                       style: const pw.TextStyle(fontSize: 8),
                     ),
                   ],
@@ -204,7 +192,7 @@ class DarziPdfBuilder {
                         style: pw.TextStyle(
                             fontWeight: pw.FontWeight.bold, fontSize: 22)),
                     pw.Text(
-                      isUrdu ? 'آرڈر نمبر #${order.orderNumber}' : 'Order #${order.orderNumber}',
+                      isUrdu ? 'Ø¢Ø±ÚˆØ± Ù†Ù…Ø¨Ø± #${order.orderNumber}' : 'Order #${order.orderNumber}',
                       style: const pw.TextStyle(fontSize: 9),
                     ),
                   ],
@@ -214,7 +202,7 @@ class DarziPdfBuilder {
 
               // Customer
               pw.Text(
-                isUrdu ? 'گاہک' : 'CUSTOMER',
+                isUrdu ? 'Ú¯Ø§ÛÚ©' : 'CUSTOMER',
                 style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold, fontSize: 8),
               ),
@@ -222,19 +210,19 @@ class DarziPdfBuilder {
                   style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold, fontSize: 13)),
               if (customer != null)
-                pw.Text('📱 ${customer.phone}',
+                pw.Text('ðŸ“± ${customer.phone}',
                     style: const pw.TextStyle(fontSize: 9)),
               _thermalDivider(),
 
               // Dates
               _thermalRow(
-                isUrdu ? 'آرڈر کی تاریخ:' : 'Order Date:',
+                isUrdu ? 'Ø¢Ø±ÚˆØ± Ú©ÛŒ ØªØ§Ø±ÛŒØ®:' : 'Order Date:',
                 formatDateShort(order.orderDate),
                 bold: false,
               ),
               if (order.deliveryDate != null)
                 _thermalRow(
-                  isUrdu ? 'ڈیلیوری کی تاریخ:' : 'Delivery Date:',
+                  isUrdu ? 'ÚˆÛŒÙ„ÛŒÙˆØ±ÛŒ Ú©ÛŒ ØªØ§Ø±ÛŒØ®:' : 'Delivery Date:',
                   formatDateShort(order.deliveryDate!),
                   bold: true,
                   highlight: order.isUrgent,
@@ -243,7 +231,7 @@ class DarziPdfBuilder {
 
               // Items
               pw.Text(
-                isUrdu ? 'آئٹمز' : 'ITEMS',
+                isUrdu ? 'Ø¢Ø¦Ù¹Ù…Ø²' : 'ITEMS',
                 style: pw.TextStyle(
                     fontWeight: pw.FontWeight.bold, fontSize: 8),
               ),
@@ -263,11 +251,11 @@ class DarziPdfBuilder {
 
               // Payment block
               _thermalRow(
-                isUrdu ? 'کل رقم:' : 'Total:',
+                isUrdu ? 'Ú©Ù„ Ø±Ù‚Ù…:' : 'Total:',
                 _pdfMoney(order.totalAmount),
               ),
               _thermalRow(
-                isUrdu ? 'ایڈوانس ادا کیا:' : 'Advance Paid:',
+                isUrdu ? 'Ø§ÛŒÚˆÙˆØ§Ù†Ø³ Ø§Ø¯Ø§ Ú©ÛŒØ§:' : 'Advance Paid:',
                 _pdfMoney(order.paidAmount),
               ),
               pw.SizedBox(height: 4),
@@ -282,14 +270,14 @@ class DarziPdfBuilder {
                   children: [
                     pw.Text(
                       order.isFullyPaid 
-                          ? (isUrdu ? 'مکمل ادائیگی ✓' : 'FULLY PAID ✓')
-                          : (isUrdu ? 'باقی رقم:' : 'BAQI:'),
+                          ? (isUrdu ? 'Ù…Ú©Ù…Ù„ Ø§Ø¯Ø§Ø¦ÛŒÚ¯ÛŒ âœ“' : 'FULLY PAID âœ“')
+                          : (isUrdu ? 'Ø¨Ø§Ù‚ÛŒ Ø±Ù‚Ù…:' : 'BAQI:'),
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 10),
                     ),
                     pw.Text(
                       order.isFullyPaid
-                          ? (isUrdu ? 'بے باق' : 'CLEAR')
+                          ? (isUrdu ? 'Ø¨Û’ Ø¨Ø§Ù‚' : 'CLEAR')
                           : _pdfMoney(order.remainingAmount),
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 16),
@@ -301,7 +289,7 @@ class DarziPdfBuilder {
               if (order.notes != null) ...[
                 _thermalDivider(),
                 pw.Text(
-                  isUrdu ? 'نوٹس:' : 'NOTES:',
+                  isUrdu ? 'Ù†ÙˆÙ¹Ø³:' : 'NOTES:',
                   style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold, fontSize: 8),
                 ),
@@ -312,7 +300,7 @@ class DarziPdfBuilder {
               _thermalDivider(),
               pw.Center(
                 child: pw.Text(
-                  isUrdu ? '-- درزی پرو کے ذریعے تیار کردہ --' : '-- Generated by Darzi Pro --',
+                  isUrdu ? '-- Ø¯Ø±Ø²ÛŒ Ù¾Ø±Ùˆ Ú©Û’ Ø°Ø±ÛŒØ¹Û’ ØªÛŒØ§Ø± Ú©Ø±Ø¯Û --' : '-- Generated by Darzi Pro --',
                   style: const pw.TextStyle(fontSize: 7),
                 ),
               ),
@@ -326,7 +314,7 @@ class DarziPdfBuilder {
     return pdf.save();
   }
 
-  // ── A4 WIDGET BUILDERS ─────────────────────────────────────────────
+  // â”€â”€ A4 WIDGET BUILDERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static pw.Widget _buildA4Header(OrderModel order, bool isUrdu) {
     return pw.Container(
@@ -365,14 +353,14 @@ class DarziPdfBuilder {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    isUrdu ? 'سیف الرحمن ٹیلرز' : 'SaifurRahman Tailors',
+                    isUrdu ? 'Ø³ÛŒÙ Ø§Ù„Ø±Ø­Ù…Ù† Ù¹ÛŒÙ„Ø±Ø²' : 'SaifurRahman Tailors',
                     style: pw.TextStyle(
                         color: _white,
                         fontWeight: pw.FontWeight.bold,
                         fontSize: 16),
                   ),
                   pw.Text(
-                    isUrdu ? 'صدر، پشاور · 0300-1234567' : 'Saddar, Peshawar · 0300-1234567',
+                    isUrdu ? 'ØµØ¯Ø±ØŒ Ù¾Ø´Ø§ÙˆØ± Â· 0300-1234567' : 'Saddar, Peshawar Â· 0300-1234567',
                     style: pw.TextStyle(color: _gold, fontSize: 10),
                   ),
                 ],
@@ -390,7 +378,7 @@ class DarziPdfBuilder {
             child: pw.Column(
               children: [
                 pw.Text(
-                  isUrdu ? 'ٹوکن' : 'TOKEN',
+                  isUrdu ? 'Ù¹ÙˆÚ©Ù†' : 'TOKEN',
                   style: pw.TextStyle(
                       color: _gold, fontSize: 8, letterSpacing: 1.0),
                 ),
@@ -427,7 +415,7 @@ class DarziPdfBuilder {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              isUrdu ? 'گاہک' : 'CUSTOMER',
+              isUrdu ? 'Ú¯Ø§ÛÚ©' : 'CUSTOMER',
               style: pw.TextStyle(
                   color: _grey,
                   fontSize: 8,
@@ -448,7 +436,7 @@ class DarziPdfBuilder {
           crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
             pw.Text(
-              isUrdu ? 'آرڈر نمبر' : 'ORDER NO.',
+              isUrdu ? 'Ø¢Ø±ÚˆØ± Ù†Ù…Ø¨Ø±' : 'ORDER NO.',
               style: pw.TextStyle(
                   color: _grey,
                   fontSize: 8,
@@ -470,16 +458,16 @@ class DarziPdfBuilder {
     return pw.Row(
       children: [
         _dateBox(
-          isUrdu ? 'آرڈر کی تاریخ' : 'ORDER DATE',
+          isUrdu ? 'Ø¢Ø±ÚˆØ± Ú©ÛŒ ØªØ§Ø±ÛŒØ®' : 'ORDER DATE',
           formatDateShort(order.orderDate),
           urgent: false,
         ),
         pw.SizedBox(width: 12),
         _dateBox(
-          isUrdu ? 'ڈیلیوری کی تاریخ' : 'DELIVERY DATE',
+          isUrdu ? 'ÚˆÛŒÙ„ÛŒÙˆØ±ÛŒ Ú©ÛŒ ØªØ§Ø±ÛŒØ®' : 'DELIVERY DATE',
           order.deliveryDate != null
               ? formatDateShort(order.deliveryDate!)
-              : (isUrdu ? 'طے نہیں ہے' : 'Not Set'),
+              : (isUrdu ? 'Ø·Û’ Ù†ÛÛŒÚº ÛÛ’' : 'Not Set'),
           urgent: order.isUrgent,
         ),
       ],
@@ -539,7 +527,7 @@ class DarziPdfBuilder {
                 pw.Expanded(
                     flex: 3,
                     child: pw.Text(
-                      isUrdu ? 'آئٹم / کپڑا' : 'ITEM / CLOTH',
+                      isUrdu ? 'Ø¢Ø¦Ù¹Ù… / Ú©Ù¾Ú‘Ø§' : 'ITEM / CLOTH',
                       style: pw.TextStyle(
                           color: _grey,
                           fontSize: 8,
@@ -547,13 +535,13 @@ class DarziPdfBuilder {
                           letterSpacing: 0.8),
                     )),
                 pw.Text(
-                  isUrdu ? 'تعداد' : 'QTY',
+                  isUrdu ? 'ØªØ¹Ø¯Ø§Ø¯' : 'QTY',
                   style: pw.TextStyle(
                       color: _grey, fontSize: 8, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(width: 40),
                 pw.Text(
-                  isUrdu ? 'قیمت' : 'PRICE',
+                  isUrdu ? 'Ù‚ÛŒÙ…Øª' : 'PRICE',
                   style: pw.TextStyle(
                       color: _grey, fontSize: 8, fontWeight: pw.FontWeight.bold),
                 ),
@@ -587,7 +575,7 @@ class DarziPdfBuilder {
                       ],
                     ),
                   ),
-                  pw.Text('× ${item.quantity}',
+                  pw.Text('Ã— ${item.quantity}',
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold,
                           fontSize: 11)),
@@ -619,17 +607,17 @@ class DarziPdfBuilder {
       child: pw.Column(
         children: [
           _pdfMoneyRow(
-            isUrdu ? 'کل رقم' : 'Total Amount',
+            isUrdu ? 'Ú©Ù„ Ø±Ù‚Ù…' : 'Total Amount',
             _pdfMoney(order.totalAmount),
           ),
           if (order.discount > 0)
             _pdfMoneyRow(
-              isUrdu ? 'ڈسکاؤنٹ' : 'Discount',
+              isUrdu ? 'ÚˆØ³Ú©Ø§Ø¤Ù†Ù¹' : 'Discount',
               '- ${_pdfMoney(order.discount)}',
               valueColor: _teal,
             ),
           _pdfMoneyRow(
-            isUrdu ? 'ایڈوانس ادا کیا' : 'Advance Paid',
+            isUrdu ? 'Ø§ÛŒÚˆÙˆØ§Ù†Ø³ Ø§Ø¯Ø§ Ú©ÛŒØ§' : 'Advance Paid',
             _pdfMoney(order.paidAmount),
           ),
           pw.Container(
@@ -641,14 +629,14 @@ class DarziPdfBuilder {
             children: [
               pw.Text(
                 order.isFullyPaid 
-                    ? (isUrdu ? 'مکمل ادا شدہ' : 'Fully Paid') 
-                    : (isUrdu ? 'باقی رقم' : 'Remaining'),
+                    ? (isUrdu ? 'Ù…Ú©Ù…Ù„ Ø§Ø¯Ø§ Ø´Ø¯Û' : 'Fully Paid') 
+                    : (isUrdu ? 'Ø¨Ø§Ù‚ÛŒ Ø±Ù‚Ù…' : 'Remaining'),
                 style: pw.TextStyle(
                     color: _gold, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
                 order.isFullyPaid
-                    ? (isUrdu ? 'بے باق' : 'CLEAR')
+                    ? (isUrdu ? 'Ø¨Û’ Ø¨Ø§Ù‚' : 'CLEAR')
                     : _pdfMoney(order.remainingAmount),
                 style: pw.TextStyle(
                     color: order.isFullyPaid ? _teal : _gold,
@@ -694,7 +682,7 @@ class DarziPdfBuilder {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            isUrdu ? '📌 نوٹس' : '📌 NOTES',
+            isUrdu ? 'ðŸ“Œ Ù†ÙˆÙ¹Ø³' : 'ðŸ“Œ NOTES',
             style: pw.TextStyle(
                 color: const PdfColor.fromInt(0xFF92400E),
                 fontWeight: pw.FontWeight.bold,
@@ -719,11 +707,11 @@ class DarziPdfBuilder {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              isUrdu ? 'درزی پرو کے ذریعے تیار کردہ' : 'Generated by Darzi Pro',
+              isUrdu ? 'Ø¯Ø±Ø²ÛŒ Ù¾Ø±Ùˆ Ú©Û’ Ø°Ø±ÛŒØ¹Û’ ØªÛŒØ§Ø± Ú©Ø±Ø¯Û' : 'Generated by Darzi Pro',
               style: pw.TextStyle(color: _grey, fontSize: 8),
             ),
             pw.Text(
-              'SaifurRahman Tailors · ${formatDateShort(DateTime.now())}',
+              'SaifurRahman Tailors Â· ${formatDateShort(DateTime.now())}',
               style: pw.TextStyle(color: _grey, fontSize: 8),
             ),
           ],
@@ -739,7 +727,7 @@ class DarziPdfBuilder {
     );
   }
 
-  // ── THERMAL HELPERS ──────────────────────────────────────────────
+  // â”€â”€ THERMAL HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static pw.Widget _thermalDivider() {
     return pw.Padding(
@@ -771,7 +759,7 @@ class DarziPdfBuilder {
     );
   }
 
-  // ── TRADITIONAL NAAP CARD A5 LAYOUT ─────────────────────────────────
+  // â”€â”€ TRADITIONAL NAAP CARD A5 LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static String _ur(String text) {
     if (text.isEmpty) return '';
     try {
@@ -794,8 +782,6 @@ class DarziPdfBuilder {
       }
     }
 
-    final category = measurement?.category ?? MeasurementCategory.men;
-
     final pdf = pw.Document();
     final format = PdfPageFormat.a5;
 
@@ -805,61 +791,54 @@ class DarziPdfBuilder {
         margin: const pw.EdgeInsets.all(12),
         build: (pw.Context ctx) {
           return pw.Container(
+            height: format.availableHeight,
+            width: format.availableWidth,
             decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColor.fromInt(0xFF0F172A), width: 1),
-              borderRadius: pw.BorderRadius.circular(8),
+              border: pw.Border.all(color: PdfColor.fromInt(0xFFB8A080), width: 1),
             ),
-            padding: const pw.EdgeInsets.all(10),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
                 // 1. Header
                 _buildNewHeader(order, customer, urduFont),
-                pw.SizedBox(height: 8),
-
+                // Gold divider
+                pw.Container(
+                  height: 2,
+                  decoration: const pw.BoxDecoration(
+                    gradient: pw.LinearGradient(
+                      colors: [PdfColor.fromInt(0xFF8B6914), PdfColor.fromInt(0xFFF5C842), PdfColor.fromInt(0xFF8B6914)],
+                    ),
+                  ),
+                ),
                 // 2. Info Bar
                 _buildNewInfoBar(order, urduFont),
-                pw.SizedBox(height: 8),
 
                 // 3. Customer Row
                 _buildNewCustomerRow(order, customer, urduFont),
-                pw.SizedBox(height: 8),
 
-                // 4. Main Body
+                // 4. Main Body â€” RTL visual order: Silai | Pattern Pieces | Measurements
                 pw.Expanded(
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                     children: [
-                      // Left Column: Diagrams (28% width)
+                      // LEFT: Silai options (22%)
                       pw.Expanded(
-                        flex: 28,
-                        child: pw.Column(
-                          children: [
-                            pw.Expanded(
-                              child: category == MeasurementCategory.women
-                                  ? _buildFrockDiagram(urduFont)
-                                  : _buildKameezDiagram(urduFont, isKids: category == MeasurementCategory.children),
-                            ),
-                            pw.SizedBox(height: 8),
-                            pw.Expanded(
-                              child: _buildShalwarDiagram(urduFont, category: category),
-                            ),
-                          ],
-                        ),
+                        flex: 22,
+                        child: _buildNaapSilaiColumnPdf(measurement, urduFont),
                       ),
-                      pw.SizedBox(width: 8),
+                      _pdfVertDiv(),
 
-                      // Center Column: Measurements Table (44% width)
+                      // MIDDLE: Pattern Pieces (56%)
                       pw.Expanded(
-                        flex: 44,
-                        child: _buildNewMeasurementsTable(measurements, measurement, urduFont),
+                        flex: 56,
+                        child: _buildPatternPiecesPdf(measurements, urduFont),
                       ),
-                      pw.SizedBox(width: 8),
+                      _pdfVertDiv(),
 
-                      // Right Column: Sewing options & Instructions (28% width)
+                      // RIGHT: Measurements (22%)
                       pw.Expanded(
-                        flex: 28,
-                        child: _buildSewingAndInstructions(measurement, urduFont),
+                        flex: 22,
+                        child: _buildNaapMeasurementsColumnPdf(measurements, urduFont),
                       ),
                     ],
                   ),
@@ -878,120 +857,138 @@ class DarziPdfBuilder {
     return pdf.save();
   }
 
-  static pw.Widget _buildNewHeader(OrderModel order, CustomerModel? customer, pw.Font urduFont) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        // Left: Token Box
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'TOKEN NO.',
-              style: pw.TextStyle(
-                fontSize: 8,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.grey500,
-              ),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              order.tokenNumber,
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0xFFD97706),
-              ),
-            ),
-          ],
-        ),
+  // â”€â”€ Shared helpers for the PDF Naap Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        // Center: Shop info
-        pw.Column(
-          children: [
-            pw.Text(
-              'SaifurRahman Tailors',
-              style: pw.TextStyle(
-                fontSize: 15,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0xFF0F172A),
-              ),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              'Saddar, Peshawar',
-              style: pw.TextStyle(
-                fontSize: 8,
-                color: PdfColors.grey700,
-              ),
-            ),
-            pw.SizedBox(height: 1),
-            pw.Text(
-              '0300-1234567',
-              style: pw.TextStyle(
-                fontSize: 8,
-                color: PdfColors.grey700,
-              ),
-            ),
-          ],
-        ),
+  static pw.Widget _pdfVertDiv() =>
+      pw.Container(width: 1.2, color: PdfColor.fromInt(0xFFB8A080));
 
-        // Right: Payment Summary
-        pw.Container(
-          width: 100,
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColor.fromInt(0xFF0F172A), width: 0.8),
-            borderRadius: pw.BorderRadius.circular(4),
-          ),
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-              pw.Container(
-                width: double.infinity,
-                color: PdfColor.fromInt(0xFF0F172A),
-                padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                alignment: pw.Alignment.center,
-                child: pw.Text(
-                  'PAYMENT SUMMARY',
-                  style: pw.TextStyle(
-                    color: PdfColors.white,
-                    fontSize: 6,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              _buildSummaryRow('Total Amount', _pdfMoney(order.totalAmount)),
-              _buildSummaryRow('Advance', _pdfMoney(order.paidAmount)),
-              _buildSummaryRow('Balance', _pdfMoney(order.remainingAmount), isBoldRed: true),
-            ],
+  static pw.Widget _pdfColHdr(String text, pw.Font urduFont, {bool small = false}) {
+    return pw.Container(
+      width: double.infinity,
+      color: PdfColor.fromInt(0xFF12213A),
+      padding: pw.EdgeInsets.symmetric(vertical: small ? 3 : 5),
+      alignment: pw.Alignment.center,
+      child: pw.Directionality(
+        textDirection: pw.TextDirection.rtl,
+        child: pw.Text(
+          _ur(text),
+          style: pw.TextStyle(
+            font: urduFont,
+            color: PdfColor.fromInt(0xFFF5C842),
+            fontSize: small ? 6.5 : 8,
+            fontWeight: pw.FontWeight.bold,
           ),
         ),
-      ],
+      ),
     );
   }
 
-  static pw.Widget _buildSummaryRow(String label, String value, {bool isBoldRed = false}) {
+  static pw.Widget _buildNewHeader(OrderModel order, CustomerModel? customer, pw.Font urduFont) {
     return pw.Container(
+      height: 56,
       decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFE2E8F0), width: 0.5),
+        gradient: pw.LinearGradient(
+          begin: pw.Alignment.topLeft,
+          end: pw.Alignment.bottomRight,
+          colors: [PdfColors.white, PdfColor.fromInt(0xFFFBF6EC)],
         ),
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFB8A080), width: 1.2)),
       ),
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          pw.Text(
-            label,
-            style: const pw.TextStyle(fontSize: 6, color: PdfColors.black),
+          // Col 1 â€” Token No.
+          pw.Container(
+            width: 100,
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(right: pw.BorderSide(color: PdfColor.fromInt(0xFFB8A080), width: 1.2)),
+            ),
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Token No.',
+                  style: pw.TextStyle(
+                    fontSize: 6,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromInt(0xFFB8860B),
+                    letterSpacing: 1,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  order.tokenNumber,
+                  style: pw.TextStyle(
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromInt(0xFFB8860B),
+                  ),
+                ),
+              ],
+            ),
           ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: 6,
-              fontWeight: pw.FontWeight.bold,
-              color: isBoldRed ? PdfColor.fromInt(0xFFDC2626) : PdfColors.black,
+
+          // Col 2 â€” Shop name + address centred
+          pw.Expanded(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    'SaifurRahman Tailors',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColor.fromInt(0xFF12213A),
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Saddar, Peshawar  |  0300-1234567',
+                    style: const pw.TextStyle(
+                      fontSize: 7,
+                      color: PdfColors.grey600,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Col 3 â€” Gold scissor mark
+          pw.Container(
+            width: 100,
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(left: pw.BorderSide(color: PdfColor.fromInt(0xFFB8A080), width: 1.2)),
+            ),
+            child: pw.Center(
+              child: pw.Container(
+                width: 40,
+                height: 40,
+                decoration: pw.BoxDecoration(
+                  gradient: const pw.LinearGradient(
+                    begin: pw.Alignment.topLeft,
+                    end: pw.Alignment.bottomRight,
+                    colors: [PdfColor.fromInt(0xFFF5C842), PdfColor.fromInt(0xFFB8860B)],
+                  ),
+                  borderRadius: pw.BorderRadius.circular(10),
+                ),
+                alignment: pw.Alignment.center,
+                child: pw.Text(
+                  'NAAP',
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontSize: 8,
+                    fontWeight: pw.FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -1012,17 +1009,17 @@ class DarziPdfBuilder {
       ),
       child: pw.Row(
         children: [
-          _buildInfoBox('', 'تاریخ درج بکنگ', formatDateShort(order.orderDate), urduFont),
+          _buildInfoBox('', 'ØªØ§Ø±ÛŒØ® Ø¯Ø±Ø¬ Ø¨Ú©Ù†Ú¯', formatDateShort(order.orderDate), urduFont),
           _buildInfoDivider(),
           _buildInfoBox(
             '',
-            'تاریخ ڈیلیوری',
+            'ØªØ§Ø±ÛŒØ® ÚˆÛŒÙ„ÛŒÙˆØ±ÛŒ',
             order.deliveryDate != null ? formatDateShort(order.deliveryDate!) : '-',
             urduFont,
             isRed: true,
           ),
           _buildInfoDivider(),
-          _buildInfoBox('', 'تعداد', '$totalQty', urduFont),
+          _buildInfoBox('', 'ØªØ¹Ø¯Ø§Ø¯', '$totalQty', urduFont),
           _buildInfoDivider(),
           _buildInfoBox('', 'Customer No.', '#$shortId', urduFont, isEngLabel: true),
         ],
@@ -1140,326 +1137,454 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildKameezDiagram(pw.Font urduFont, {bool isKids = false}) {
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // PATTERN PIECES â€” PDF version
+  // Uses pw.CustomPaint with Y-flipped SVG coordinates (PDF Y-axis is up).
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  static pw.Widget _buildPatternPiecesPdf(Map<String, String> m, pw.Font urduFont) {
+    String mv(List<String> keys) {
+      for (final k in keys) {
+        final v = m[k];
+        if (v != null && v.trim().isNotEmpty) return v.trim();
+      }
+      return '-';
+    }
+
+    final collarV  = mv(['collar']);
+    final garebanV = mv(['gareban']);
+    final kafV     = mv(['kaf', 'cuff']);
+    final bazoV    = mv(['bazo', 'sleeve', 'aasteen']);
+    final jebV     = mv(['jeb', 'pocket']);
+    final lambaiV  = mv(['lambai', 'length']);
+    final chaatiV  = mv(['chaati', 'chest', 'bust']);
+    final shalwarV = mv(['shalwar', 'shalwar_length', 'trouser']);
+    final pancheV  = mv(['panche', 'pancha', 'bottom']);
+    final kamarV   = mv(['kamar', 'waist']);
+
     return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey, width: 0.5),
-        borderRadius: pw.BorderRadius.circular(6),
-      ),
+      color: PdfColor.fromInt(0xFFFAF5EE),
       child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          pw.Container(
-            width: double.infinity,
-            color: PdfColors.grey200,
-            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              _ur('قمیض'),
-              style: pw.TextStyle(font: urduFont, fontSize: 7, color: PdfColors.black, fontWeight: pw.FontWeight.bold),
-            ),
-          ),
-          pw.SizedBox(height: 2),
+          _pdfColHdr('Ù¾ÛŒÙ¹Ø±Ù† Ù¾ÛŒØ³Ø²', urduFont),
           pw.Expanded(
-            child: pw.Container(
-              alignment: pw.Alignment.center,
-              child: pw.Stack(
-                alignment: pw.Alignment.center,
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Column(
                 children: [
-                  pw.CustomPaint(
-                    size: const PdfPoint(75, 90),
-                    painter: (PdfGraphics canvas, PdfPoint size) {
-                      canvas.setStrokeColor(PdfColors.grey700);
-                      canvas.setLineWidth(0.6);
-
-                      // Neck left
-                      canvas.moveTo(31.5, 81);
-                      // Collar curve
-                      canvas.curveTo(32.5, 77.4, 42.5, 77.4, 43.5, 81);
-                      // Right shoulder
-                      canvas.lineTo(52.5, 77.4);
-                      // Right sleeve outer
-                      canvas.lineTo(67.5, 54);
-                      // Right sleeve opening
-                      canvas.lineTo(62.4, 52.6);
-                      // Right armhole
-                      canvas.lineTo(48.9, 58.5);
-                      // Right waist
-                      canvas.lineTo(48.9, 33.7);
-                      // Right daman
-                      canvas.lineTo(51, 11.2);
-                      // Bottom daman
-                      canvas.lineTo(24, 11.2);
-                      // Left daman
-                      canvas.lineTo(26.1, 33.7);
-                      // Left waist / armhole
-                      canvas.lineTo(26.1, 58.5);
-                      canvas.lineTo(12.6, 52.6);
-                      canvas.lineTo(7.5, 54);
-                      canvas.lineTo(22.5, 77.4);
-                      canvas.lineTo(31.5, 81);
-                      canvas.strokePath();
-
-                      // Draw indicator lines
-                      canvas.setStrokeColor(PdfColors.grey400);
-                      canvas.setLineWidth(0.3);
-                      canvas.drawLine(22.5, 77.4, 52.5, 77.4); // Shoulder
-                      canvas.drawLine(22.5, 77.4, 7.5, 54); // Sleeve
-                      canvas.drawLine(26.1, 58.5, 48.9, 58.5); // Chest
-                      canvas.drawLine(26.1, 33.7, 48.9, 33.7); // Waist
-                      canvas.drawLine(24, 11.2, 51, 11.2); // Bottom daman
-                      canvas.drawLine(57, 77.4, 57, 11.2); // Length
-                    },
+                  // Row 1
+                  pw.Expanded(
+                    child: pw.Row(children: [
+                      pw.Expanded(child: _pdfPieceCard('Ú©Ø§Ù„Ø±',   collarV,  urduFont, _pdfCollarPainter)),
+                      pw.SizedBox(width: 4),
+                      pw.Expanded(child: _pdfPieceCard('Ú¯Ø±ÛŒØ¨Ø§Ù†', garebanV, urduFont, _pdfGarebanPainter)),
+                      pw.SizedBox(width: 4),
+                      pw.Expanded(child: _pdfPieceCard('Ú©Ù',     kafV,     urduFont, _pdfKafPainter)),
+                    ]),
                   ),
-                  // Annotation Badges for Mard/Kids
-                  // 1. Length (Standard)
-                  pw.Positioned(bottom: 35, left: 54, child: _buildAnnotationBadge('1')),
-                  // 2. Shoulder (Standard)
-                  pw.Positioned(bottom: 74, left: 33, child: _buildAnnotationBadge('2')),
-                  // 3. Sleeve (Standard)
-                  pw.Positioned(bottom: 60, left: 8, child: _buildAnnotationBadge('3')),
-                  // 4. Chest (Standard)
-                  pw.Positioned(bottom: 54, left: 33, child: _buildAnnotationBadge('4')),
-                  // 5. Arm Hole / Baghal (Standard)
-                  pw.Positioned(bottom: 58, left: 20, child: _buildAnnotationBadge('5')),
-                  
-                  if (!isKids) ...[
-                    // 6. Waist (Standard)
-                    pw.Positioned(bottom: 32, left: 33, child: _buildAnnotationBadge('6')),
-                    // 7. Hem / Daman (Standard)
-                    pw.Positioned(bottom: 12, left: 33, child: _buildAnnotationBadge('7')),
-                    // 8. Collar (Standard)
-                    pw.Positioned(bottom: 70, left: 50, child: _buildAnnotationBadge('8')),
-                    
-                    // Extra fields (Grey)
-                    // 11. Cuff (Grey)
-                    pw.Positioned(bottom: 46, left: 63, child: _buildAnnotationBadge('11', isExtra: true)),
-                    // 12. Pocket (Grey)
-                    pw.Positioned(bottom: 40, left: 45, child: _buildAnnotationBadge('12', isExtra: true)),
-                    // 15. Gareban (Grey)
-                    pw.Positioned(bottom: 78, left: 19, child: _buildAnnotationBadge('15', isExtra: true)),
-                  ],
+                  pw.SizedBox(height: 4),
+                  // Row 2
+                  pw.Expanded(
+                    child: pw.Row(children: [
+                      pw.Expanded(child: _pdfPieceCard('Ø¨Ø§Ø²Ùˆ',  bazoV,  urduFont, _pdfBazoPainter)),
+                      pw.SizedBox(width: 4),
+                      pw.Expanded(child: _pdfPieceCard('Ø¬ÛŒØ¨',   jebV,   urduFont, _pdfJebPainter)),
+                      pw.SizedBox(width: 4),
+                      pw.Expanded(child: _pdfPieceCard('Ø¢Ú¯Ø§',   '$lambaiV/$chaatiV', urduFont, _pdfAagaPainter)),
+                    ]),
+                  ),
+                  pw.SizedBox(height: 4),
+                  // Row 3: Shalwar (2-wide) + Kamar
+                  pw.Expanded(
+                    child: pw.Row(children: [
+                      pw.Expanded(
+                        flex: 2,
+                        child: _pdfPieceCard('Ø³Ù†Ú¯Ù„ Ù¾ÛŒØ³ Ø´Ù„ÙˆØ§Ø±', '$shalwarV / $pancheV"', urduFont, _pdfShalwarPainter),
+                      ),
+                      pw.SizedBox(width: 4),
+                      pw.Expanded(child: _pdfPieceCard('Ú©Ù…Ø±', kamarV, urduFont, _pdfKamarPainter)),
+                    ]),
+                  ),
                 ],
               ),
             ),
           ),
-          pw.SizedBox(height: 2),
         ],
       ),
     );
   }
 
-  static pw.Widget _buildFrockDiagram(pw.Font urduFont) {
+  static pw.Widget _pdfPieceCard(
+      String label, String value, pw.Font urduFont,
+      void Function(PdfGraphics, PdfPoint) painter) {
     return pw.Container(
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey, width: 0.5),
-        borderRadius: pw.BorderRadius.circular(6),
+        color: PdfColors.white,
+        border: pw.Border.all(color: PdfColor.fromInt(0xFFE8DDD0), width: 0.7),
+        borderRadius: pw.BorderRadius.circular(4),
       ),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: pw.Column(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
-          pw.Container(
-            width: double.infinity,
-            color: PdfColors.grey200,
-            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              _ur('فراک / میکسی'),
-              style: pw.TextStyle(font: urduFont, fontSize: 7, color: PdfColors.black, fontWeight: pw.FontWeight.bold),
+          pw.Expanded(
+            child: pw.Stack(
+              alignment: pw.Alignment.center,
+              children: [
+                pw.Center(
+                  child: pw.CustomPaint(
+                    size: const PdfPoint(44, 24),
+                    painter: painter,
+                  ),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 2),
+                  color: PdfColors.white,
+                  child: pw.Text(
+                    value,
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColor.fromInt(0xFF12213A),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           pw.SizedBox(height: 2),
-          pw.Expanded(
-            child: pw.Container(
-              alignment: pw.Alignment.center,
-              child: pw.Stack(
-                alignment: pw.Alignment.center,
-                children: [
-                  pw.CustomPaint(
-                    size: const PdfPoint(75, 90),
-                    painter: (PdfGraphics canvas, PdfPoint size) {
-                      canvas.setStrokeColor(PdfColors.grey700);
-                      canvas.setLineWidth(0.6);
-
-                      // Neckline round U
-                      canvas.moveTo(30, 78);
-                      canvas.curveTo(33, 72, 42, 72, 45, 78);
-
-                      // Left shoulder
-                      canvas.lineTo(20, 75);
-                      // Left sleeve
-                      canvas.lineTo(10, 50);
-                      // Left cuff
-                      canvas.lineTo(16, 48);
-                      // Left armhole / waist
-                      canvas.lineTo(26, 56);
-                      canvas.lineTo(28, 40);
-                      // Left flare to daman
-                      canvas.lineTo(12, 10);
-                      // Daman bottom line curve
-                      canvas.curveTo(30, 6, 45, 6, 63, 10);
-                      // Right flare to waist
-                      canvas.lineTo(47, 40);
-                      canvas.lineTo(49, 56);
-                      // Right armhole / sleeve
-                      canvas.lineTo(59, 48);
-                      canvas.lineTo(65, 50);
-                      // Right shoulder
-                      canvas.lineTo(55, 75);
-                      canvas.lineTo(45, 78);
-                      canvas.strokePath();
-
-                      // Dotted indicators
-                      canvas.setStrokeColor(PdfColors.grey400);
-                      canvas.setLineWidth(0.3);
-                      canvas.drawLine(24, 52, 51, 52); // Bust line (2)
-                      canvas.drawLine(28, 40, 47, 40); // Waist line (3)
-                      canvas.drawLine(12, 10, 63, 10); // Hem/daman line (4)
-                    },
-                  ),
-                  // Annotation Badges for Women
-                  // 1. Length (Standard - Gold)
-                  pw.Positioned(bottom: 78, left: 33, child: _buildAnnotationBadge('1')),
-                  // 2. Bust (Standard - Gold)
-                  pw.Positioned(bottom: 48, left: 16, child: _buildAnnotationBadge('2')),
-                  // 3. Waist (Standard - Gold)
-                  pw.Positioned(bottom: 36, left: 45, child: _buildAnnotationBadge('3')),
-                  // 4. Hem Circle (Standard - Gold)
-                  pw.Positioned(bottom: 10, left: 33, child: _buildAnnotationBadge('4')),
-                  // 5. Sleeve (Standard - Gold)
-                  pw.Positioned(bottom: 58, left: 8, child: _buildAnnotationBadge('5')),
-                  // 6. Neck Depth (Standard - Gold)
-                  pw.Positioned(bottom: 68, left: 33, child: _buildAnnotationBadge('6')),
-                ],
+          pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Text(
+              _ur(label),
+              style: pw.TextStyle(
+                font: urduFont,
+                fontSize: 6.5,
+                color: PdfColor.fromInt(0xFF8B7355),
               ),
             ),
           ),
-          pw.SizedBox(height: 2),
         ],
       ),
     );
   }
 
-  static pw.Widget _buildShalwarDiagram(pw.Font urduFont, {MeasurementCategory category = MeasurementCategory.men}) {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey, width: 0.5),
-        borderRadius: pw.BorderRadius.circular(6),
-      ),
-      child: pw.Column(
-        children: [
-          pw.Container(
-            width: double.infinity,
-            color: PdfColors.grey200,
-            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              _ur('شلوار'),
-              style: pw.TextStyle(font: urduFont, fontSize: 7, color: PdfColors.black, fontWeight: pw.FontWeight.bold),
-            ),
-          ),
-          pw.SizedBox(height: 2),
-          pw.Expanded(
-            child: pw.Container(
-              alignment: pw.Alignment.center,
-              child: pw.Stack(
-                alignment: pw.Alignment.center,
-                children: [
-                  pw.CustomPaint(
-                    size: const PdfPoint(75, 90),
-                    painter: (PdfGraphics canvas, PdfPoint size) {
-                      canvas.setStrokeColor(PdfColors.grey700);
-                      canvas.setLineWidth(0.6);
+  // PDF painters â€” Y-flipped (PDF Y-axis is up; SVG/HTML Y-axis is down)
+  // For a canvas of PdfPoint(44, 24), coordinates use: pdfY = canvasH - svgY
 
-                      // Waist
-                      canvas.moveTo(18, 81);
-                      canvas.lineTo(57, 81);
-                      // Right leg outer
-                      canvas.lineTo(61.8, 45);
-                      canvas.lineTo(57, 13.5);
-                      // Right bottom cuff
-                      canvas.lineTo(45.6, 13.5);
-                      // Crotch
-                      canvas.lineTo(38, 43.2);
-                      // Left bottom cuff
-                      canvas.lineTo(30.4, 13.5);
-                      // Left leg outer
-                      canvas.lineTo(19, 13.5);
-                      canvas.lineTo(14.2, 45);
-                      canvas.lineTo(18, 81);
-                      canvas.strokePath();
-
-                      // Dotted indicators
-                      canvas.setStrokeColor(PdfColors.grey400);
-                      canvas.setLineWidth(0.3);
-                      canvas.drawLine(57, 81, 57, 13.5); // Length line
-                      canvas.drawLine(14.2, 45, 61.8, 45); // Hip/thigh line
-                    },
-                  ),
-                  // Annotation Badges based on Category
-                  if (category == MeasurementCategory.men) ...[
-                    // 9. Shalwar Length (Gold)
-                    pw.Positioned(bottom: 40, left: 52, child: _buildAnnotationBadge('9')),
-                    // 10. Panche (Gold)
-                    pw.Positioned(bottom: 12, left: 18, child: _buildAnnotationBadge('10')),
-                    // 13. Gol/Hip (Grey)
-                    pw.Positioned(bottom: 32, left: 32, child: _buildAnnotationBadge('13', isExtra: true)),
-                    // 14. Asan (Grey)
-                    pw.Positioned(bottom: 45, left: 16, child: _buildAnnotationBadge('14', isExtra: true)),
-                  ] else if (category == MeasurementCategory.women) ...[
-                    // 7. Trouser Length (Grey)
-                    pw.Positioned(bottom: 40, left: 52, child: _buildAnnotationBadge('7', isExtra: true)),
-                    // 8. Panche (Grey)
-                    pw.Positioned(bottom: 12, left: 18, child: _buildAnnotationBadge('8', isExtra: true)),
-                  ] else ...[
-                    // Children
-                    // 5. Shalwar Length (Gold)
-                    pw.Positioned(bottom: 40, left: 52, child: _buildAnnotationBadge('5')),
-                    // 6. Panche (Gold)
-                    pw.Positioned(bottom: 12, left: 18, child: _buildAnnotationBadge('6')),
-                  ]
-                ],
-              ),
-            ),
-          ),
-          pw.SizedBox(height: 2),
-        ],
-      ),
+  /// 1. Collar â€” SVG: M4 20 Q29 2 54 20, viewBox 58Ã—28
+  static void _pdfCollarPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    // Normalize from viewBox 58Ã—28 to canvas 44Ã—24, Y-flipped
+    final sx = size.x / 58;
+    final sy = size.y / 28;
+    // quadratic bezier â†’ cubic: cp1=start+2/3*(cp-start), cp2=end+2/3*(cp-end)
+    // start=(4,20)â†’pdf(4*sx,(28-20)*sy), cp=(29,2)â†’pdf(29*sx,(28-2)*sy), end=(54,20)
+    final x0 = 4 * sx;    final y0 = (28 - 20) * sy;
+    final xc = 29 * sx;   final yc = (28 - 2) * sy;
+    final x1 = 54 * sx;   final y1 = (28 - 20) * sy;
+    canvas.moveTo(x0, y0);
+    canvas.curveTo(
+      x0 + 2 / 3 * (xc - x0), y0 + 2 / 3 * (yc - y0),
+      x1 + 2 / 3 * (xc - x1), y1 + 2 / 3 * (yc - y1),
+      x1, y1,
     );
+    canvas.strokePath();
   }
 
-  static pw.Widget _buildAnnotationBadge(String label, {bool isExtra = false}) {
-    final intColor = isExtra ? 0xFF6B7280 : 0xFFD97706;
-    return pw.Container(
-      width: 9,
-      height: 9,
-      decoration: pw.BoxDecoration(
-        color: PdfColor.fromInt(intColor),
-        shape: pw.BoxShape.circle,
-      ),
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        label,
-        style: pw.TextStyle(
-          color: PdfColors.white,
-          fontSize: 5.5,
-          fontWeight: pw.FontWeight.bold,
+  /// 2. Gareban â€” SVG: M4 28 L4 13 Q4 2 19 2 Q34 2 34 13 L34 28 Z, viewBox 38Ã—32
+  static void _pdfGarebanPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    final sx = size.x / 38;
+    final sy = size.y / 32;
+    canvas.moveTo(4 * sx, (32 - 28) * sy);
+    canvas.lineTo(4 * sx, (32 - 13) * sy);
+    // Q4 2 19 2 â†’ cubic from (4,13) cp=(4,2) end=(19,2), Y-flipped
+    final ax = 4 * sx;   final ay = (32 - 13) * sy;
+    final ac = 4 * sx;   final acy = (32 - 2) * sy;
+    final ae = 19 * sx;  final aey = (32 - 2) * sy;
+    canvas.curveTo(ax + 2/3*(ac-ax), ay + 2/3*(acy-ay), ae + 2/3*(ac-ae), aey + 2/3*(acy-aey), ae, aey);
+    // Q34 2 34 13 â†’ cubic from (19,2) cp=(34,2) end=(34,13)
+    final bx = 19 * sx;  final by = (32 - 2) * sy;
+    final bc = 34 * sx;  final bcy = (32 - 2) * sy;
+    final be = 34 * sx;  final bey = (32 - 13) * sy;
+    canvas.curveTo(bx + 2/3*(bc-bx), by + 2/3*(bcy-by), be + 2/3*(bc-be), bey + 2/3*(bcy-bey), be, bey);
+    canvas.lineTo(34 * sx, (32 - 28) * sy);
+    canvas.closePath();
+    canvas.strokePath();
+  }
+
+  /// 3. Kaf â€” SVG: rect x3 y3 w38 h16, viewBox 44Ã—22
+  static void _pdfKafPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    final sx = size.x / 44;
+    final sy = size.y / 22;
+    // rect bottom-left in Y-up: y_pdf = canvasH - (svgY + svgH)
+    canvas.drawRect(3 * sx, (22 - 3 - 16) * sy, 38 * sx, 16 * sy);
+    canvas.strokePath();
+  }
+
+  /// 4. Bazo â€” SVG: M4 20 L13 4 L37 4 L46 20 Z, viewBox 50Ã—24
+  static void _pdfBazoPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    final sx = size.x / 50;
+    final sy = size.y / 24;
+    canvas.moveTo(4 * sx,  (24 - 20) * sy);
+    canvas.lineTo(13 * sx, (24 - 4)  * sy);
+    canvas.lineTo(37 * sx, (24 - 4)  * sy);
+    canvas.lineTo(46 * sx, (24 - 20) * sy);
+    canvas.closePath();
+    canvas.strokePath();
+  }
+
+  /// 5. Jeb â€” SVG: rect x4 y4 w26 h20, viewBox 34Ã—28
+  static void _pdfJebPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    final sx = size.x / 34;
+    final sy = size.y / 28;
+    canvas.drawRect(4 * sx, (28 - 4 - 20) * sy, 26 * sx, 20 * sy);
+    canvas.strokePath();
+  }
+
+  /// 6. Aaga â€” SVG: rect x5 y3 w28 h26 + dash at y=15, viewBox 38Ã—32
+  static void _pdfAagaPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    final sx = size.x / 38;
+    final sy = size.y / 32;
+    canvas.drawRect(5 * sx, (32 - 3 - 26) * sy, 28 * sx, 26 * sy);
+    canvas.strokePath();
+    // Dashed centerline in gold
+    canvas.setStrokeColor(PdfColor.fromInt(0xFFB8860B));
+    canvas.setLineWidth(0.8);
+    canvas.drawLine(5 * sx, (32 - 15) * sy, 33 * sx, (32 - 15) * sy);
+    canvas.strokePath();
+  }
+
+  /// 7. Shalwar â€” SVG: M6 4 L36 4 L36 16 Q36 20 41 20 L54 20 L76 32 L58 32 L44 24 L18 24 L6 32 Z, viewBox 82Ã—36
+  static void _pdfShalwarPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.2);
+    final sx = size.x / 82;
+    final sy = size.y / 36;
+    canvas.moveTo(6 * sx,  (36 - 4)  * sy);
+    canvas.lineTo(36 * sx, (36 - 4)  * sy);
+    canvas.lineTo(36 * sx, (36 - 16) * sy);
+    // Q36 20 41 20 â†’ cubic, start=(36,16) cp=(36,20) end=(41,20)
+    final qx0 = 36 * sx; final qy0 = (36 - 16) * sy;
+    final qxc = 36 * sx; final qyc = (36 - 20) * sy;
+    final qx1 = 41 * sx; final qy1 = (36 - 20) * sy;
+    canvas.curveTo(qx0+2/3*(qxc-qx0), qy0+2/3*(qyc-qy0), qx1+2/3*(qxc-qx1), qy1+2/3*(qyc-qy1), qx1, qy1);
+    canvas.lineTo(54 * sx, (36 - 20) * sy);
+    canvas.lineTo(76 * sx, (36 - 32) * sy);
+    canvas.lineTo(58 * sx, (36 - 32) * sy);
+    canvas.lineTo(44 * sx, (36 - 24) * sy);
+    canvas.lineTo(18 * sx, (36 - 24) * sy);
+    canvas.lineTo(6 * sx,  (36 - 32) * sy);
+    canvas.closePath();
+    canvas.strokePath();
+  }
+
+  /// 8. Kamar â€” SVG: circle cx16 cy16 r13, viewBox 32Ã—32
+  static void _pdfKamarPainter(PdfGraphics canvas, PdfPoint size) {
+    canvas.setStrokeColor(PdfColor.fromInt(0xFF374151));
+    canvas.setLineWidth(1.5);
+    final cx = size.x / 2;
+    final cy = size.y / 2;
+    final rx = (13 / 16) * cx;
+    final ry = (13 / 16) * cy;
+    canvas.drawEllipse(cx, cy, rx, ry);
+    canvas.strokePath();
+  }
+
+  // â”€â”€ Naap PDF: Measurements column (no numbered badges) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  static pw.Widget _buildNaapMeasurementsColumnPdf(
+      Map<String, String> m, pw.Font urduFont) {
+    String mv(List<String> keys) {
+      for (final k in keys) {
+        final v = m[k];
+        if (v != null && v.trim().isNotEmpty) return v.trim();
+      }
+      return '-';
+    }
+
+    final rows = [
+      ('Ù„Ù…Ø¨Ø§Ø¦ÛŒ',  'Length',     mv(['lambai', 'length'])),
+      ('ØªÛŒØ±Ø§',    'Shoulder',   mv(['teerwa', 'shoulder', 'teera'])),
+      ('Ø¨Ø§Ø²Ùˆ',    'Sleeve',     mv(['bazo', 'sleeve', 'aasteen'])),
+      ('Ú†Ú¾Ø§ØªÛŒ',  'Chest',      mv(['chaati', 'chest', 'bust'])),
+      ('Ø¨ØºÙ„',    'Arm Hole',   mv(['baghal', 'arm_hole', 'armhole'])),
+      ('Ú©Ù…Ø±',    'Waist',      mv(['kamar', 'waist'])),
+      ('Ø¯Ø§Ù…Ù†',   'Hem',        mv(['daman', 'hem', 'hem_circle'])),
+      ('Ú©Ø§Ù„Ø±',   'Collar',     mv(['collar'])),
+      ('Ø´Ù„ÙˆØ§Ø±',  'Trouser L.', mv(['shalwar', 'shalwar_length', 'trouser'])),
+      ('Ù¾Ø§Ù†Ú†Û’',  'Bottom',     mv(['panche', 'pancha', 'bottom'])),
+      ('Ú©Ù',     'Cuff',       mv(['kaf', 'cuff'])),
+      ('Ø¬ÛŒØ¨',    'Pocket',     mv(['jeb', 'pocket'])),
+      ('Ú¯ÙˆÙ„',    'Gol/Hip',    mv(['gol', 'hip'])),
+      ('Ø¢Ø³Ù†',    'Asan',       mv(['asan'])),
+      ('Ú¯Ø±ÛŒØ¨Ø§Ù†', 'Gareban',    mv(['gareban'])),
+    ];
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        _pdfColHdr('Ù†Ø§Ù¾ / Ø³Ø§Ø¦Ø²', urduFont),
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: rows.asMap().entries.map((e) {
+              final idx = e.key;
+              final row = e.value;
+              return pw.Expanded(
+                child: pw.Container(
+                  color: idx % 2 == 0
+                      ? PdfColors.white
+                      : PdfColor.fromInt(0xFFF9F4EC),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        row.$3,
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColor.fromInt(0xFFB8860B),
+                        ),
+                      ),
+                      pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Text(
+                          _ur(row.$1),
+                          style: pw.TextStyle(
+                            font: urduFont,
+                            fontSize: 7.5,
+                            color: PdfColor.fromInt(0xFF12213A),
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ),
-      ),
+      ],
     );
   }
 
+  // â”€â”€ Naap PDF: Silai (sewing) column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  static pw.Widget _buildNaapSilaiColumnPdf(
+      MeasurementModel? measurement, pw.Font urduFont) {
+    final silaiOpts = measurement?.silaiOptions ?? [];
+    final silaiNotes = measurement?.silaiNotes ?? '';
+
+    final defaultOpts = [
+      {'label': 'Ø²Ù†Ø¬ÛŒØ± Ø³Ù„Ø§Ø¦ÛŒ', 'checked': false},
+      {'label': 'Ù¹Ø§Ù†Ú©Û Ù¾Û Ù¹Ø§Ù†Ú©Û', 'checked': false},
+      {'label': 'Ø±ÛŒØ´Ù…ÛŒ ØªØ§Ø±', 'checked': false},
+      {'label': 'Ø¬ÙˆÚ©Û Ø³Ù„Ø§Ø¦ÛŒ', 'checked': false},
+      {'label': 'ÚˆØ¨Ù„ Ø³Ù„Ø§Ø¦ÛŒ', 'checked': false},
+      {'label': 'Ø³Ù¹ÛŒÙ„ Ø¨Ù¹Ù†', 'checked': false},
+      {'label': 'Ú©Ù¾Ú‘Ø§ Ø¨Ù¹Ù†', 'checked': false},
+    ];
+    for (final opt in silaiOpts) {
+      final lbl = (opt['label'] ?? opt['urdu'] ?? '').toString();
+      final checked = opt['checked'] == true;
+      for (final d in defaultOpts) {
+        if (d['label'] == lbl) d['checked'] = checked;
+      }
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        _pdfColHdr('Ø³Ù„Ø§Ø¦ÛŒ Ú©ÛŒ Ù‚Ø³Ù…', urduFont),
+        pw.Expanded(
+          flex: 3,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: defaultOpts.map((opt) {
+              final label = opt['label'] as String;
+              final checked = opt['checked'] as bool;
+              return pw.Expanded(
+                child: pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFE8DDD0), width: 0.7),
+                    ),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.end,
+                    children: [
+                      pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Text(
+                          _ur(label),
+                          style: pw.TextStyle(
+                            font: urduFont,
+                            fontSize: 7,
+                            color: PdfColor.fromInt(0xFF374151),
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      pw.SizedBox(width: 4),
+                      _buildCheckbox(checked),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        _pdfColHdr('Ø®Ø§Øµ ÛØ¯Ø§ÛŒØ§Øª', urduFont, small: true),
+        pw.Expanded(
+          flex: 2,
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.all(5),
+            child: pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Text(
+                _ur(silaiNotes.isEmpty ? 'Ú©ÙˆØ¦ÛŒ ÛØ¯Ø§ÛŒØª Ù†ÛÛŒÚº' : silaiNotes),
+                style: pw.TextStyle(
+                  font: urduFont,
+                  fontSize: 7,
+                  color: PdfColor.fromInt(0xFF4B5563),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // â”€â”€ _buildCheckbox (still used by _buildNaapSilaiColumnPdf) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static pw.Widget _buildCheckbox(bool checked) {
     return pw.Container(
       width: 10,
       height: 10,
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColor.fromInt(0xFF0F172A), width: 0.8),
+        border: pw.Border.all(color: PdfColor.fromInt(0xFF12213A), width: 0.8),
         borderRadius: pw.BorderRadius.circular(2),
-        color: checked ? PdfColor.fromInt(0xFFD97706) : PdfColors.white,
+        color: checked ? PdfColor.fromInt(0xFFB8860B) : PdfColors.white,
       ),
       alignment: pw.Alignment.center,
       child: checked
           ? pw.Text(
-              '✓',
+              'âœ“',
               style: pw.TextStyle(
                 color: PdfColors.white,
                 fontSize: 7,
@@ -1467,379 +1592,6 @@ class DarziPdfBuilder {
               ),
             )
           : pw.SizedBox(),
-    );
-  }
-
-  static pw.Widget _buildNewMeasurementsTable(
-      Map<String, String> measurements, MeasurementModel? measurement, pw.Font urduFont) {
-    
-    final category = measurement?.category ?? MeasurementCategory.men;
-    final List<(String, String, String, bool)> rowsData = [];
-
-    if (category == MeasurementCategory.men) {
-      rowsData.addAll([
-        ('1', 'لمبائی (Length)', measurements['lambai'] ?? '', false),
-        ('2', 'تیرا (Shoulder)', measurements['teerwa'] ?? '', false),
-        ('3', 'بازو (Sleeve)', measurements['bazo'] ?? '', false),
-        ('4', 'چھاتی (Chest)', measurements['chaati'] ?? '', false),
-        ('5', 'بغل (Arm Hole)', measurements['baghal'] ?? '', false),
-        ('6', 'کمر (Waist)', measurements['kamar'] ?? '', false),
-        ('7', 'دامن (Hem)', measurements['daman'] ?? '', false),
-        ('8', 'کالر (Collar)', measurements['collar'] ?? '', false),
-        ('9', 'شلوار لمبائی (Trouser)', measurements['shalwar'] ?? '', false),
-        ('10', 'پانچہ (Bottom)', measurements['panche'] ?? '', false),
-        ('11', 'کف (Cuff)', measurements['kaf'] ?? '', true),
-        ('12', 'جیب (Pocket)', measurements['jeb'] ?? '', true),
-        ('13', 'گول (Gol/Hip)', measurements['gol'] ?? '', true),
-        ('14', 'آسن (Asan)', measurements['asan'] ?? '', true),
-        ('15', 'گریبان (Gareban)', measurements['gareban'] ?? '', true),
-      ]);
-    } else if (category == MeasurementCategory.women) {
-      rowsData.addAll([
-        ('1', 'لمبائی (Length)', measurements['lambai'] ?? '', false),
-        ('2', 'چھاتی (Bust)', measurements['bust'] ?? '', false),
-        ('3', 'کمر (Waist)', measurements['waist'] ?? '', false),
-        ('4', 'دامن گھیرا (Hem Circle)', measurements['hem_circle'] ?? '', false),
-        ('5', 'آستین (Sleeve)', measurements['sleeve'] ?? '', false),
-        ('6', 'گلا گہرائی (Neck Depth)', measurements['neck_depth'] ?? '', false),
-        ('7', 'شلوار/پاجامہ (Trouser)', measurements['shalwar'] ?? '', true),
-        ('8', 'پانچے (Bottom)', measurements['panche'] ?? '', true),
-      ]);
-    } else {
-      rowsData.addAll([
-        ('1', 'لمبائی (Length)', measurements['lambai'] ?? '', false),
-        ('2', 'چھاتی (Chest)', measurements['chaati'] ?? '', false),
-        ('3', 'کمر (Waist)', measurements['kamar'] ?? '', false),
-        ('4', 'بازو (Sleeve)', measurements['bazo'] ?? '', false),
-        ('5', 'شلوار لمبائی (Trouser)', measurements['shalwar'] ?? '', false),
-        ('6', 'پانچہ (Bottom)', measurements['panche'] ?? '', false),
-      ]);
-    }
-
-    if (measurement != null) {
-      final customSection = measurement.sections.where((s) => s.title == 'Custom Fields').firstOrNull;
-      if (customSection != null) {
-        int idx = category == MeasurementCategory.men ? 16 : (category == MeasurementCategory.women ? 9 : 7);
-        for (final field in customSection.fields) {
-          rowsData.add((idx.toString(), field.label, field.value, true));
-          idx++;
-        }
-      }
-    }
-
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      mainAxisSize: pw.MainAxisSize.min,
-      children: [
-        pw.Container(
-          height: 16,
-          decoration: const pw.BoxDecoration(
-            color: PdfColor.fromInt(0xFF0F172A),
-            borderRadius: pw.BorderRadius.only(
-              topLeft: pw.Radius.circular(4),
-              topRight: pw.Radius.circular(4),
-            ),
-          ),
-          padding: const pw.EdgeInsets.symmetric(horizontal: 6),
-          child: pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Text('سائز (Size)', style: pw.TextStyle(color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              pw.Text(_ur('ناپ (Measurement)'), style: pw.TextStyle(font: urduFont, color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold)),
-            ],
-          ),
-        ),
-        ...rowsData.map((data) => _buildNewMeasurementRow(data.$1, data.$2, data.$3, urduFont, data.$4)),
-      ],
-    );
-  }
-
-  static pw.Widget _buildNewMeasurementRow(String index, String label, String value, pw.Font urduFont, bool isExtra) {
-    return pw.Container(
-      height: 18,
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFE2E8F0), width: 0.5),
-        ),
-      ),
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4),
-      child: pw.Row(
-        children: [
-          _buildAnnotationBadge(index, isExtra: isExtra),
-          pw.SizedBox(width: 6),
-          pw.Expanded(
-            child: pw.Container(
-              alignment: pw.Alignment.centerLeft,
-              child: pw.Directionality(
-                textDirection: pw.TextDirection.rtl,
-                child: pw.Text(
-                  _ur(label),
-                  style: pw.TextStyle(font: urduFont, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-            ),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _buildSewingAndInstructions(MeasurementModel? measurement, pw.Font urduFont) {
-    final Map<String, String> designOptions = {};
-    if (measurement != null) {
-      for (final section in measurement.sections) {
-        if (section.title == 'Design Options') {
-          for (final f in section.fields) {
-            designOptions[f.key] = f.value;
-          }
-        }
-      }
-    }
-
-    String translateOptionVal(String key, String engVal) {
-      final map = {
-        'round': 'گول کالر',
-        'mandarin': 'چینی کالر',
-        'peshawari': 'پشاوری کالر',
-        'standard': 'سٹینڈرڈ',
-        'standard/spread': 'سٹینڈرڈ',
-        'round_neck': 'گول گلا',
-        'v-neck': 'وی گلا',
-        'boat_neck': 'بوٹ نیک',
-        'high_neck': 'ہائی نیک',
-        'open': 'اوپن',
-        'closed': 'بند',
-        'standard_cuff': 'سادہ کف',
-        'embroidery': 'کڑھائی',
-        'button_cuff': 'بٹن کف',
-        'double_cuff': 'ڈبل کف',
-        'standard_patti': 'سادہ پٹی',
-        'covered': 'چھپی پٹی',
-        'none': 'بغیر پٹی',
-        'chest': 'سینے جیب',
-        'side': 'پہلو جیب',
-        'straight': 'سیدھی',
-        'fitting': 'فٹنگ',
-        'loose': 'ڈھیلی',
-        'straight_shalwar': 'سیدھی',
-        'churidar': 'چوڑی دار',
-        'patiala': 'پٹیالہ',
-        'full': 'فل آستین',
-        'half': 'ہاف آستین',
-        'three_quarter': 'تین چوتھائی',
-        'sleeveless': 'بغیر آستین',
-        'gheradar': 'گھیرا دار',
-        'a-line': 'اے لائن',
-        'pencil': 'پینسل',
-      };
-      
-      final normalized = engVal.toLowerCase().trim().replaceAll(' ', '_');
-      if (map.containsKey(normalized)) {
-        return map[normalized]!;
-      }
-      return engVal;
-    }
-
-    final List<(String, String)> optionsToPrint = [];
-    if (measurement?.category == MeasurementCategory.women) {
-      if (designOptions.containsKey('gala_type') && designOptions['gala_type']!.isNotEmpty) {
-        optionsToPrint.add(('گلا کی قسم', translateOptionVal('gala_type', designOptions['gala_type']!)));
-      }
-      if (designOptions.containsKey('aasteen_type') && designOptions['aasteen_type']!.isNotEmpty) {
-        optionsToPrint.add(('آستین کی قسم', translateOptionVal('aasteen_type', designOptions['aasteen_type']!)));
-      }
-      if (designOptions.containsKey('daman_type') && designOptions['daman_type']!.isNotEmpty) {
-        optionsToPrint.add(('دامن کی قسم', translateOptionVal('daman_type', designOptions['daman_type']!)));
-      }
-    } else {
-      if (designOptions.containsKey('collar_type') && designOptions['collar_type']!.isNotEmpty) {
-        optionsToPrint.add(('کالر', translateOptionVal('collar_type', designOptions['collar_type']!)));
-      }
-      if (designOptions.containsKey('neck_style') && designOptions['neck_style']!.isNotEmpty) {
-        optionsToPrint.add(('گلا', translateOptionVal('neck_style', designOptions['neck_style']!)));
-      }
-      if (designOptions.containsKey('kaf_style') && designOptions['kaf_style']!.isNotEmpty) {
-        optionsToPrint.add(('کف', translateOptionVal('kaf_style', designOptions['kaf_style']!)));
-      }
-      if (designOptions.containsKey('front_style') && designOptions['front_style']!.isNotEmpty) {
-        optionsToPrint.add(('پٹی', translateOptionVal('front_style', designOptions['front_style']!)));
-      }
-      if (designOptions.containsKey('pocket_type') && designOptions['pocket_type']!.isNotEmpty) {
-        optionsToPrint.add(('جیب', translateOptionVal('pocket_type', designOptions['pocket_type']!)));
-      }
-      if (designOptions.containsKey('shape') && designOptions['shape']!.isNotEmpty) {
-        optionsToPrint.add(('شیپ', translateOptionVal('shape', designOptions['shape']!)));
-      }
-      if (designOptions.containsKey('shalwar_style') && designOptions['shalwar_style']!.isNotEmpty) {
-        optionsToPrint.add(('شلوار', translateOptionVal('shalwar_style', designOptions['shalwar_style']!)));
-      }
-    }
-
-    final List<Map<String, dynamic>> defaultOptions = [
-      {'label': 'زنجیر سلائی', 'checked': false},
-      {'label': 'ٹانکہ پہ ٹانکہ', 'checked': false},
-      {'label': 'ریشمی تار', 'checked': false},
-      {'label': 'جوکہ سلائی', 'checked': false},
-      {'label': 'ڈبل سلائی', 'checked': false},
-      {'label': 'سٹیل بٹن', 'checked': false},
-      {'label': 'کپڑا بٹن', 'checked': false},
-    ];
-
-    if (measurement != null && measurement.silaiOptions != null) {
-      for (final opt in measurement.silaiOptions!) {
-        final label = opt['label'] as String?;
-        final checked = opt['checked'] as bool? ?? false;
-        if (label != null) {
-          final target = defaultOptions.where((o) => o['label'] == label).firstOrNull;
-          if (target != null) {
-            target['checked'] = checked;
-          }
-        }
-      }
-    }
-
-    final silaiNotes = measurement?.silaiNotes ?? '';
-
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        if (optionsToPrint.isNotEmpty) ...[
-          pw.Container(
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColor.fromInt(0xFFE2E8F0), width: 0.5),
-              borderRadius: pw.BorderRadius.circular(6),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.Container(
-                  color: PdfColor.fromInt(0xFF0F172A),
-                  padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    _ur('ڈیزائن و قسم'),
-                    style: pw.TextStyle(font: urduFont, color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                  child: pw.Column(
-                    children: optionsToPrint.map((opt) {
-                      return pw.Padding(
-                        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                        child: pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Directionality(
-                              textDirection: pw.TextDirection.rtl,
-                              child: pw.Text(
-                                _ur(opt.$2),
-                                style: pw.TextStyle(font: urduFont, fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFFD97706)),
-                              ),
-                            ),
-                            pw.Directionality(
-                              textDirection: pw.TextDirection.rtl,
-                              child: pw.Text(
-                                _ur(opt.$1),
-                                style: pw.TextStyle(font: urduFont, fontSize: 7, color: PdfColors.grey700),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 6),
-        ],
-        pw.Container(
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColor.fromInt(0xFFE2E8F0), width: 0.5),
-            borderRadius: pw.BorderRadius.circular(6),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-            children: [
-              pw.Container(
-                color: PdfColor.fromInt(0xFF0F172A),
-                padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                alignment: pw.Alignment.center,
-                child: pw.Text(
-                  _ur('سلائی کی قسم'),
-                  style: pw.TextStyle(font: urduFont, color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                child: pw.Column(
-                  children: defaultOptions.map((opt) {
-                    final label = opt['label'] as String;
-                    final checked = opt['checked'] as bool;
-                    return pw.Padding(
-                      padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                      child: pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildCheckbox(checked),
-                          pw.Directionality(
-                            textDirection: pw.TextDirection.rtl,
-                            child: pw.Text(
-                              _ur(label),
-                              style: pw.TextStyle(font: urduFont, fontSize: 7.5, fontWeight: pw.FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 6),
-        pw.Expanded(
-          child: pw.Container(
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColor.fromInt(0xFFE2E8F0), width: 0.5),
-              borderRadius: pw.BorderRadius.circular(6),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.Container(
-                  color: PdfColor.fromInt(0xFF0F172A),
-                  padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    _ur('خاص ہدایات'),
-                    style: pw.TextStyle(font: urduFont, color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-                pw.Expanded(
-                  child: pw.Padding(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Directionality(
-                      textDirection: pw.TextDirection.rtl,
-                      child: pw.Text(
-                        _ur(silaiNotes),
-                        style: pw.TextStyle(font: urduFont, fontSize: 7.5),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1862,7 +1614,7 @@ class DarziPdfBuilder {
             pw.Directionality(
               textDirection: pw.TextDirection.rtl,
               child: pw.Text(
-                _ur('شکریہ! دوبارہ تشریف لائیں'),
+                _ur('Ø´Ú©Ø±ÛŒÛ! Ø¯ÙˆØ¨Ø§Ø±Û ØªØ´Ø±ÛŒÙ Ù„Ø§Ø¦ÛŒÚº'),
                 style: pw.TextStyle(
                   font: urduFont,
                   fontSize: 8,
@@ -1872,7 +1624,7 @@ class DarziPdfBuilder {
               ),
             ),
             pw.Text(
-              'Saddar, Peshawar · 0300-1234567',
+              'Saddar, Peshawar Â· 0300-1234567',
               style: pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600),
             ),
           ],

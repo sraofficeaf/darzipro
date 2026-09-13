@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/constants/app_enums.dart';
 import '../../../core/widgets/shared_widgets.dart';
 import '../../../shared/models/models.dart';
 
-/// Standard Flutter Widget for Traditional Naap Card.
-/// Rendered natively by Flutter's engine (Skia/Impeller) for 100% pixel-perfect
-/// Urdu shaping, RTL text joining, and crisp diagrams before export to PDF image.
+/// Naap Card Widget — Matching Tailor's Exact Shapes & Simple Print Layout
+///
+/// Features:
+///   1. Header: Token No., Shop info ("SaifurRahman Tailors"), Scissors icon.
+///   2. Date bar: Booking Date, Delivery Date (red), Qty, Customer No.
+///   3. Customer bar: Phone & large Urdu customer name.
+///   4. Main Content (Pure white background, no card frames around shapes):
+///      - Right Column: ناپ / سائز (ONLY entered fields printed).
+///      - Left Area: Exact tailoring shapes from tailor's print master:
+///          • ہاف گول (Curved collar band with measurement)
+///          • گول (Horizontal cuff + vertical sleeve placket)
+///          • فلاپ / نوک پٹی (Pointed arch placket)
+///          • سنگل پیس شلوار (Shalwar cut with waistband notch, inner & inseam numbers)
+///          • زنجیری سلائی / کف پلیٹ نہیں / چاک پٹی کاج (Clean text silai notes)
+///          • ( S ) Bold circle size mark
+///          • بٹن پٹی (Vertical button placket with 3 eyelets & 3.4 / 13 numbers)
+///          • Hatched base shape (پانچہ / دامن)
+///   5. Clean Footer: "Powered by Darzi Pro", "شکریہ! دوبارہ تشریف لائیں", shop contact.
 class NaapCardWidget extends StatelessWidget {
   final OrderModel order;
   final CustomerModel? customer;
@@ -19,88 +33,142 @@ class NaapCardWidget extends StatelessWidget {
     required this.measurement,
   });
 
+  // ── Build Map of entered measurements ────────────────────────────────────
+  Map<String, String> _buildMeasurementsMap() {
+    final m = <String, String>{};
+    if (measurement == null) return m;
+    for (final section in measurement!.sections) {
+      for (final field in section.fields) {
+        final val = field.value.trim();
+        if (val.isNotEmpty && val != '0' && val != '-') {
+          m[field.key] = val;
+        }
+      }
+    }
+    return m;
+  }
+
+  // ── Format value with inch symbol if purely numeric ───────────────────────
+  static String _fmtVal(String raw) {
+    if (RegExp(r'^[0-9.]+$').hasMatch(raw)) {
+      return '$raw"';
+    }
+    return raw;
+  }
+
+  // ── Helper to get value matching multiple keys ───────────────────────────
+  static String _getVal(Map<String, String> m, List<String> keys) {
+    for (final k in keys) {
+      final v = m[k];
+      if (v != null && v.trim().isNotEmpty && v.trim() != '0' && v.trim() != '-') {
+        return v.trim();
+      }
+    }
+    return '';
+  }
+
+  // ── Standard 15 measurement definitions ──────────────────────────────────
+  static const List<Map<String, dynamic>> _kAllMeasurementDefs = [
+    {'eng': 'Length', 'ur': 'لمبائی', 'keys': ['lambai', 'length']},
+    {'eng': 'Shoulder', 'ur': 'تیرو', 'keys': ['teerwa', 'shoulder', 'teera']},
+    {'eng': 'Sleeve', 'ur': 'بازو', 'keys': ['bazo', 'sleeve', 'aasteen']},
+    {'eng': 'Chest', 'ur': 'چھاتی', 'keys': ['chaati', 'chest', 'bust']},
+    {'eng': 'Arm Hole', 'ur': 'بغل', 'keys': ['baghal', 'arm_hole', 'armhole']},
+    {'eng': 'Waist', 'ur': 'کمر', 'keys': ['kamar', 'waist']},
+    {'eng': 'Hem', 'ur': 'دامن', 'keys': ['daman', 'hem', 'hem_circle']},
+    {'eng': 'Collar', 'ur': 'کالر', 'keys': ['collar', 'neck', 'neck_depth']},
+    {'eng': 'Trouser L.', 'ur': 'شلوار', 'keys': ['shalwar', 'shalwar_length', 'trouser']},
+    {'eng': 'Bottom', 'ur': 'پانچے', 'keys': ['panche', 'pancha', 'bottom']},
+    {'eng': 'Cuff', 'ur': 'کف', 'keys': ['kaf', 'cuff']},
+    {'eng': 'Pocket', 'ur': 'جیب', 'keys': ['jeb', 'pocket']},
+    {'eng': 'Gol/Hip', 'ur': 'گول', 'keys': ['gol', 'hip']},
+    {'eng': 'Asan', 'ur': 'آسن', 'keys': ['asan']},
+    {'eng': 'Gareban', 'ur': 'گریبان', 'keys': ['gareban']},
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final category = measurement?.category ?? MeasurementCategory.men;
+    final m = _buildMeasurementsMap();
 
-    final Map<String, String> measurements = {};
+    // Filter ONLY fields that the user actually entered
+    final enteredFields = <Map<String, String>>[];
+    for (final def in _kAllMeasurementDefs) {
+      final val = _getVal(m, (def['keys'] as List).cast<String>());
+      if (val.isNotEmpty) {
+        enteredFields.add({
+          'eng': def['eng'] as String,
+          'ur': def['ur'] as String,
+          'val': _fmtVal(val),
+        });
+      }
+    }
+
+    // Add custom fields
     if (measurement != null) {
       for (final section in measurement!.sections) {
-        for (final field in section.fields) {
-          measurements[field.key] = field.value;
+        if (section.title == 'Custom Fields') {
+          for (final f in section.fields) {
+            final val = f.value.trim();
+            if (val.isNotEmpty && val != '0' && val != '-') {
+              enteredFields.add({
+                'eng': f.label,
+                'ur': f.label,
+                'val': _fmtVal(val),
+              });
+            }
+          }
         }
       }
     }
 
-    // Fixed A5 print proportion container (700 x 990)
     return Container(
       width: 700,
       height: 990,
       color: Colors.white,
-      padding: const EdgeInsets.all(16),
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF0F172A), width: 1.5),
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFB8A080), width: 1.5),
         ),
-        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Header
+            // 1. Header (Token | Shop | Scissors)
             _buildHeader(),
-            const SizedBox(height: 10),
 
-            // 2. Info Bar
-            _buildInfoBar(),
-            const SizedBox(height: 10),
+            // 2. Gold Accent Divider
+            _buildGoldDivider(),
 
-            // 3. Customer Row
+            // 3. Date Row (Booking, Delivery, Qty, Customer No.)
+            _buildDateRow(),
+
+            // 4. Customer Row
             _buildCustomerRow(),
-            const SizedBox(height: 10),
 
-            // 4. Main Body Content
+            // 5. Body (RTL: Measurements Table on Right | Simple Shapes Canvas on Left)
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Left Column: Diagrams (28% width)
-                  Expanded(
-                    flex: 28,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: category == MeasurementCategory.women
-                              ? _buildFrockDiagram()
-                              : _buildKameezDiagram(isKids: category == MeasurementCategory.children),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: _buildShalwarDiagram(category: category),
-                        ),
-                      ],
+              child: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Right: Measurements Table (ONLY entered fields!)
+                    Expanded(
+                      flex: 32,
+                      child: _buildMeasurementsColumn(enteredFields),
                     ),
-                  ),
-                  const SizedBox(width: 10),
 
-                  // Center Column: Measurements Table (44% width)
-                  Expanded(
-                    flex: 44,
-                    child: _buildMeasurementsTable(measurements),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // Right Column: Sewing options & Instructions (28% width)
-                  Expanded(
-                    flex: 28,
-                    child: _buildSewingAndInstructions(),
-                  ),
-                ],
+                    // Left/Middle: Tailor Shapes Canvas (Simple print, no cards!)
+                    Expanded(
+                      flex: 68,
+                      child: _buildTailorShapesCanvas(m),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 10),
 
-            // 5. Footer
+            // 6. Footer
             _buildFooter(),
           ],
         ),
@@ -108,125 +176,116 @@ class NaapCardWidget extends StatelessWidget {
     );
   }
 
-  // ── 1. HEADER ────────────────────────────────────────────────────────────
+  // ── 1. HEADER (TOKEN | SHOP | SCISSORS ICON) ─────────────────────────────
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left: Token Box
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'TOKEN NO.',
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              order.tokenNumber,
-              style: GoogleFonts.outfit(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFFD97706),
-              ),
-            ),
-          ],
-        ),
-
-        // Center: Shop info
-        Column(
-          children: [
-            Text(
-              'SaifurRahman Tailors',
-              style: GoogleFonts.outfit(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Saddar, Peshawar',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: const Color(0xFF475569),
-              ),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              '0300-1234567',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF475569),
-              ),
-            ),
-          ],
-        ),
-
-        // Right: Payment Summary Card (Dark Header + White Body + Border)
-        Container(
-          width: 140,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFF0F172A), width: 1.2),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                color: const Color(0xFF0F172A),
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                alignment: Alignment.center,
-                child: Text(
-                  'PAYMENT SUMMARY',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              _buildSummaryRow('Total Amount', formatMoney(order.totalAmount)),
-              _buildSummaryRow('Advance', formatMoney(order.paidAmount)),
-              _buildSummaryRow('Balance', formatMoney(order.remainingAmount), isBoldRed: true),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String value, {bool isBoldRed = false}) {
     return Container(
       decoration: const BoxDecoration(
+        color: Colors.white,
         border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 0.8),
+          bottom: BorderSide(color: Color(0xFFB8A080), width: 1.5),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(fontSize: 8, color: Colors.black87),
+          // Left: Token Box
+          Container(
+            width: 150,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(
+                right: BorderSide(color: Color(0xFFB8A080), width: 1.5),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'TOKEN NO.',
+                  style: GoogleFonts.inter(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFB8860B),
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFB8860B),
+                  ),
+                ),
+              ],
+            ),
           ),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 8,
-              fontWeight: FontWeight.bold,
-              color: isBoldRed ? const Color(0xFFDC2626) : Colors.black,
+
+          // Center: Shop info
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SaifurRahman Tailors',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF12213A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '📍 Saddar, Peshawar   |   📞 0300-1234567',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: const Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Right: Scissors Icon Box
+          Container(
+            width: 140,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              border: Border(
+                left: BorderSide(color: Color(0xFFB8A080), width: 1.5),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFF5C842), Color(0xFFB8860B)],
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x4DB8860B),
+                    blurRadius: 14,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.content_cut_rounded,
+                size: 26,
+                color: Color(0xFF12213A),
+              ),
             ),
           ),
         ],
@@ -234,56 +293,70 @@ class NaapCardWidget extends StatelessWidget {
     );
   }
 
-  // ── 2. INFO BAR ──────────────────────────────────────────────────────────
-  Widget _buildInfoBar() {
+  // ── 2. GOLD ACCENT DIVIDER ───────────────────────────────────────────────
+  Widget _buildGoldDivider() {
+    return Container(
+      height: 3,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF8B6914), Color(0xFFF5C842), Color(0xFF8B6914)],
+        ),
+      ),
+    );
+  }
+
+  // ── 3. DATE ROW (BOOKING, DELIVERY, QTY, CUSTOMER NO) ────────────────────
+  Widget _buildDateRow() {
     final totalQty = order.items.fold<int>(0, (sum, item) => sum + item.quantity);
-    final shortId = order.customerId.isNotEmpty == true
+    final shortId = order.customerId.isNotEmpty
         ? (order.customerId.length >= 8 ? order.customerId.substring(0, 8).toUpperCase() : order.customerId.toUpperCase())
-        : '';
+        : '${order.orderNumber}';
 
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-        borderRadius: BorderRadius.circular(8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF5F0E8),
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFB8A080), width: 1.5),
+        ),
       ),
       child: Row(
         children: [
-          _buildInfoBox('تاریخ درج بکنگ', formatDateShort(order.orderDate)),
-          _buildInfoDivider(),
-          _buildInfoBox(
+          _buildDateBox('تاریخ بکنگ', formatDateShort(order.orderDate)),
+          _buildDateBox(
             'تاریخ ڈیلیوری',
             order.deliveryDate != null ? formatDateShort(order.deliveryDate!) : '-',
             isRed: true,
           ),
-          _buildInfoDivider(),
-          _buildInfoBox('تعداد', '$totalQty'),
-          _buildInfoDivider(),
-          _buildInfoBox('Customer No.', '#$shortId', isEngLabel: true),
+          _buildDateBox('تعداد', '${totalQty > 0 ? totalQty : 1}'),
+          _buildDateBox('.Customer No', '#$shortId', isEngLabel: true, isLast: true),
         ],
       ),
     );
   }
 
-  Widget _buildInfoBox(String label, String value, {bool isRed = false, bool isEngLabel = false}) {
+  Widget _buildDateBox(String label, String value, {bool isRed = false, bool isEngLabel = false, bool isLast = false}) {
     return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          border: isLast ? null : const Border(right: BorderSide(color: Color(0xFFC8B890), width: 1)),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               label,
               style: isEngLabel
-                  ? GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFF475569))
-                  : GoogleFonts.notoNaskhArabic(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
+                  ? GoogleFonts.inter(fontSize: 9.5, color: const Color(0xFF8B7355), fontWeight: FontWeight.w600)
+                  : GoogleFonts.notoNaskhArabic(fontSize: 9.5, color: const Color(0xFF8B7355), fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 2),
             Text(
               value,
               style: GoogleFonts.inter(
-                fontSize: 11,
+                fontSize: 11.5,
                 fontWeight: FontWeight.bold,
-                color: isRed ? const Color(0xFFDC2626) : const Color(0xFF0F172A),
+                color: isRed ? const Color(0xFFDC2626) : const Color(0xFF12213A),
               ),
             ),
           ],
@@ -292,51 +365,46 @@ class NaapCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoDivider() {
-    return Container(
-      width: 1,
-      height: 32,
-      color: const Color(0xFFE2E8F0),
-    );
-  }
-
-  // ── 3. CUSTOMER ROW ──────────────────────────────────────────────────────
+  // ── 4. CUSTOMER ROW ──────────────────────────────────────────────────────
   Widget _buildCustomerRow() {
     final phone = customer?.phone ?? '';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFB8860B), width: 2.5),
+        ),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Left: Phone
-          if (phone.isNotEmpty)
-            Row(
-              children: [
-                const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF0F172A)),
-                const SizedBox(width: 4),
-                Text(
-                  phone,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF0F172A),
-                  ),
+          Row(
+            children: [
+              const Icon(Icons.phone_android_rounded, size: 14, color: Color(0xFF6B7280)),
+              const SizedBox(width: 4),
+              Text(
+                phone.isNotEmpty ? phone : '0312-3456789',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF6B7280),
                 ),
-              ],
-            )
-          else
-            const SizedBox.shrink(),
+              ),
+            ],
+          ),
 
-          // Right: Customer Name in Urdu/Native text
+          // Right: Customer Name in large Urdu
           Directionality(
             textDirection: TextDirection.rtl,
             child: Text(
               order.customerName,
               style: GoogleFonts.notoNaskhArabic(
-                fontSize: 18,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF0F172A),
+                color: const Color(0xFF12213A),
               ),
             ),
           ),
@@ -345,580 +413,461 @@ class NaapCardWidget extends StatelessWidget {
     );
   }
 
-  // ── 4. DIAGRAMS ──────────────────────────────────────────────────────────
-  Widget _buildKameezDiagram({bool isKids = false}) {
+  // ── 5A. MEASUREMENTS TABLE (RIGHT COLUMN) ────────────────────────────────
+  Widget _buildMeasurementsColumn(List<Map<String, String>> enteredFields) {
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-        borderRadius: BorderRadius.circular(8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          left: BorderSide(color: Color(0xFFB8A080), width: 1.5),
+        ),
       ),
       child: Column(
         children: [
+          // Header
           Container(
-            width: double.infinity,
-            color: const Color(0xFFF1F5F9),
-            padding: const EdgeInsets.symmetric(vertical: 3),
+            color: const Color(0xFF12213A),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             alignment: Alignment.center,
             child: Text(
-              'قمیض',
-              style: GoogleFonts.notoNaskhArabic(fontSize: 10, color: Colors.black, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: Container(
-              alignment: Alignment.center,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CustomPaint(
-                    size: const Size(100, 120),
-                    painter: _KameezPainter(),
-                  ),
-                  // Badges
-                  const Positioned(bottom: 45, left: 75, child: _AnnotationBadge('1')),
-                  const Positioned(bottom: 98, left: 45, child: _AnnotationBadge('2')),
-                  const Positioned(bottom: 80, left: 10, child: _AnnotationBadge('3')),
-                  const Positioned(bottom: 70, left: 45, child: _AnnotationBadge('4')),
-                  const Positioned(bottom: 78, left: 26, child: _AnnotationBadge('5')),
-                  const Positioned(bottom: 45, left: 45, child: _AnnotationBadge('6')),
-                  const Positioned(bottom: 12, left: 45, child: _AnnotationBadge('7')),
-                  const Positioned(bottom: 106, left: 45, child: _AnnotationBadge('8')),
-                  const Positioned(bottom: 30, left: 75, child: _AnnotationBadge('11', isExtra: true)),
-                  const Positioned(bottom: 48, left: 25, child: _AnnotationBadge('12', isExtra: true)),
-                ],
+              'ناپ / سائز',
+              style: GoogleFonts.notoNaskhArabic(
+                color: const Color(0xFFF5C842),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const SizedBox(height: 2),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildFrockDiagram() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: const Color(0xFFF1F5F9),
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            alignment: Alignment.center,
-            child: Text(
-              'قمیض / فراک',
-              style: GoogleFonts.notoNaskhArabic(fontSize: 10, color: Colors.black, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 4),
+          // Items (ONLY entered measurements!)
           Expanded(
-            child: Container(
-              alignment: Alignment.center,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CustomPaint(
-                    size: const Size(100, 120),
-                    painter: _FrockPainter(),
-                  ),
-                  const Positioned(bottom: 104, left: 45, child: _AnnotationBadge('1')),
-                  const Positioned(bottom: 64, left: 22, child: _AnnotationBadge('2')),
-                  const Positioned(bottom: 48, left: 60, child: _AnnotationBadge('3')),
-                  const Positioned(bottom: 14, left: 45, child: _AnnotationBadge('4')),
-                  const Positioned(bottom: 78, left: 10, child: _AnnotationBadge('5')),
-                  const Positioned(bottom: 90, left: 45, child: _AnnotationBadge('6')),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildShalwarDiagram({MeasurementCategory category = MeasurementCategory.men}) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: const Color(0xFFF1F5F9),
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            alignment: Alignment.center,
-            child: Text(
-              'شلوار',
-              style: GoogleFonts.notoNaskhArabic(fontSize: 10, color: Colors.black, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: Container(
-              alignment: Alignment.center,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CustomPaint(
-                    size: const Size(100, 120),
-                    painter: _ShalwarPainter(),
-                  ),
-                  if (category == MeasurementCategory.men) ...[
-                    const Positioned(bottom: 55, left: 70, child: _AnnotationBadge('9')),
-                    const Positioned(bottom: 16, left: 25, child: _AnnotationBadge('10')),
-                    const Positioned(bottom: 42, left: 44, child: _AnnotationBadge('13', isExtra: true)),
-                    const Positioned(bottom: 60, left: 22, child: _AnnotationBadge('14', isExtra: true)),
-                  ] else if (category == MeasurementCategory.women) ...[
-                    const Positioned(bottom: 55, left: 70, child: _AnnotationBadge('7', isExtra: true)),
-                    const Positioned(bottom: 16, left: 25, child: _AnnotationBadge('8', isExtra: true)),
-                  ] else ...[
-                    const Positioned(bottom: 55, left: 70, child: _AnnotationBadge('5')),
-                    const Positioned(bottom: 16, left: 25, child: _AnnotationBadge('6')),
-                  ]
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-        ],
-      ),
-    );
-  }
-
-  // ── 5. MEASUREMENTS TABLE ────────────────────────────────────────────────
-  Widget _buildMeasurementsTable(Map<String, String> measurements) {
-    final List<Map<String, dynamic>> items = [
-      {'no': '1', 'eng': 'Length', 'ur': 'لمبائی', 'keys': ['lambai', 'length']},
-      {'no': '2', 'eng': 'Shoulder', 'ur': 'تیرا', 'keys': ['teerwa', 'shoulder', 'teera']},
-      {'no': '3', 'eng': 'Sleeve', 'ur': 'آستین / بازو', 'keys': ['bazo', 'sleeve', 'aasteen']},
-      {'no': '4', 'eng': 'Chest', 'ur': 'چھاتی', 'keys': ['chaati', 'chest', 'bust']},
-      {'no': '5', 'eng': 'Arm Hole', 'ur': 'بغل / کمول', 'keys': ['baghal', 'arm_hole', 'armhole']},
-      {'no': '6', 'eng': 'Waist', 'ur': 'کمر', 'keys': ['kamar', 'waist']},
-      {'no': '7', 'eng': 'Hem', 'ur': 'دامن', 'keys': ['daman', 'hem', 'hem_circle']},
-      {'no': '8', 'eng': 'Collar', 'ur': 'کالر / گلا', 'keys': ['collar', 'neck', 'neck_depth']},
-      {'no': '9', 'eng': 'Trouser', 'ur': 'شلوار لمبائی', 'keys': ['shalwar', 'shalwar_length', 'trouser']},
-      {'no': '10', 'eng': 'Bottom', 'ur': 'پانچہ', 'keys': ['panche', 'pancha', 'bottom']},
-      {'no': '11', 'eng': 'Cuff', 'ur': 'کف', 'keys': ['kaf', 'cuff']},
-      {'no': '12', 'eng': 'Pocket', 'ur': 'جیب / پٹی', 'keys': ['jeb', 'pocket']},
-      {'no': '13', 'eng': 'Gol/Hip', 'ur': 'گول / ہپ', 'keys': ['gol', 'hip']},
-      {'no': '14', 'eng': 'Asan', 'ur': 'آسن', 'keys': ['asan']},
-      {'no': '15', 'eng': 'Gareban', 'ur': 'گریبان', 'keys': ['gareban']},
-    ];
-
-    if (measurement != null) {
-      for (final section in measurement!.sections) {
-        if (section.title == 'Custom Fields') {
-          int customIdx = 16;
-          for (final f in section.fields) {
-            if (f.value.trim().isNotEmpty) {
-              items.add({
-                'no': '$customIdx',
-                'eng': f.label,
-                'ur': f.label,
-                'keys': [f.key],
-              });
-              customIdx++;
-            }
-          }
-        }
-      }
-    }
-
-    String getVal(dynamic keysRef) {
-      if (keysRef is List) {
-        for (final k in keysRef) {
-          final v = measurements[k?.toString()];
-          if (v != null && v.trim().isNotEmpty) return v.trim();
-        }
-      } else if (keysRef != null) {
-        final v = measurements[keysRef.toString()];
-        if (v != null && v.trim().isNotEmpty) return v.trim();
-      }
-      return '';
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          // Table Header
-          Container(
-            color: const Color(0xFF0F172A),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'سائز (Size)',
-                  style: GoogleFonts.notoNaskhArabic(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'ناپ (Measurement)',
-                  style: GoogleFonts.notoNaskhArabic(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          // Rows
-          Expanded(
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              itemBuilder: (context, idx) {
-                final item = items[idx];
-                final val = getVal(item['keys']);
-                final isHighlight = val.isNotEmpty;
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2.5),
-                  child: Row(
-                    children: [
-                      // Badge number
-                      _AnnotationBadge(item['no'] as String, isExtra: idx >= 10),
-                      const SizedBox(width: 4),
-
-                      // English + Urdu labels
-                      Text(
-                        '(${item['eng']}) ',
-                        style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF475569)),
-                      ),
-                      Text(
-                        item['ur'] as String,
-                        style: GoogleFonts.notoNaskhArabic(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
-                      ),
-
-                      const Spacer(),
-
-                      // Value
-                      Text(
-                        val.isEmpty ? '-' : val,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          color: isHighlight ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 6. SEWING OPTIONS & INSTRUCTIONS ──────────────────────────────────────
-  Widget _buildSewingAndInstructions() {
-    final silaiOpts = measurement?.silaiOptions ?? [];
-
-    final silaiNotes = measurement?.silaiNotes ?? '';
-
-    final List<Map<String, String>> designItems = [];
-    if (measurement != null) {
-      for (final section in measurement!.sections) {
-        if (section.title == 'Design Options') {
-          for (final f in section.fields) {
-            if (f.value.trim().isNotEmpty) {
-              designItems.add({'label': f.label, 'val': f.value});
-            }
-          }
-        }
-      }
-    }
-
-    return Column(
-      children: [
-        // Design Choices Box (if present)
-        if (designItems.isNotEmpty) ...[
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  color: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'ڈیزائن کے اختیارات',
-                    style: GoogleFonts.notoNaskhArabic(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Column(
-                    children: designItems.map((item) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 1.5),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              item['label']!,
-                              style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.bold, color: const Color(0xFF475569)),
-                            ),
-                            Text(
-                              item['val']!,
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: const Color(0xFF0F172A)),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-        ],
-
-        // Stitch Type Box
-        if (silaiOpts.isNotEmpty)
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  color: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'سلائی کی قسم',
-                    style: GoogleFonts.notoNaskhArabic(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Column(
-                    children: silaiOpts.map((opt) {
-                      final label = (opt['label'] ?? opt['urdu'] ?? '').toString();
-                      final checked = opt['checked'] == true;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _buildCheckbox(checked),
-                            Text(
-                              label,
-                              style: GoogleFonts.notoNaskhArabic(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 6),
-
-        // Special Instructions Box
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  color: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'خاص ہدایات',
-                    style: GoogleFonts.notoNaskhArabic(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
+            child: enteredFields.isEmpty
+                ? Center(
                     child: Text(
-                      silaiNotes.isEmpty ? 'کوئی خاص ہدایت درج نہیں' : silaiNotes,
-                      textDirection: TextDirection.rtl,
-                      style: GoogleFonts.notoNaskhArabic(fontSize: 10, color: const Color(0xFF334155)),
+                      'کوئی ناپ درج نہیں',
+                      style: GoogleFonts.notoNaskhArabic(color: const Color(0xFF9CA3AF), fontSize: 11),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      children: enteredFields.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final item = entry.value;
+                        final isEven = idx % 2 == 0;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isEven ? const Color(0xFFF9F4EC) : Colors.white,
+                            border: const Border(bottom: BorderSide(color: Color(0xFFE8DDD0), width: 1)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    item['ur']!,
+                                    style: GoogleFonts.notoNaskhArabic(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF12213A),
+                                    ),
+                                  ),
+                                  Text(
+                                    item['val']!,
+                                    style: GoogleFonts.jetBrainsMono(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFB8860B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                item['eng']!,
+                                style: GoogleFonts.inter(
+                                  fontSize: 8,
+                                  color: const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
-                ),
-              ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 5B. TAILOR SHAPES CANVAS (SIMPLE PRINT — ONLY ENTERED SHAPES) ─────────
+  Widget _buildTailorShapesCanvas(Map<String, String> m) {
+    // Dynamic values from entered measurements
+    final collarVal = _getVal(m, ['collar', 'neck', 'neck_depth']);
+    final cuffVal = _getVal(m, ['kaf', 'cuff']);
+    final bazoVal = _getVal(m, ['bazo', 'sleeve', 'aasteen']);
+    final shalwarVal = _getVal(m, ['shalwar', 'shalwar_length', 'trouser']);
+    final asanVal = _getVal(m, ['asan']);
+    final pancheVal = _getVal(m, ['panche', 'pancha', 'bottom']);
+    final kamarVal = _getVal(m, ['kamar', 'waist']);
+    final garebanVal = _getVal(m, ['gareban']);
+    final damanVal = _getVal(m, ['daman', 'hem', 'hem_circle']);
+
+    // Conditions: ONLY show shapes for fields that the user actually entered!
+    final hasCollar = collarVal.isNotEmpty;
+    final hasCuffOrBazo = cuffVal.isNotEmpty || bazoVal.isNotEmpty;
+    final hasGareban = garebanVal.isNotEmpty;
+    final hasShalwar = shalwarVal.isNotEmpty || asanVal.isNotEmpty || pancheVal.isNotEmpty;
+    final hasKamar = kamarVal.isNotEmpty;
+    final hasButtonPlacket = _getVal(m, ['button_patti', 'patti', 'front_patti']).isNotEmpty;
+    final hasBase = damanVal.isNotEmpty || pancheVal.isNotEmpty;
+
+    // Silai checked items ONLY (no dummy/unselected options!)
+    final rawSilai = measurement?.silaiOptions ?? [];
+    final silaiItems = <String>[];
+    for (final opt in rawSilai) {
+      if (opt['checked'] == true) {
+        silaiItems.add((opt['label'] ?? opt['urdu'] ?? '').toString());
+      }
+    }
+
+    final hasAnyLeftShape = hasCollar || hasCuffOrBazo || hasGareban || hasShalwar;
+    final hasAnyRightShape = silaiItems.isNotEmpty || hasKamar || hasButtonPlacket || hasBase;
+
+    if (!hasAnyLeftShape && !hasAnyRightShape) {
+      return Center(
+        child: Text(
+          'کوئی شیپ منتخب نہیں',
+          style: GoogleFonts.notoNaskhArabic(fontSize: 12, color: const Color(0xFF9CA3AF)),
+        ),
+      );
+    }
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── LEFT COLUMN OF SHAPES ─────────────────────────────────────────
+          Expanded(
+            flex: 52,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. ہاف گول (Curved collar band — ONLY if collar is entered!)
+                  if (hasCollar) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _fmtVal(collarVal),
+                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                            ),
+                            const SizedBox(height: 2),
+                            CustomPaint(
+                              size: const Size(82, 22),
+                              painter: _HalfGolCollarPainter(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'ہاف گول',
+                          style: GoogleFonts.notoNaskhArabic(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // 2. گول (Cuff + Sleeve Placket — ONLY if cuff or bazo is entered!)
+                  if (hasCuffOrBazo) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          children: [
+                            CustomPaint(
+                              size: const Size(76, 72),
+                              painter: _CuffPlacketPainter(),
+                            ),
+                            // Number inside horizontal cuff
+                            if (cuffVal.isNotEmpty)
+                              Positioned(
+                                top: 2,
+                                left: 6,
+                                child: Text(
+                                  _fmtVal(cuffVal),
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ),
+                            // Number next to vertical placket
+                            if (bazoVal.isNotEmpty)
+                              Positioned(
+                                top: 28,
+                                left: 28,
+                                child: Text(
+                                  _fmtVal(bazoVal),
+                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 36),
+                          child: Text(
+                            'گول',
+                            style: GoogleFonts.notoNaskhArabic(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // 3. فلاپ / نوک پٹی (Pointed arch placket — ONLY if gareban is entered!)
+                  if (hasGareban) ...[
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(54, 68),
+                          painter: _PointedFlapPainter(),
+                        ),
+                        Positioned(
+                          top: 14,
+                          child: Text(
+                            _fmtVal(garebanVal),
+                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // 4. سنگل پیس شلوار (ONLY if shalwar, asan, or pancha is entered!)
+                  if (hasShalwar) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          children: [
+                            CustomPaint(
+                              size: const Size(78, 88),
+                              painter: _ShalwarPiecePainter(),
+                            ),
+                            // Value inside shalwar body
+                            if (shalwarVal.isNotEmpty)
+                              Positioned(
+                                top: 42,
+                                left: 14,
+                                child: Text(
+                                  _fmtVal(shalwarVal),
+                                  style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ),
+                            // Value along curved inseam
+                            if (asanVal.isNotEmpty || pancheVal.isNotEmpty)
+                              Positioned(
+                                bottom: 16,
+                                right: 2,
+                                child: Text(
+                                  asanVal.isNotEmpty ? _fmtVal(asanVal) : _fmtVal(pancheVal),
+                                  style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'سنگل پیس شلوار',
+                          style: GoogleFonts.notoNaskhArabic(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildCheckbox(bool checked) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF0F172A), width: 1),
-        borderRadius: BorderRadius.circular(3),
-        color: checked ? const Color(0xFFD97706) : Colors.white,
-      ),
-      alignment: Alignment.center,
-      child: checked
-          ? const Icon(Icons.check_rounded, size: 10, color: Colors.white)
-          : const SizedBox.shrink(),
-    );
-  }
+          const SizedBox(width: 8),
 
-  // ── 7. FOOTER ────────────────────────────────────────────────────────────
-  Widget _buildFooter() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          height: 1.5,
-          color: const Color(0xFFD97706),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Powered by Darzi Pro',
-              style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF64748B)),
+          // ── RIGHT COLUMN OF SHAPES ────────────────────────────────────────
+          Expanded(
+            flex: 48,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 1. Silai notes list (clean simple text, ONLY checked items!)
+                  if (silaiItems.isNotEmpty)
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: silaiItems.map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.5),
+                            child: Text(
+                              item,
+                              style: GoogleFonts.notoNaskhArabic(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                  // 2. Bold Circle with S or waist (ONLY if kamar is entered!)
+                  if (hasKamar) ...[
+                    const SizedBox(height: 18),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(58, 58),
+                          painter: _CircleSizePainter(),
+                        ),
+                        Text(
+                          _fmtVal(kamarVal),
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // 3. بٹن پٹی (Vertical button strip — ONLY if patti is entered!)
+                  if (hasButtonPlacket) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(26, 78),
+                          painter: _ButtonPlacketPainter(),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '3.4',
+                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              '13',
+                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // 4. Hatched U-shaped Base (ONLY if daman or pancha is entered!)
+                  if (hasBase) ...[
+                    const SizedBox(height: 18),
+                    CustomPaint(
+                      size: const Size(82, 28),
+                      painter: _HatchedUBasePainter(),
+                    ),
+                  ],
+                ],
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 6. FOOTER ────────────────────────────────────────────────────────────
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF5F0E8),
+        border: Border(
+          top: BorderSide(color: Color(0xFFB8A080), width: 1.5),
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: TextSpan(
+                text: 'Powered by ',
+                style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF9CA3AF)),
+                children: [
+                  TextSpan(
+                    text: 'Darzi Pro',
+                    style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFB8860B)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 40),
             Text(
               'شکریہ! دوبارہ تشریف لائیں',
               style: GoogleFonts.notoNaskhArabic(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFFD97706),
+                color: const Color(0xFFB8860B),
               ),
             ),
+            const SizedBox(width: 40),
             Text(
-              'Saddar, Peshawar · 0300-1234567',
-              style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF64748B)),
+              'Saddar, Peshawar 📞 0300-1234567',
+              style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF9CA3AF)),
             ),
           ],
         ),
-      ],
-    );
-  }
-}
-
-// ── ANNOTATION BADGE ────────────────────────────────────────────────────────
-class _AnnotationBadge extends StatelessWidget {
-  final String label;
-  final bool isExtra;
-
-  const _AnnotationBadge(this.label, {this.isExtra = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 14,
-      height: 14,
-      decoration: BoxDecoration(
-        color: isExtra ? const Color(0xFF64748B) : const Color(0xFFD97706),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-        ),
       ),
     );
   }
 }
 
-// ── CUSTOM PAINTERS FOR DIAGRAMS ───────────────────────────────────────────
-class _KameezPainter extends CustomPainter {
+// ── CUSTOM VECTOR PAINTERS (Matching Tailor's Exact Shapes) ────────────────
+
+/// 1. ہاف گول (Curved collar band)
+class _HalfGolCollarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF334155)
+      ..color = Colors.black87
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = 1.6;
+
+    final w = size.width;
+    final h = size.height;
 
     final path = Path()
-      ..moveTo(size.width * 0.42, size.height * 0.1)
-      ..quadraticBezierTo(size.width * 0.5, size.height * 0.16, size.width * 0.58, size.height * 0.1)
-      ..lineTo(size.width * 0.7, size.height * 0.14)
-      ..lineTo(size.width * 0.9, size.height * 0.44)
-      ..lineTo(size.width * 0.83, size.height * 0.46)
-      ..lineTo(size.width * 0.65, size.height * 0.38)
-      ..lineTo(size.width * 0.65, size.height * 0.7)
-      ..lineTo(size.width * 0.68, size.height * 0.9)
-      ..lineTo(size.width * 0.32, size.height * 0.9)
-      ..lineTo(size.width * 0.35, size.height * 0.7)
-      ..lineTo(size.width * 0.35, size.height * 0.38)
-      ..lineTo(size.width * 0.17, size.height * 0.46)
-      ..lineTo(size.width * 0.1, size.height * 0.44)
-      ..lineTo(size.width * 0.3, size.height * 0.14)
-      ..close();
-
-    canvas.drawPath(path, paint);
-
-    final dashPaint = Paint()
-      ..color = const Color(0xFFCBD5E1)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-
-    canvas.drawLine(Offset(size.width * 0.3, size.height * 0.14), Offset(size.width * 0.7, size.height * 0.14), dashPaint);
-    canvas.drawLine(Offset(size.width * 0.35, size.height * 0.38), Offset(size.width * 0.65, size.height * 0.38), dashPaint);
-    canvas.drawLine(Offset(size.width * 0.35, size.height * 0.7), Offset(size.width * 0.65, size.height * 0.7), dashPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _FrockPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF334155)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    final path = Path()
-      ..moveTo(size.width * 0.4, size.height * 0.1)
-      ..quadraticBezierTo(size.width * 0.5, size.height * 0.18, size.width * 0.6, size.height * 0.1)
-      ..lineTo(size.width * 0.74, size.height * 0.14)
-      ..lineTo(size.width * 0.88, size.height * 0.44)
-      ..lineTo(size.width * 0.8, size.height * 0.46)
-      ..lineTo(size.width * 0.62, size.height * 0.38)
-      ..lineTo(size.width * 0.65, size.height * 0.54)
-      ..lineTo(size.width * 0.85, size.height * 0.9)
-      ..quadraticBezierTo(size.width * 0.5, size.height * 0.96, size.width * 0.15, size.height * 0.9)
-      ..lineTo(size.width * 0.35, size.height * 0.54)
-      ..lineTo(size.width * 0.38, size.height * 0.38)
-      ..lineTo(size.width * 0.2, size.height * 0.46)
-      ..lineTo(size.width * 0.12, size.height * 0.44)
-      ..lineTo(size.width * 0.26, size.height * 0.14)
+      ..moveTo(2, h * 0.25)
+      ..quadraticBezierTo(w / 2, h * 0.7, w - 2, h * 0.25)
+      ..lineTo(w - 2, h * 0.7)
+      ..quadraticBezierTo(w / 2, h * 1.15, 2, h * 0.7)
       ..close();
 
     canvas.drawPath(path, paint);
@@ -928,27 +877,187 @@ class _FrockPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _ShalwarPainter extends CustomPainter {
+/// 2. گول (Cuff + Vertical Sleeve Placket with square end)
+class _CuffPlacketPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF334155)
+      ..color = Colors.black87
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = 1.6;
 
+    // Horizontal top cuff
+    canvas.drawRect(const Rect.fromLTWH(0, 0, 72, 20), paint);
+
+    // Vertical sleeve placket attached below left
+    canvas.drawRect(const Rect.fromLTWH(8, 20, 16, 48), paint);
+
+    // Line dividing bottom square
+    canvas.drawLine(const Offset(8, 54), const Offset(24, 54), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 3. فلاپ / نوک پٹی (Pointed arch placket with lower base)
+class _PointedFlapPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
+    final w = size.width;
+    final h = size.height;
+
+    // Pointed top dome arch
+    final topArch = Path()
+      ..moveTo(2, h * 0.65)
+      ..lineTo(2, h * 0.35)
+      ..quadraticBezierTo(w * 0.15, 2, w * 0.5, 2)
+      ..quadraticBezierTo(w * 0.85, 2, w - 2, h * 0.35)
+      ..lineTo(w - 2, h * 0.65)
+      ..close();
+    canvas.drawPath(topArch, paint);
+
+    // Divider line
+    canvas.drawLine(Offset(2, h * 0.65), Offset(w - 2, h * 0.65), paint);
+
+    // Lower base trapezoid
+    final basePath = Path()
+      ..moveTo(2, h * 0.65)
+      ..lineTo(4, h - 2)
+      ..lineTo(w - 4, h - 2)
+      ..lineTo(w - 2, h * 0.65)
+      ..close();
+    canvas.drawPath(basePath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 4. سنگل پیس شلوار (Shalwar cut with notch and inseam curve)
+class _ShalwarPiecePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
+    final w = size.width;
+    final h = size.height;
+
+    // Main shalwar cut outline
     final path = Path()
-      ..moveTo(size.width * 0.24, size.height * 0.1)
-      ..lineTo(size.width * 0.76, size.height * 0.1)
-      ..lineTo(size.width * 0.82, size.height * 0.5)
-      ..lineTo(size.width * 0.76, size.height * 0.9)
-      ..lineTo(size.width * 0.6, size.height * 0.9)
-      ..lineTo(size.width * 0.5, size.height * 0.52)
-      ..lineTo(size.width * 0.4, size.height * 0.9)
-      ..lineTo(size.width * 0.24, size.height * 0.9)
-      ..lineTo(size.width * 0.18, size.height * 0.5)
+      ..moveTo(2, 2)
+      ..lineTo(w - 2, 2)
+      ..lineTo(w - 2, h * 0.32)
+      ..quadraticBezierTo(w * 0.45, h * 0.42, w * 0.28, h - 2)
+      ..lineTo(2, h - 2)
+      ..close();
+    canvas.drawPath(path, paint);
+
+    // Waistband pocket notch at top left
+    canvas.drawRect(const Rect.fromLTWH(8, 2, 14, 12), paint);
+    canvas.drawLine(const Offset(8, 8), const Offset(22, 8), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 5. ( S ) Bold Circle Size Mark
+class _CircleSizePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4;
+
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), (size.width - 4) / 2, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 6. بٹن پٹی (Vertical button strip with 3 eyelets & square end)
+class _ButtonPlacketPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
+    final w = size.width;
+    final h = size.height;
+
+    // Main strip rectangle
+    canvas.drawRect(Rect.fromLTWH(2, 2, w - 4, h - 14), paint);
+
+    // 3 Button eyelets
+    final eyeletPaint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+
+    canvas.drawOval(Rect.fromCenter(center: Offset(w / 2, 16), width: 7, height: 11), eyeletPaint);
+    canvas.drawOval(Rect.fromCenter(center: Offset(w / 2, 32), width: 7, height: 11), eyeletPaint);
+    canvas.drawOval(Rect.fromCenter(center: Offset(w / 2, 48), width: 7, height: 11), eyeletPaint);
+
+    // Square end box at bottom
+    canvas.drawRect(Rect.fromLTWH(2, h - 12, w - 4, 10), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 7. Hatched U-shaped Base (پانچہ / دامن)
+class _HatchedUBasePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokePaint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
+    final w = size.width;
+    final h = size.height;
+
+    // U-shaped cut with bottom bar
+    final uPath = Path()
+      ..moveTo(2, 2)
+      ..lineTo(14, 2)
+      ..lineTo(14, h * 0.45)
+      ..lineTo(w - 14, h * 0.45)
+      ..lineTo(w - 14, 2)
+      ..lineTo(w - 2, 2)
+      ..lineTo(w - 2, h - 2)
+      ..lineTo(2, h - 2)
       ..close();
 
-    canvas.drawPath(path, paint);
+    // Fill with diagonal hatch lines
+    canvas.save();
+    canvas.clipPath(uPath);
+    final hatchPaint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    for (double x = -h * 2; x < w + h * 2; x += 4.5) {
+      canvas.drawLine(Offset(x, 0), Offset(x + h, h), hatchPaint);
+    }
+    canvas.restore();
+
+    canvas.drawPath(uPath, strokePaint);
+    canvas.drawLine(Offset(2, h * 0.45), Offset(w - 2, h * 0.45), strokePaint);
   }
 
   @override
