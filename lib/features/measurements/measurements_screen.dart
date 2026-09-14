@@ -429,7 +429,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     try {
       final measurement = _buildCurrentMeasurementModel(customerId);
 
-      // Save measurement (works both online & offline — shopId null hone par local cache mein save hoga)
+      // Save measurement (online ya offline dono mein kaam karta hai)
       await ref.read(measurementsProvider.notifier).addOrUpdateMeasurement(measurement);
 
       // Draft clear karo
@@ -444,11 +444,17 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
       if (!mounted) return;
 
-      // Pehle _isSaving false karo taake screen blank na ho
-      setState(() => _isSaving = false);
+      // KEY FIX: Pop se PEHLE messenger reference lo
+      // Phir pop karo (screen deactivate hogi)
+      // Phir messenger par snackbar dikhao — parent screen ke Scaffold par show hoga
+      final messenger = ScaffoldMessenger.of(context);
+      final profileName = measurement.profileName;
 
-      // Snackbar dikhao
-      ScaffoldMessenger.of(context).showSnackBar(
+      setState(() => _isSaving = false);
+      Navigator.of(context).pop(); // Pehle pop
+
+      // Ab parent screen par snackbar — koi crash nahi
+      messenger.showSnackBar(
         SnackBar(
           content: Row(
             children: [
@@ -456,7 +462,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Naap save ho gaya! (${measurement.profileName})',
+                  'Naap save ho gaya! ($profileName)',
                   style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
                 ),
               ),
@@ -465,15 +471,9 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
           backgroundColor: const Color(0xFF10CBA0),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(milliseconds: 1500),
+          duration: const Duration(seconds: 2),
         ),
       );
-
-      // Thoda wait karo phir pop karo — blank screen issue fix
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
     } catch (e) {
       debugPrint('_saveMeasurements error: $e');
       if (mounted) {
@@ -501,7 +501,6 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         );
       }
     } finally {
-      // Safety net: ensure _isSaving is always reset
       if (mounted && _isSaving) setState(() => _isSaving = false);
     }
   }
