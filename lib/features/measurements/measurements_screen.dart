@@ -428,8 +428,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
     try {
       final measurement = _buildCurrentMeasurementModel(customerId);
+
+      // Save measurement (works both online & offline — shopId null hone par local cache mein save hoga)
       await ref.read(measurementsProvider.notifier).addOrUpdateMeasurement(measurement);
 
+      // Draft clear karo
       try {
         final Box draftBox = Hive.box('naap_drafts_box');
         final draftKey = widget.measurementId != null
@@ -439,42 +442,67 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         await draftBox.delete('draft_$customerId');
       } catch (_) {}
 
+      if (!mounted) return;
+
+      // Pehle _isSaving false karo taake screen blank na ho
+      setState(() => _isSaving = false);
+
+      // Snackbar dikhao
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Naap save ho gaya! (${measurement.profileName})',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10CBA0),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(milliseconds: 1500),
+        ),
+      );
+
+      // Thoda wait karo phir pop karo — blank screen issue fix
+      await Future<void>.delayed(const Duration(milliseconds: 400));
       if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      debugPrint('_saveMeasurements error: $e');
+      if (mounted) {
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Measurements saved successfully! (${measurement.profileName})',
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                    'Save error: $e',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF10CBA0),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving: $e', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
             backgroundColor: const Color(0xFFFF3A58),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      // Safety net: ensure _isSaving is always reset
+      if (mounted && _isSaving) setState(() => _isSaving = false);
     }
   }
 

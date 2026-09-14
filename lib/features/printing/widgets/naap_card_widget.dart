@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/widgets/shared_widgets.dart';
 import '../../../shared/models/models.dart';
+import '../../../shared/providers/supabase_providers.dart';
 
 /// Naap Card Widget — Matching Tailor's Exact Shapes & Simple Print Layout
 ///
@@ -21,7 +23,7 @@ import '../../../shared/models/models.dart';
 ///          • بٹن پٹی (Vertical button placket with 3 eyelets & 3.4 / 13 numbers)
 ///          • Hatched base shape (پانچہ / دامن)
 ///   5. Clean Footer: "Powered by Darzi Pro", "شکریہ! دوبارہ تشریف لائیں", shop contact.
-class NaapCardWidget extends StatelessWidget {
+class NaapCardWidget extends ConsumerWidget {
   final OrderModel order;
   final CustomerModel? customer;
   final MeasurementModel? measurement;
@@ -87,7 +89,21 @@ class NaapCardWidget extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shopAsync = ref.watch(currentShopProvider);
+    final shop = shopAsync.valueOrNull;
+    final shopName = (shop?['name'] as String?)?.trim().isNotEmpty == true
+        ? shop!['name'] as String
+        : 'Tailor Shop';
+    final shopPhone = (shop?['phone'] as String?)?.trim().isNotEmpty == true
+        ? shop!['phone'] as String
+        : (shop?['contact'] as String?)?.trim().isNotEmpty == true
+            ? shop!['contact'] as String
+            : '';
+    final shopAddress = (shop?['address'] as String?)?.trim().isNotEmpty == true
+        ? shop!['address'] as String
+        : '';
+
     final m = _buildMeasurementsMap();
 
     // Filter ONLY fields that the user actually entered
@@ -134,7 +150,7 @@ class NaapCardWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 1. Header (Token | Shop | Scissors)
-            _buildHeader(),
+            _buildHeader(shopName: shopName, shopPhone: shopPhone, shopAddress: shopAddress),
 
             // 2. Gold Accent Divider
             _buildGoldDivider(),
@@ -169,7 +185,7 @@ class NaapCardWidget extends StatelessWidget {
             ),
 
             // 6. Footer
-            _buildFooter(),
+            _buildFooter(shopPhone: shopPhone, shopAddress: shopAddress),
           ],
         ),
       ),
@@ -177,7 +193,11 @@ class NaapCardWidget extends StatelessWidget {
   }
 
   // ── 1. HEADER (TOKEN | SHOP | SCISSORS ICON) ─────────────────────────────
-  Widget _buildHeader() {
+  Widget _buildHeader({
+    required String shopName,
+    required String shopPhone,
+    required String shopAddress,
+  }) {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -231,21 +251,26 @@ class NaapCardWidget extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'SaifurRahman Tailors',
+                    shopName,
                     style: GoogleFonts.playfairDisplay(
                       fontSize: 23,
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF12213A),
                       letterSpacing: 0.3,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '📍 Saddar, Peshawar   |   📞 0300-1234567',
+                    [
+                      if (shopAddress.isNotEmpty) '📍 $shopAddress',
+                      if (shopPhone.isNotEmpty) '📞 $shopPhone',
+                    ].join('   |   '),
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       color: const Color(0xFF6B7280),
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -802,7 +827,10 @@ class NaapCardWidget extends StatelessWidget {
   }
 
   // ── 6. FOOTER ────────────────────────────────────────────────────────────
-  Widget _buildFooter() {
+  Widget _buildFooter({
+    required String shopPhone,
+    required String shopAddress,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
@@ -839,7 +867,10 @@ class NaapCardWidget extends StatelessWidget {
             ),
             const SizedBox(width: 40),
             Text(
-              'Saddar, Peshawar 📞 0300-1234567',
+              [
+                if (shopAddress.isNotEmpty) shopAddress,
+                if (shopPhone.isNotEmpty) '📞 $shopPhone',
+              ].join('  '),
               style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF9CA3AF)),
             ),
           ],

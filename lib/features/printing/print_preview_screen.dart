@@ -53,7 +53,10 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _captureActiveLayout());
+    // 2 frames wait karo taake widget tree fully build ho jaye, phir capture karo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _captureActiveLayout());
+    });
   }
 
   void _switchLayout(PrintLayout layout) {

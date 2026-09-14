@@ -93,8 +93,9 @@ class CardImageCapturer {
 
     overlay.insert(entry);
 
-    // Wait for layout + paint to complete
+    // 2 frames wait karo: pehle frame mein layout hota hai, doosre mein paint
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await WidgetsBinding.instance.endOfFrame;
       try {
         RenderRepaintBoundary? boundary =
             key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -104,10 +105,10 @@ class CardImageCapturer {
           boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
         }
 
-        // Wait for rendering to complete if needed
+        // Agar abhi bhi paint pending ho
         if (boundary == null || boundary.debugNeedsPaint) {
           for (int i = 0; i < 3; i++) {
-            await Future<void>.delayed(const Duration(milliseconds: 10));
+            await Future<void>.delayed(const Duration(milliseconds: 16));
             boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
             if (boundary != null && !boundary.debugNeedsPaint) break;
           }
