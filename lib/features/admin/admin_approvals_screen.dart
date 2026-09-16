@@ -908,6 +908,15 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
   }
 
   Future<void> _approvePayment(BuildContext context, WidgetRef ref, Map<String, dynamic> payment) async {
+    final paymentType = payment['payment_type'] as String? ?? 'monthly';
+    final isFoundingActivation = paymentType == 'founding_activation';
+
+    if (isFoundingActivation) {
+      await _approveFoundingPayment(context, ref, payment);
+      return;
+    }
+
+    // Regular subscription approval
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -979,7 +988,87 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
       if (success) ref.invalidate(adminSubscriptionPaymentsProvider);
     }
   }
+
+  Future<void> _approveFoundingPayment(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> payment,
+  ) async {
+    // Fetch founding settings so dialog shows correct defaults
+    final settings = await AdminService.instance.fetchAppSettings(prefix: 'founding');
+    final freeMonths = int.tryParse(settings['founding_free_months'] ?? '6') ?? 6;
+    final storageGb  = double.tryParse(settings['founding_storage_limit_gb'] ?? '5') ?? 5.0;
+
+    if (!context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Row(
+          children: [
+            const Text('👑 ', style: TextStyle(fontSize: 20)),
+            Text('Approve Founding Activation', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Amount: Rs ${payment['amount_pkr']}'),
+            const SizedBox(height: 4),
+            const Text('This will:'),
+            const SizedBox(height: 4),
+            Text('• Set plan to Founding Member'),
+            Text('• Grant $freeMonths months FREE (no billing)'),
+            Text('• Set storage limit to ${storageGb.toStringAsFixed(0)} GB'),
+            Text('• Start recurring billing after free period'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AdminColors.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AdminColors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                'This calls activate_founding_membership() — atomic and cannot be undone.',
+                style: GoogleFonts.inter(fontSize: 11, color: AdminColors.amber),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AdminColors.amber),
+            child: const Text('Activate Founding'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final result = await AdminService.instance.approveFoundingActivationPayment(
+      paymentId: payment['id'] as String,
+      shopId: payment['shop_id'] as String,
+      freeMonths: freeMonths,
+      storageGb: storageGb,
+    );
+    if (context.mounted) {
+      final ok = result['success'] == true;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ok
+          ? '👑 Founding membership activated! Free until ${result['free_until'] ?? '?'}'
+          : '❌ Failed: ${result['error'] ?? 'Unknown error'}'),
+        backgroundColor: ok ? AdminColors.amber : AdminColors.rose,
+        duration: const Duration(seconds: 5),
+      ));
+      if (ok) ref.invalidate(adminSubscriptionPaymentsProvider);
+    }
+  }
 }
+
 
 class _SubPaymentCard extends StatelessWidget {
   final Map<String, dynamic> payment;
@@ -992,6 +1081,8 @@ class _SubPaymentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final amount = (payment['amount_pkr'] as int?) ?? 0;
     final planCode = payment['plan_code'] as String? ?? '';
+    final paymentType = payment['payment_type'] as String? ?? 'monthly';
+    final isFoundingActivation = paymentType == 'founding_activation';
     final method = payment['payment_method'] as String? ?? '-';
     final txId = payment['transaction_id'] as String? ?? '';
     final screenshotUrl = payment['payment_screenshot_url'] as String?;
@@ -1004,9 +1095,16 @@ class _SubPaymentCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: context.surface,
+        color: isFoundingActivation
+            ? AdminColors.amber.withValues(alpha: 0.04)
+            : context.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.border),
+        border: Border.all(
+          color: isFoundingActivation
+              ? AdminColors.amber.withValues(alpha: 0.35)
+              : context.border,
+          width: isFoundingActivation ? 1.5 : 1,
+        ),
         boxShadow: context.cardShadow,
       ),
       child: Column(
@@ -1014,12 +1112,17 @@ class _SubPaymentCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              AdminBadge(label: planCode.toUpperCase(), color: AdminColors.violet),
+              if (isFoundingActivation) ...[
+                AdminBadge(label: '👑 FOUNDING', color: AdminColors.amber),
+                const SizedBox(width: 8),
+              ],
+              AdminBadge(label: planCode.toUpperCase(), color: isFoundingActivation ? AdminColors.amber : AdminColors.violet),
               const Spacer(),
               Text('Rs ${NumberFormat('#,###').format(amount)}',
                 style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: context.text1)),
             ],
           ),
+
           const SizedBox(height: 8),
           Text('Via: $method${txId.isNotEmpty ? " · TID: $txId" : ""}',
               style: GoogleFonts.inter(fontSize: 12, color: context.text2)),

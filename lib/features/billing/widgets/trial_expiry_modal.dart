@@ -3,7 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/subscription_service.dart';
 import '../../../shared/providers/subscription_provider.dart';
+
+/// FutureProvider: loads founding offer settings from app_settings.
+final _foundingSettingsProvider = FutureProvider.autoDispose<Map<String, String>>((ref) {
+  return SubscriptionService.instance.fetchFoundingSettings();
+});
+
+/// FutureProvider: live count of founding shops (for slots).
+final _foundingShopsCountProvider = FutureProvider.autoDispose<int>((ref) {
+  return SubscriptionService.instance.countFoundingShops();
+});
 
 /// Shown when trial expires (by orders or by days).
 /// Lets the shop pick a plan and go to payment.
@@ -93,27 +104,83 @@ class TrialExpiryModal extends ConsumerWidget {
                 style: GoogleFonts.inter(color: AppColors.red),
               ),
               data: (plans) {
-                // Only show paid plans (not trial)
-                final paidPlans =
-                    plans.where((p) => p['code'] != 'trial').toList();
+                // Filter: show paid plans only (exclude trial and founding — founding has its own card)
+                final paidPlans = plans
+                    .where((p) => p['code'] != 'trial' && p['code'] != 'founding')
+                    .toList();
+
+                // Founding offer card (shown above regular plans if enabled)
+                final foundingAsync  = ref.watch(_foundingSettingsProvider);
+                final fCountAsync    = ref.watch(_foundingShopsCountProvider);
+
                 return Column(
-                  children: paidPlans.map((plan) {
-                    return _PlanOptionTile(
-                      plan: plan,
-                      isUrdu: isUrdu,
-                      isDark: isDark,
-                      border: border,
-                      text1: text1,
-                      text2: text2,
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).pushNamed(
-                          '/subscription/pay',
-                          arguments: plan,
+                  children: [
+                    // Founding offer card (only if enabled and slots available)
+                    foundingAsync.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
+                      data: (settings) {
+                        final enabled = settings['founding_offer_enabled'] == 'true';
+                        if (!enabled) return const SizedBox.shrink();
+
+                        // Check offer end date
+                        final endDateStr = settings['founding_offer_end_date'] ?? '';
+                        if (endDateStr.isNotEmpty) {
+                          final endDate = DateTime.tryParse(endDateStr);
+                          if (endDate != null && DateTime.now().isAfter(endDate)) {
+                            return const SizedBox.shrink();
+                          }
+                        }
+
+                        // Check slots
+                        final totalSlots = int.tryParse(settings['founding_slots_total'] ?? '0') ?? 0;
+                        final usedSlots  = fCountAsync.value ?? 0;
+                        if (totalSlots > 0 && usedSlots >= totalSlots) {
+                          return const SizedBox.shrink(); // sold out
+                        }
+
+                        final fee         = int.tryParse(settings['founding_activation_fee']   ?? '35000') ?? 35000;
+                        final freeMonths  = int.tryParse(settings['founding_free_months']      ?? '6')     ?? 6;
+                        final remaining   = totalSlots > 0 ? totalSlots - usedSlots : null;
+
+                        return _FoundingOfferCard(
+                          activationFee: fee,
+                          freeMonths: freeMonths,
+                          slotsRemaining: remaining,
+                          isUrdu: isUrdu,
+                          isDark: isDark,
+                          text1: text1,
+                          text2: text2,
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pushNamed(
+                              '/subscription/founding-apply',
+                              arguments: settings,
+                            );
+                          },
                         );
                       },
-                    );
-                  }).toList(),
+                    ),
+                    if (paidPlans.isNotEmpty) const SizedBox(height: 8),
+                    // Regular plans
+                    ...paidPlans.map((plan) {
+                      return _PlanOptionTile(
+                        plan: plan,
+                        isUrdu: isUrdu,
+                        isDark: isDark,
+                        border: border,
+                        text1: text1,
+                        text2: text2,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pushNamed(
+                            '/subscription/pay',
+                            arguments: plan,
+                          );
+                        },
+                      );
+                    }),
+                  ],
                 );
               },
             ),
@@ -256,6 +323,191 @@ class _PlanOptionTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Founding Offer Card ──────────────────────────────────────────────────────
+
+class _FoundingOfferCard extends StatelessWidget {
+  final int activationFee;
+  final int freeMonths;
+  final int? slotsRemaining;
+  final bool isUrdu;
+  final bool isDark;
+  final Color text1;
+  final Color text2;
+  final VoidCallback onTap;
+
+  const _FoundingOfferCard({
+    required this.activationFee,
+    required this.freeMonths,
+    required this.slotsRemaining,
+    required this.isUrdu,
+    required this.isDark,
+    required this.text1,
+    required this.text2,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFE8A020);
+    const goldLight = Color(0xFFFFF3DC);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF2D1E00), const Color(0xFF1C1400)]
+                : [goldLight, const Color(0xFFFEF9EE)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: gold.withValues(alpha: 0.6), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: gold.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row
+            Row(
+              children: [
+                const Text('👑', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isUrdu ? 'بانی ممبر آفر' : 'Founding Member Offer',
+                        style: GoogleFonts.outfit(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: gold,
+                        ),
+                      ),
+                      if (slotsRemaining != null)
+                        Text(
+                          isUrdu
+                              ? 'صرف $slotsRemaining جگہیں باقی!'
+                              : 'Only $slotsRemaining slots left!',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: gold,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // EXCLUSIVE badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: gold,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isUrdu ? 'خاص آفر' : 'EXCLUSIVE',
+                    style: GoogleFonts.outfit(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Features
+            _FoundingFeature(
+              icon: '💰',
+              text: isUrdu
+                  ? 'Rs ${NumberFormat('#,###').format(activationFee)} — ایک بار کی فیس'
+                  : 'Rs ${NumberFormat('#,###').format(activationFee)} — one-time activation',
+              color: gold,
+            ),
+            const SizedBox(height: 4),
+            _FoundingFeature(
+              icon: '🆓',
+              text: isUrdu
+                  ? '$freeMonths مہینے بالکل مفت — کوئی بل نہیں'
+                  : '$freeMonths months completely FREE — no billing',
+              color: gold,
+            ),
+            const SizedBox(height: 4),
+            _FoundingFeature(
+              icon: '♾️',
+              text: isUrdu
+                  ? 'لامحدود آرڈرز اور کسٹمرز — ہمیشہ کے لیے'
+                  : 'Unlimited orders & customers — forever',
+              color: gold,
+            ),
+
+            const SizedBox(height: 12),
+
+            // CTA
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: gold,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      isUrdu ? 'ابھی Apply کریں →' : 'Apply Now →',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FoundingFeature extends StatelessWidget {
+  final String icon;
+  final String text;
+  final Color color;
+  const _FoundingFeature({required this.icon, required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(icon, style: const TextStyle(fontSize: 13)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: color),
+          ),
+        ),
+      ],
     );
   }
 }

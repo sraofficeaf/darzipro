@@ -17,6 +17,7 @@ class AppPlanUtils {
   static const String standard  = 'standard';
   static const String unlimited = 'unlimited';
   static const String lifetime  = 'lifetime'; // virtual code for lifetime shops
+  static const String founding  = 'founding'; // Founding Member lifetime plan
 
   // ── Display info ─────────────────────────────────────────────────
 
@@ -27,6 +28,11 @@ class AppPlanUtils {
     final p = (plan ?? '').toLowerCase().trim();
 
     switch (p) {
+      case 'founding':
+        return (
+          isUrdu ? '👑 بانی ممبر' : '👑 Founding Member',
+          const Color(0xFFE8A020), // gold
+        );
       case 'unlimited':
         return (
           isUrdu ? '♾️ ان لمیٹڈ پلان' : '♾️ Unlimited Plan',
@@ -85,6 +91,8 @@ class AppPlanUtils {
         return 2;
       case 'unlimited':
         return 3;
+      case 'founding':
+        return 5; // above unlimited, special tier
       case 'lifetime':
       case 'full_access_3yr':
       case 'full_access':
@@ -113,7 +121,8 @@ class AppPlanUtils {
   static bool isUnlimited(String? plan, {bool isLifetime = false}) {
     if (isLifetime) return true;
     final p = (plan ?? '').toLowerCase().trim();
-    return p == 'unlimited' || p == 'lifetime' || p.contains('full');
+    // founding always has unlimited orders and customers (but storage is capped)
+    return p == 'unlimited' || p == 'founding' || p == 'lifetime' || p.contains('full');
   }
 
   /// True if shop can create new data (not in read_only mode).
@@ -122,9 +131,14 @@ class AppPlanUtils {
   }
 
   /// Returns storage quota in MB based on plan.
+  /// NOTE: Founding shops have a separate founding_storage_limit_bytes column
+  /// in the shops table (default 5 GB). This method returns a default in MB
+  /// for display purposes when the DB value is not yet available.
   static int getStorageQuotaMb(String? plan) {
     final p = (plan ?? '').toLowerCase().trim();
-    if (p == 'unlimited' || p == 'lifetime' || p.contains('3yr') || p.contains('full')) {
+    if (p == 'founding') {
+      return 5 * 1024; // 5 GB default — actual limit from DB
+    } else if (p == 'unlimited' || p == 'lifetime' || p.contains('3yr') || p.contains('full')) {
       return 100;
     } else if (p == 'standard') {
       return 50;
@@ -133,6 +147,10 @@ class AppPlanUtils {
     }
     return 10;
   }
+
+  /// True if this plan is a founding member plan.
+  static bool isFounding(String? plan) =>
+      (plan ?? '').toLowerCase().trim() == 'founding';
 }
 
 typedef PlanUtils = AppPlanUtils;

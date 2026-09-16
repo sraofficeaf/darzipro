@@ -1868,6 +1868,38 @@ class AdminService {
     }
   }
 
+  /// Approves a founding activation payment by calling the
+  /// activate_founding_membership Postgres RPC.
+  /// This sets founding dates, storage limit, plan_code = 'founding', and
+  /// creates the free-period usage cycle in one atomic transaction.
+  Future<Map<String, dynamic>> approveFoundingActivationPayment({
+    required String paymentId,
+    required String shopId,
+    required int freeMonths,
+    required double storageGb,
+  }) async {
+    try {
+      final res = await http.post(
+        _restUri('/rpc/activate_founding_membership'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'p_shop_id':          shopId,
+          'p_payment_id':       paymentId,
+          'p_free_months':      freeMonths,
+          'p_storage_limit_gb': storageGb,
+        }),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic>) return data;
+      }
+      return {'success': false, 'error': 'Server error ${res.statusCode}'};
+    } catch (e) {
+      debugPrint('AdminService.approveFoundingActivationPayment error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   Future<bool> rejectSubscriptionPayment({required String paymentId, required String reason}) async {
     try {
       final res = await http.patch(
@@ -1939,9 +1971,9 @@ class AdminService {
 
   Future<Map<String, dynamic>> fetchSubscriptionStats() async {
     try {
-      // Fetch all shops with subscription columns
+      // Fetch all shops with subscription columns (including founding fields)
       final res = await http.get(
-        _restUri('/shops?select=plan_code,subscription_status,billing_cycle_end&status=neq.deleted'),
+        _restUri('/shops?select=plan_code,subscription_status,billing_cycle_end,founding_free_until&status=neq.deleted'),
         headers: _adminHeaders,
       );
       if (res.statusCode != 200) return {};
@@ -1960,24 +1992,57 @@ class AdminService {
         }
       }
 
+      // Fetch founding settings to determine monthly recurring fee
+      final settingsRes = await http.get(
+        _restUri('/app_settings?key=like.founding%25'),
+        headers: _adminHeaders,
+      );
+      int foundingMonthlyFee = 0;
+      if (settingsRes.statusCode == 200) {
+        final settings = <String, String>{
+          for (final r in List<Map<String, dynamic>>.from(jsonDecode(settingsRes.body)))
+            r['key'] as String: r['value'] as String
+        };
+        final mode = settings['founding_monthly_mode'] ?? 'linked';
+        if (mode == 'fixed') {
+          foundingMonthlyFee = int.tryParse(settings['founding_monthly_fixed'] ?? '500') ?? 500;
+        } else {
+          // linked: use basic plan price
+          foundingMonthlyFee = planPriceMap['basic'] ?? 500;
+        }
+      }
+
       // Aggregate
       final planCounts = <String, int>{};
       int mrr = 0;
+      int foundingMrr = 0;       // founding shops PAST free period
+      int foundingActivations = 0; // founding shops in free period
       int graceCount = 0;
       int readOnlyCount = 0;
       int lifetimeCount = 0;
+      int foundingCount = 0;
       final now = DateTime.now();
       int upcomingRenewals = 0;
 
       for (final shop in shops) {
         final planCode = shop['plan_code'] as String? ?? 'trial';
-        final status = shop['subscription_status'] as String? ?? 'trial';
+        final status   = shop['subscription_status'] as String? ?? 'trial';
         final cycleEnd = shop['billing_cycle_end'] as String?;
+        final foundingFreeUntil = shop['founding_free_until'] as String?;
 
         planCounts[planCode] = (planCounts[planCode] ?? 0) + 1;
 
         if (status == 'lifetime') {
           lifetimeCount++;
+        } else if (planCode == 'founding' || status == 'founding') {
+          foundingCount++;
+          // Check if in free period or paying period
+          final freeUntil = foundingFreeUntil != null ? DateTime.tryParse(foundingFreeUntil) : null;
+          if (freeUntil != null && now.isBefore(freeUntil)) {
+            foundingActivations++; // still in free period, no MRR contribution
+          } else {
+            foundingMrr += foundingMonthlyFee; // past free period, recurring
+          }
         } else if (status == 'active' || status == 'expiring') {
           mrr += planPriceMap[planCode] ?? 0;
         } else if (status == 'grace') {
@@ -1995,17 +2060,60 @@ class AdminService {
       }
 
       return {
-        'mrr': mrr,
-        'plan_counts': planCounts,
-        'grace_count': graceCount,
-        'read_only_count': readOnlyCount,
-        'lifetime_count': lifetimeCount,
-        'upcoming_renewals_7d': upcomingRenewals,
-        'total_shops': shops.length,
+        'mrr':                   mrr,
+        'founding_mrr':          foundingMrr,
+        'founding_activations':  foundingActivations,
+        'founding_count':        foundingCount,
+        'plan_counts':           planCounts,
+        'grace_count':           graceCount,
+        'read_only_count':       readOnlyCount,
+        'lifetime_count':        lifetimeCount,
+        'upcoming_renewals_7d':  upcomingRenewals,
+        'total_shops':           shops.length,
+        'total_mrr':             mrr + foundingMrr,
       };
     } catch (e) {
       debugPrint('Error fetching subscription stats: $e');
       return {};
     }
   }
+
+  /// Fetches all app_settings rows matching the given prefix.
+  Future<Map<String, String>> fetchAppSettings({String prefix = ''}) async {
+    try {
+      final filter = prefix.isNotEmpty
+          ? '?key=like.${Uri.encodeComponent(prefix)}%25'
+          : '';
+      final res = await http.get(
+        _restUri('/app_settings$filter'),
+        headers: _adminHeaders,
+      );
+      if (res.statusCode == 200) {
+        final rows = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+        return {for (final r in rows) r['key'] as String: r['value'] as String};
+      }
+    } catch (e) {
+      debugPrint('AdminService.fetchAppSettings error: $e');
+    }
+    return {};
+  }
+
+  /// Upserts a single app_setting key/value pair.
+  Future<bool> updateAppSetting(String key, String value) async {
+    try {
+      final res = await http.post(
+        _restUri('/app_settings'),
+        headers: {
+          ..._restHeaders,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode({'key': key, 'value': value, 'updated_at': DateTime.now().toUtc().toIso8601String()}),
+      );
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (e) {
+      debugPrint('AdminService.updateAppSetting error: $e');
+      return false;
+    }
+  }
 }
+

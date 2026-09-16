@@ -19,6 +19,9 @@ class SubscriptionState {
   final String subscriptionStatus;
   final bool isLifetime;
   final DateTime? trialStartedAt;
+  // Founding Member fields
+  final DateTime? foundingActivatedAt;
+  final DateTime? foundingFreeUntil;
 
   const SubscriptionState({
     required this.planCode,
@@ -35,13 +38,30 @@ class SubscriptionState {
     required this.subscriptionStatus,
     required this.isLifetime,
     this.trialStartedAt,
+    this.foundingActivatedAt,
+    this.foundingFreeUntil,
   });
 
-  bool get isReadOnly => subscriptionStatus == 'read_only';
-  bool get isGrace => subscriptionStatus == 'grace';
-  bool get isTrial => subscriptionStatus == 'trial';
-  bool get isActive => subscriptionStatus == 'active' || isLifetime;
-  bool get isExpiring => subscriptionStatus == 'expiring';
+  bool get isReadOnly  => subscriptionStatus == 'read_only';
+  bool get isGrace     => subscriptionStatus == 'grace';
+  bool get isTrial     => subscriptionStatus == 'trial';
+  bool get isFounding  => planCode == 'founding' || subscriptionStatus == 'founding';
+  bool get isActive    => subscriptionStatus == 'active' || isLifetime || isFounding;
+  bool get isExpiring  => subscriptionStatus == 'expiring';
+
+  /// True if the shop is in the founding FREE period (no billing yet).
+  bool get isFoundingFree {
+    if (!isFounding) return false;
+    if (foundingFreeUntil == null) return false;
+    return DateTime.now().isBefore(foundingFreeUntil!);
+  }
+
+  /// Days remaining in founding free period (null if not founding or free period over).
+  int? get foundingFreeDaysRemaining {
+    if (!isFoundingFree || foundingFreeUntil == null) return null;
+    final diff = foundingFreeUntil!.difference(DateTime.now());
+    return diff.inDays.clamp(0, 9999);
+  }
 
   bool get isTrialExpired => SubscriptionService.isTrialExpired(
         subscriptionStatus: subscriptionStatus,
@@ -104,6 +124,12 @@ class SubscriptionState {
       isLifetime: json['is_lifetime'] as bool? ?? false,
       trialStartedAt: json['trial_started_at'] != null
           ? DateTime.tryParse(json['trial_started_at'] as String)
+          : null,
+      foundingActivatedAt: json['founding_activated_at'] != null
+          ? DateTime.tryParse(json['founding_activated_at'] as String)
+          : null,
+      foundingFreeUntil: json['founding_free_until'] != null
+          ? DateTime.tryParse(json['founding_free_until'] as String)
           : null,
     );
   }

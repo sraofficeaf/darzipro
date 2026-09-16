@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/services/admin_service.dart';
+import '../../core/services/subscription_service.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../shared/providers/admin_providers.dart';
 import 'widgets/admin_ui_kit.dart';
@@ -26,23 +27,58 @@ class _AdminSubscriptionPlansScreenState
   bool _isSaving = false;
   String? _saveError;
 
+  // Founding Offer Settings
+  bool _foundingSettingsLoaded = false;
+  bool _isSavingFounding = false;
+  String? _foundingSaveError;
+  final _feeCtrl          = TextEditingController();
+  final _freeMonthsCtrl   = TextEditingController();
+  final _monthlyFixedCtrl = TextEditingController();
+  final _storageGbCtrl    = TextEditingController();
+  final _slotsCtrl        = TextEditingController();
+  final _endDateCtrl      = TextEditingController();
+  String _monthlyMode     = 'linked'; // 'linked' or 'fixed'
+  bool _offerEnabled      = true;
+  int _foundingShopsCount = 0;
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFoundingSettings();
+  }
+
+  Future<void> _loadFoundingSettings() async {
+    final settings = await AdminService.instance.fetchAppSettings(prefix: 'founding');
+    final count    = await SubscriptionService.instance.countFoundingShops();
+    if (!mounted) return;
+    setState(() {
+      _foundingShopsCount     = count;
+      _foundingSettingsLoaded = true;
+      _feeCtrl.text          = settings['founding_activation_fee']   ?? '35000';
+      _freeMonthsCtrl.text   = settings['founding_free_months']      ?? '6';
+      _monthlyFixedCtrl.text = settings['founding_monthly_fixed']    ?? '500';
+      _storageGbCtrl.text    = settings['founding_storage_limit_gb'] ?? '5';
+      _slotsCtrl.text        = settings['founding_slots_total']      ?? '50';
+      _endDateCtrl.text      = settings['founding_offer_end_date']   ?? '';
+      _monthlyMode           = settings['founding_monthly_mode']     ?? 'linked';
+      _offerEnabled          = (settings['founding_offer_enabled']   ?? 'true') == 'true';
+    });
+  }
+
   @override
   void dispose() {
-    for (final c in _nameEnControllers.values) {
-      c.dispose();
-    }
-    for (final c in _nameUrControllers.values) {
-      c.dispose();
-    }
-    for (final c in _priceControllers.values) {
-      c.dispose();
-    }
-    for (final c in _maxOrdersControllers.values) {
-      c.dispose();
-    }
-    for (final c in _maxCustomersControllers.values) {
-      c.dispose();
-    }
+    for (final c in _nameEnControllers.values) c.dispose();
+    for (final c in _nameUrControllers.values) c.dispose();
+    for (final c in _priceControllers.values)  c.dispose();
+    for (final c in _maxOrdersControllers.values) c.dispose();
+    for (final c in _maxCustomersControllers.values) c.dispose();
+    _feeCtrl.dispose();
+    _freeMonthsCtrl.dispose();
+    _monthlyFixedCtrl.dispose();
+    _storageGbCtrl.dispose();
+    _slotsCtrl.dispose();
+    _endDateCtrl.dispose();
     super.dispose();
   }
 
@@ -156,6 +192,29 @@ class _AdminSubscriptionPlansScreenState
                             );
                           },
                         ),
+
+                        const SizedBox(height: 28),
+
+                        // ── Founding Member Offer Settings ───────────
+                        RepaintBoundary(
+                          child: _FoundingOfferSection(
+                            loaded: _foundingSettingsLoaded,
+                            foundingShopsCount: _foundingShopsCount,
+                            feeCtrl: _feeCtrl,
+                            freeMonthsCtrl: _freeMonthsCtrl,
+                            monthlyFixedCtrl: _monthlyFixedCtrl,
+                            storageGbCtrl: _storageGbCtrl,
+                            slotsCtrl: _slotsCtrl,
+                            endDateCtrl: _endDateCtrl,
+                            monthlyMode: _monthlyMode,
+                            offerEnabled: _offerEnabled,
+                            isSaving: _isSavingFounding,
+                            saveError: _foundingSaveError,
+                            onModeChange: (v) => setState(() => _monthlyMode = v),
+                            onToggleEnabled: (v) => setState(() => _offerEnabled = v),
+                            onSave: _saveFoundingSettings,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -204,6 +263,37 @@ class _AdminSubscriptionPlansScreenState
     });
   }
 
+  Future<void> _saveFoundingSettings() async {
+    setState(() {
+      _isSavingFounding = true;
+      _foundingSaveError = null;
+    });
+    final pairs = {
+      'founding_activation_fee':   _feeCtrl.text.trim(),
+      'founding_free_months':      _freeMonthsCtrl.text.trim(),
+      'founding_monthly_mode':     _monthlyMode,
+      'founding_monthly_fixed':    _monthlyFixedCtrl.text.trim(),
+      'founding_storage_limit_gb': _storageGbCtrl.text.trim(),
+      'founding_slots_total':      _slotsCtrl.text.trim(),
+      'founding_offer_end_date':   _endDateCtrl.text.trim(),
+      'founding_offer_enabled':    _offerEnabled ? 'true' : 'false',
+    };
+    bool allOk = true;
+    for (final e in pairs.entries) {
+      final ok = await AdminService.instance.updateAppSetting(e.key, e.value);
+      if (!ok) allOk = false;
+    }
+    if (!mounted) return;
+    setState(() {
+      _isSavingFounding = false;
+      if (!allOk) {
+        _foundingSaveError = 'Some settings failed to save. Please retry.';
+      } else {
+        // settings saved to DB successfully
+      }
+    });
+  }
+
   Future<void> _toggleActive(Map<String, dynamic> plan, bool value) async {
     await AdminService.instance.upsertSubscriptionPlan({
       ...plan,
@@ -223,18 +313,22 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mrr = (stats['mrr'] as int?) ?? 0;
-    final grace = (stats['grace_count'] as int?) ?? 0;
-    final readOnly = (stats['read_only_count'] as int?) ?? 0;
-    final lifetime = (stats['lifetime_count'] as int?) ?? 0;
+    final mrr      = (stats['mrr']              as int?) ?? 0;
+    final fMrr     = (stats['founding_mrr']     as int?) ?? 0;
+    final fCount   = (stats['founding_count']   as int?) ?? 0;
+    final grace    = (stats['grace_count']      as int?) ?? 0;
+    final readOnly = (stats['read_only_count']  as int?) ?? 0;
+    final lifetime = (stats['lifetime_count']   as int?) ?? 0;
     final renewals = (stats['upcoming_renewals_7d'] as int?) ?? 0;
+    final totalMrr = mrr + fMrr;
 
     final items = [
-      ('MRR', 'Rs ${NumberFormat('#,###').format(mrr)}/mo', AdminColors.emerald),
-      ('Lifetime', '$lifetime shops', AdminColors.amber),
-      ('Grace Period', '$grace shops', AdminColors.blue),
-      ('Read-Only', '$readOnly shops', AdminColors.rose),
-      ('Renewing (7d)', '$renewals shops', AdminColors.violet),
+      ('Total MRR',    'Rs ${NumberFormat('#,###').format(totalMrr)}/mo', AdminColors.emerald),
+      ('Founding',     '$fCount shops${fMrr > 0 ? " · Rs ${NumberFormat('#,###').format(fMrr)}/mo" : " (free)"} ', AdminColors.amber),
+      ('Lifetime',     '$lifetime shops',  AdminColors.amber),
+      ('Grace Period', '$grace shops',     AdminColors.blue),
+      ('Read-Only',    '$readOnly shops',  AdminColors.rose),
+      ('Renewing (7d)','$renewals shops',  AdminColors.violet),
     ];
 
     return Wrap(
@@ -460,6 +554,214 @@ class _TextField extends StatelessWidget {
           borderSide: const BorderSide(color: AdminColors.indigo),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      ),
+    );
+  }
+}
+
+// ── Founding Offer Settings Section ────────────────────────────────────────
+
+class _FoundingOfferSection extends StatelessWidget {
+  final bool loaded;
+  final int foundingShopsCount;
+  final TextEditingController feeCtrl;
+  final TextEditingController freeMonthsCtrl;
+  final TextEditingController monthlyFixedCtrl;
+  final TextEditingController storageGbCtrl;
+  final TextEditingController slotsCtrl;
+  final TextEditingController endDateCtrl;
+  final String monthlyMode;
+  final bool offerEnabled;
+  final bool isSaving;
+  final String? saveError;
+  final ValueChanged<String> onModeChange;
+  final ValueChanged<bool> onToggleEnabled;
+  final VoidCallback onSave;
+
+  const _FoundingOfferSection({
+    required this.loaded,
+    required this.foundingShopsCount,
+    required this.feeCtrl,
+    required this.freeMonthsCtrl,
+    required this.monthlyFixedCtrl,
+    required this.storageGbCtrl,
+    required this.slotsCtrl,
+    required this.endDateCtrl,
+    required this.monthlyMode,
+    required this.offerEnabled,
+    required this.isSaving,
+    required this.saveError,
+    required this.onModeChange,
+    required this.onToggleEnabled,
+    required this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text1   = context.text1;
+    final text2   = context.text2;
+    final surface = context.surface;
+    final border  = context.border;
+    final slotsTotal = int.tryParse(slotsCtrl.text) ?? 0;
+    final slotsRemaining = slotsTotal > 0 ? (slotsTotal - foundingShopsCount).clamp(0, slotsTotal) : null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminColors.amber.withValues(alpha: 0.4), width: 1.5),
+        boxShadow: context.cardShadow,
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AdminColors.amber.withValues(alpha: 0.07),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+            ),
+            child: Row(
+              children: [
+                const Text('👑', style: TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Founding Member Offer Settings',
+                        style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: text1),
+                      ),
+                      Text(
+                        'These settings are read at runtime from app_settings table.',
+                        style: GoogleFonts.inter(fontSize: 11, color: text2),
+                      ),
+                    ],
+                  ),
+                ),
+                // Live slots badge
+                if (slotsRemaining != null)
+                  AdminBadge(
+                    label: '$slotsRemaining / $slotsTotal slots left',
+                    color: slotsRemaining < 5 ? AdminColors.rose : AdminColors.emerald,
+                  ),
+                const SizedBox(width: 8),
+                AdminBadge(
+                  label: '$foundingShopsCount active',
+                  color: AdminColors.amber,
+                ),
+                const SizedBox(width: 8),
+                // Enable toggle
+                Row(
+                  children: [
+                    Text('Enabled', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                    const SizedBox(width: 4),
+                    Switch.adaptive(
+                      value: offerEnabled,
+                      activeTrackColor: AdminColors.amber,
+                      onChanged: onToggleEnabled,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          if (!loaded)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(color: AdminColors.amber, strokeWidth: 2),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  if (saveError != null) ...[
+                    AdminInfoBox.rose(text: saveError!),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Row 1: Activation fee, Free months, Storage
+                  Row(
+                    children: [
+                      Expanded(child: _TextField(ctrl: feeCtrl, label: 'Activation Fee (PKR)', isNumeric: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _TextField(ctrl: freeMonthsCtrl, label: 'Free Period (months)', isNumeric: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _TextField(ctrl: storageGbCtrl, label: 'Storage Limit (GB)', isNumeric: true)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Row 2: Monthly mode, fixed fee, slots, end date
+                  Row(
+                    children: [
+                      // Monthly mode dropdown
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Monthly Fee Mode', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: border),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButton<String>(
+                                value: monthlyMode,
+                                isExpanded: true,
+                                underline: const SizedBox.shrink(),
+                                style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600, color: text1),
+                                items: const [
+                                  DropdownMenuItem(value: 'linked', child: Text('Linked to Basic plan')),
+                                  DropdownMenuItem(value: 'fixed',  child: Text('Fixed amount')),
+                                ],
+                                onChanged: (v) { if (v != null) onModeChange(v); },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _TextField(
+                          ctrl: monthlyFixedCtrl,
+                          label: 'Monthly Fixed Fee (PKR)',
+                          isNumeric: true,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(child: _TextField(ctrl: slotsCtrl, label: 'Total Slots (0=∞)', isNumeric: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _TextField(ctrl: endDateCtrl, label: 'Offer End Date (YYYY-MM-DD, blank=none)')),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AdminButton.primary(
+                          label: isSaving ? 'Saving...' : '💾 Save Founding Settings',
+                          icon: isSaving ? null : Icons.save_rounded,
+                          onPressed: isSaving ? null : onSave,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const AdminInfoBox.amber(
+                    text: 'Monthly fee mode "Linked" reads the Basic plan price at billing time. '
+                        '"Fixed" uses the amount above. Activation fee changes apply only to new activations.',
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

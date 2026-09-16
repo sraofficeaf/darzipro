@@ -89,6 +89,16 @@ class SubscriptionService {
       'trial_days': null,
       'sort_order': 3,
     },
+    {
+      'code': 'founding',
+      'name_en': '👑 Founding Member',
+      'name_ur': '👑 بانی ممبر',
+      'price_pkr': 0,
+      'max_orders_per_month': null,
+      'max_active_customers': null,
+      'trial_days': null,
+      'sort_order': 5,
+    },
   ];
 
   // ── CURRENT SUBSCRIPTION STATE ────────────────────────────────────────────
@@ -352,5 +362,99 @@ class SubscriptionService {
 
     if (ordersPct == 0 && customersPct == 0) return null;
     return ordersPct >= customersPct ? 'orders' : 'customers';
+  }
+
+  // ── FOUNDING MEMBER ──────────────────────────────────────────────────────────────────
+
+  /// Fetches all founding offer settings from app_settings table.
+  /// Returns a map of key->value. Falls back to defaults if fetch fails.
+  Future<Map<String, String>> fetchFoundingSettings() async {
+    try {
+      final res = await http.get(
+        _restUri('/app_settings?key=like.founding%25'),
+        headers: _anonHeaders,
+      );
+      if (res.statusCode == 200) {
+        final rows = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+        return {for (final r in rows) r['key'] as String: r['value'] as String};
+      }
+    } catch (e) {
+      debugPrint('SubscriptionService.fetchFoundingSettings error: $e');
+    }
+    // Defaults
+    return {
+      'founding_activation_fee':   '35000',
+      'founding_free_months':      '6',
+      'founding_monthly_mode':     'linked',
+      'founding_monthly_fixed':    '500',
+      'founding_storage_limit_gb': '5',
+      'founding_slots_total':      '50',
+      'founding_offer_end_date':   '',
+      'founding_offer_enabled':    'true',
+    };
+  }
+
+  /// Returns the number of shops currently on the founding plan.
+  /// Used for the live slots countdown in the UI.
+  Future<int> countFoundingShops() async {
+    try {
+      final res = await http.post(
+        _restUri('/rpc/count_founding_shops'),
+        headers: _anonHeaders,
+        body: jsonEncode({}),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is int) return data;
+        if (data is Map && data.containsKey('count')) return (data['count'] as int?) ?? 0;
+      }
+    } catch (e) {
+      debugPrint('SubscriptionService.countFoundingShops error: $e');
+    }
+    return 0;
+  }
+
+  /// Submits a founding activation payment for admin review.
+  /// Sets payment_type = 'founding_activation' so MRR reports exclude it.
+  Future<Map<String, dynamic>> submitFoundingActivationPayment({
+    required String shopId,
+    required int activationFeePkr,
+    required String paymentMethod,
+    String? transactionId,
+    String? screenshotUrl,
+  }) async {
+    try {
+      final body = {
+        'shop_id': shopId,
+        'plan_code': 'founding',
+        'payment_type': 'founding_activation',
+        'amount_pkr': activationFeePkr,
+        'payment_method': paymentMethod,
+        'status': 'pending_admin_review',
+        if (transactionId != null && transactionId.isNotEmpty)
+          'transaction_id': transactionId,
+        if (screenshotUrl != null && screenshotUrl.isNotEmpty)
+          'payment_screenshot_url': screenshotUrl,
+      };
+
+      final res = await http.post(
+        _restUri('/subscription_payments'),
+        headers: {
+          ..._anonHeaders,
+          'Prefer': 'return=representation',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return {'success': true};
+      }
+      return {
+        'success': false,
+        'error': 'Server error \${res.statusCode}: \${res.body}',
+      };
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
   }
 }
