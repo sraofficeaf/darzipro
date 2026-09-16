@@ -68,11 +68,11 @@ class _AdminSubscriptionPlansScreenState
 
   @override
   void dispose() {
-    for (final c in _nameEnControllers.values) c.dispose();
-    for (final c in _nameUrControllers.values) c.dispose();
-    for (final c in _priceControllers.values)  c.dispose();
-    for (final c in _maxOrdersControllers.values) c.dispose();
-    for (final c in _maxCustomersControllers.values) c.dispose();
+    for (final c in _nameEnControllers.values) { c.dispose(); }
+    for (final c in _nameUrControllers.values) { c.dispose(); }
+    for (final c in _priceControllers.values) { c.dispose(); }
+    for (final c in _maxOrdersControllers.values) { c.dispose(); }
+    for (final c in _maxCustomersControllers.values) { c.dispose(); }
     _feeCtrl.dispose();
     _freeMonthsCtrl.dispose();
     _monthlyFixedCtrl.dispose();
