@@ -21,7 +21,6 @@ import '../../core/widgets/update_dialog.dart';
 import '../settings/add_template_modal.dart';
 import 'change_password_modal.dart';
 import 'delete_account_screen.dart';
-import '../upgrade/upgrade_request_screen.dart';
 import '../storage/storage_addon_modal.dart';
 
 
@@ -1291,16 +1290,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => const UpgradeRequestScreen(),
-                    );
-                  },
+                  onPressed: () => context.push('/subscription'),
                   icon: const Icon(Icons.upgrade_rounded, size: 16),
-                  label: Text(isUrdu ? 'پلان اپ گریڈ کریں' : 'Upgrade Plan'),
+                  label: Text(isUrdu ? 'پلان اور بلنگ' : 'Plan & Billing'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     foregroundColor: Colors.white,

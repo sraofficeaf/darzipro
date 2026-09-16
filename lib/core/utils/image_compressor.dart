@@ -47,4 +47,29 @@ class ImageCompressor {
     debugPrint('ImageCompressor: ${originalBytes.length} bytes → ${compressed.length} bytes (quality: $quality)');
     return compressed;
   }
+
+  /// Compresses raw image bytes to under 50KB for fast network transmission.
+  static Future<Uint8List?> compressImageBytes(Uint8List originalBytes) async {
+    try {
+      Uint8List compressed = originalBytes;
+      int quality = 85;
+      int minDimension = 800;
+
+      while (compressed.length > 50000 && quality >= 20) {
+        final result = await FlutterImageCompress.compressWithList(
+          originalBytes,
+          quality: quality,
+          minWidth: minDimension,
+          minHeight: minDimension,
+          format: CompressFormat.jpeg,
+        );
+        compressed = result;
+        quality -= 15;
+        if (minDimension > 400) minDimension = (minDimension * 0.7).toInt();
+      }
+      return compressed;
+    } catch (_) {
+      return originalBytes;
+    }
+  }
 }

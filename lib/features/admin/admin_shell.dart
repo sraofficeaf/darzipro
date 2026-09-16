@@ -8,6 +8,7 @@ import '../../core/theme/theme_extensions.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../shared/providers/admin_providers.dart';
 import '../../shared/widgets/dashboard_switcher.dart';
+import 'widgets/admin_ui_kit.dart';
 
 // ── Nav items definition ───────────────────────────────────────────────────
 class _NavItem {
@@ -27,12 +28,14 @@ const _navItems = [
   _NavItem(icon: Icons.dashboard_outlined, iconActive: Icons.dashboard_rounded, label: 'Dashboard', route: '/admin/dashboard'),
   _NavItem(icon: Icons.verified_outlined, iconActive: Icons.verified_rounded, label: 'Approvals', route: '/admin/approvals'),
   _NavItem(icon: Icons.storefront_outlined, iconActive: Icons.storefront_rounded, label: 'Shops', route: '/admin/shops'),
+  _NavItem(icon: Icons.people_outline_rounded, iconActive: Icons.people_rounded, label: 'Users & Staff', route: '/admin/users'),
   _NavItem(icon: Icons.monetization_on_outlined, iconActive: Icons.monetization_on_rounded, label: 'Revenue', route: '/admin/revenue'),
+  _NavItem(icon: Icons.layers_outlined, iconActive: Icons.layers_rounded, label: 'Subscription Plans', route: '/admin/subscription-plans'),
   _NavItem(icon: Icons.handshake_outlined, iconActive: Icons.handshake_rounded, label: 'Invites & Payouts', route: '/admin/invites'),
   _NavItem(icon: Icons.notifications_outlined, iconActive: Icons.notifications_rounded, label: 'Notifications', route: '/admin/notifications'),
   _NavItem(icon: Icons.system_update_outlined, iconActive: Icons.system_update_rounded, label: 'App Versions', route: '/admin/versions'),
   _NavItem(icon: Icons.assessment_outlined, iconActive: Icons.assessment_rounded, label: 'Reports', route: '/admin/reports'),
-  _NavItem(icon: Icons.dns_outlined, iconActive: Icons.dns_rounded, label: 'VPS & Shop Resources', route: '/admin/vps-resources'),
+  _NavItem(icon: Icons.dns_outlined, iconActive: Icons.dns_rounded, label: 'VPS & Resources', route: '/admin/vps-resources'),
   _NavItem(icon: Icons.menu_book_outlined, iconActive: Icons.menu_book_rounded, label: 'Help & Reference', route: '/admin/support'),
   _NavItem(icon: Icons.settings_outlined, iconActive: Icons.settings_rounded, label: 'Settings', route: '/admin/settings'),
 ];
@@ -107,15 +110,17 @@ class _DesktopAdminShell extends StatelessWidget {
                 Divider(height: 1, color: sidebarBorder),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    children: _navItems.map((item) => _SidebarItem(
-                      icon: item.icon,
-                      iconActive: item.iconActive,
-                      label: item.label,
-                      isActive: location == item.route,
-                      onTap: () => context.go(item.route),
-                    )).toList(),
+                  child: RepaintBoundary(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      children: _navItems.map((item) => _SidebarItem(
+                        icon: item.icon,
+                        iconActive: item.iconActive,
+                        label: item.label,
+                        isActive: location == item.route,
+                        onTap: () => context.go(item.route),
+                      )).toList(),
+                    ),
                   ),
                 ),
                 Divider(height: 1, color: sidebarBorder),
@@ -161,7 +166,7 @@ class _MobileAdminShell extends StatelessWidget {
       _navItems[0], // Dashboard
       _navItems[1], // Approvals
       _navItems[2], // Shops
-      _navItems[4], // Invites & Payouts
+      _navItems[4], // Revenue
     ];
 
     final activeIndex = primaryTabs.indexWhere((item) => item.route == location);
@@ -171,80 +176,81 @@ class _MobileAdminShell extends StatelessWidget {
       appBar: _MobileAdminAppBar(ref: ref),
       drawer: _AdminDrawer(location: location, ref: ref),
       body: child,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: navBg,
-          border: Border(top: BorderSide(color: navBorder)),
-          boxShadow: isDark
-              ? []
-              : [const BoxShadow(color: Color(0x0D000000), blurRadius: 8, offset: Offset(0, -2))],
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 58,
-            child: Row(
-              children: [
-                ...primaryTabs.asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final item = entry.value;
-                  final isActive = idx == activeIndex;
-                  final activeColor = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
-                  final inactiveColor = isDark ? const Color(0xFF4A6080) : const Color(0xFF94A3B8);
+      bottomNavigationBar: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: navBg,
+            border: Border(top: BorderSide(color: navBorder)),
+            boxShadow: isDark
+                ? []
+                : [const BoxShadow(color: Color(0x0D000000), blurRadius: 8, offset: Offset(0, -2))],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 58,
+              child: Row(
+                children: [
+                  ...primaryTabs.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final item = entry.value;
+                    final isActive = idx == activeIndex;
+                    final activeColor = isDark ? const Color(0xFF818CF8) : AdminColors.indigo;
+                    final inactiveColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => context.go(item.route),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? (isDark ? const Color(0x1FF5A623) : const Color(0xFFFFF8EE))
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(16),
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => context.go(item.route),
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? (isDark ? const Color(0x266366F1) : const Color(0x1A6366F1))
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Icon(
+                                isActive ? item.iconActive : item.icon,
+                                size: 20,
+                                color: isActive ? activeColor : inactiveColor,
+                              ),
                             ),
-                            child: Icon(
-                              isActive ? item.iconActive : item.icon,
-                              size: 20,
-                              color: isActive ? activeColor : inactiveColor,
+                            const SizedBox(height: 2),
+                            Text(
+                              item.label,
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                                color: isActive ? activeColor : inactiveColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            item.label,
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                              color: isActive ? activeColor : inactiveColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }),
-                // More item to open drawer
-                Expanded(
-                  child: Builder(
-                    builder: (ctx) => GestureDetector(
-                      onTap: () => Scaffold.of(ctx).openDrawer(),
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.menu_rounded,
-                            size: 20,
-                            color: isDark ? const Color(0xFF4A6080) : const Color(0xFF94A3B8),
-                          ),
-                          const SizedBox(height: 2),
+                    );
+                  }),
+                  // More item to open drawer
+                  Expanded(
+                    child: Builder(
+                      builder: (ctx) => GestureDetector(
+                        onTap: () => Scaffold.of(ctx).openDrawer(),
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.menu_rounded,
+                              size: 20,
+                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(height: 2),
                           Text(
                             'More',
                             style: GoogleFonts.inter(
@@ -259,6 +265,7 @@ class _MobileAdminShell extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),
@@ -266,6 +273,7 @@ class _MobileAdminShell extends StatelessWidget {
     );
   }
 }
+
 
 // ── Admin Drawer for Mobile ─────────────────────────────────────────────────
 class _AdminDrawer extends StatelessWidget {
@@ -288,18 +296,20 @@ class _AdminDrawer extends StatelessWidget {
             Divider(height: 1, color: border),
             const SizedBox(height: 12),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: _navItems.map((item) => _SidebarItem(
-                  icon: item.icon,
-                  iconActive: item.iconActive,
-                  label: item.label,
-                  isActive: location == item.route,
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go(item.route);
-                  },
-                )).toList(),
+              child: RepaintBoundary(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: _navItems.map((item) => _SidebarItem(
+                    icon: item.icon,
+                    iconActive: item.iconActive,
+                    label: item.label,
+                    isActive: location == item.route,
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go(item.route);
+                    },
+                  )).toList(),
+                ),
               ),
             ),
             Divider(height: 1, color: border),
@@ -462,17 +472,17 @@ class _SidebarItemState extends State<_SidebarItem> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706);
-    final activeBg = isDark ? const Color(0x1EF5A623) : const Color(0xFFFFF8EE);
-    const exitColor = Color(0xFFFF3A58);
-    final inactiveColor = isDark ? const Color(0xFF64748B) : const Color(0xFF64748B);
+    final activeColor = isDark ? const Color(0xFF818CF8) : AdminColors.indigo;
+    final activeBg = isDark ? const Color(0x266366F1) : const Color(0x146366F1);
+    const exitColor = AdminColors.rose;
+    final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     final hoverBg = isDark ? const Color(0x10FFFFFF) : const Color(0xFFF1F5F9);
 
     final mainColor = widget.isExit
         ? exitColor
         : (widget.isActive ? activeColor : inactiveColor);
     final bg = widget.isExit
-        ? (_hovered ? const Color(0x12FF3A58) : Colors.transparent)
+        ? (_hovered ? const Color(0x14EF4444) : Colors.transparent)
         : (widget.isActive
             ? activeBg
             : (_hovered ? hoverBg : Colors.transparent));

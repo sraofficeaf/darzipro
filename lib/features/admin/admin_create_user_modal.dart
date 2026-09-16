@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/admin_service.dart';
+import '../../core/theme/theme_extensions.dart';
+import 'widgets/admin_ui_kit.dart';
 
 class AdminCreateUserModal extends StatefulWidget {
   const AdminCreateUserModal({super.key});
@@ -19,9 +21,6 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
   bool _obscure = true;
   bool _loading = false;
   String? _errorMsg;
-
-  static const _amber = Color(0xFFF5A623);
-  static const _red = Color(0xFFFF3A58);
 
   @override
   void dispose() {
@@ -60,80 +59,74 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0F172A) : Colors.white;
-    final surface = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-    final surface2 = isDark ? const Color(0xFF273548) : const Color(0xFFF1F5F9);
-    final border = isDark ? const Color(0x18FFFFFF) : const Color(0xFFE2E8F0);
-    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final surface = context.surface;
+    final border = context.border;
+    final textPrimary = context.text1;
+    final textSecondary = context.text2;
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       child: Container(
         width: 460,
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(20),
+          color: surface,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.1),
-              blurRadius: 40,
-              offset: const Offset(0, 20),
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 36,
+              offset: const Offset(0, 16),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
+            // Header (HTML Section 2 match)
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: border)),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+                        colors: [AdminColors.indigo, AdminColors.violet],
                       ),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.person_add_rounded,
-                        color: Colors.white, size: 20),
+                    child: const Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Create New User',
-                            style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: textPrimary)),
-                        Text('New shop account banao',
-                            style: GoogleFonts.inter(
-                                fontSize: 12, color: textSecondary)),
+                        Text(
+                          'Create New User',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'New shop account banao',
+                          style: GoogleFonts.inter(fontSize: 12, color: textSecondary),
+                        ),
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: _loading ? null : () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: surface,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.close_rounded,
-                          color: textSecondary, size: 16),
-                    ),
+                  AdminIconBtn(
+                    icon: Icons.close_rounded,
+                    size: 32,
+                    onPressed: _loading ? null : () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -141,70 +134,41 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
 
             // Form
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
                     // Error message
-                    if (_errorMsg != null)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _red.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline_rounded,
-                                color: _red, size: 16),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(_errorMsg!,
-                                  style: GoogleFonts.inter(
-                                      fontSize: 12, color: _red)),
-                            ),
-                          ],
-                        ),
-                      ),
+                    if (_errorMsg != null) ...[
+                      AdminInfoBox.rose(text: _errorMsg!),
+                      const SizedBox(height: 14),
+                    ],
 
                     _buildField(
                       controller: _shopCtrl,
                       label: 'Shop Name',
                       hint: 'e.g. Ali Tailor & Sons',
                       icon: Icons.storefront_outlined,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                      surface2: surface2,
-                      border: border,
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                      context: context,
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     _buildField(
                       controller: _nameCtrl,
                       label: 'Owner Full Name',
                       hint: 'e.g. Saifur Rahman',
                       icon: Icons.person_outline_rounded,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                      surface2: surface2,
-                      border: border,
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                      context: context,
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     _buildField(
                       controller: _emailCtrl,
                       label: 'Email Address',
                       hint: 'e.g. ali@example.com',
                       icon: Icons.email_outlined,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                      surface2: surface2,
-                      border: border,
+                      context: context,
                       keyboardType: TextInputType.emailAddress,
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Required';
@@ -212,24 +176,18 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     _buildField(
                       controller: _passCtrl,
                       label: 'Password',
                       hint: 'Min 8 characters',
                       icon: Icons.lock_outline_rounded,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                      surface2: surface2,
-                      border: border,
+                      context: context,
                       obscure: _obscure,
                       suffixIcon: IconButton(
-                        onPressed: () =>
-                            setState(() => _obscure = !_obscure),
+                        onPressed: () => setState(() => _obscure = !_obscure),
                         icon: Icon(
-                          _obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                           color: textSecondary,
                           size: 18,
                         ),
@@ -241,86 +199,31 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                       },
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                    // Info box
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _amber.withValues(alpha: 0.07),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _amber.withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline_rounded,
-                              color: _amber, size: 15),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'User ka account create hoga aur wo directly login kar sakta hai. Email confirmation ki zaroorat nahi.',
-                              style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: _amber.withValues(alpha: 0.9),
-                                  height: 1.4),
-                            ),
-                          ),
-                        ],
-                      ),
+                    // Info box (HTML match)
+                    const AdminInfoBox.amber(
+                      text: 'User ka account create hoga aur wo directly login kar sakta hai. Email confirmation ki zaroorat nahi.',
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Buttons
+                    // Actions
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
-                            onPressed:
-                                _loading ? null : () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: textSecondary,
-                              side: BorderSide(color: border),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: Text('Cancel',
-                                style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w600)),
+                          child: AdminButton.ghost(
+                            label: 'Cancel',
+                            onPressed: _loading ? null : () => Navigator.pop(context),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 2,
-                          child: ElevatedButton(
+                          child: AdminButton.primary(
+                            label: _loading ? 'Creating...' : 'Create User',
+                            icon: _loading ? null : Icons.person_add_rounded,
                             onPressed: _loading ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _amber,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: _loading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2),
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(Icons.person_add_rounded,
-                                          size: 16),
-                                      const SizedBox(width: 8),
-                                      Text('Create User',
-                                          style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14)),
-                                    ],
-                                  ),
                           ),
                         ),
                       ],
@@ -340,38 +243,37 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
     required String label,
     required String hint,
     required IconData icon,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color surface2,
-    required Color border,
+    required BuildContext context,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     bool obscure = false,
     Widget? suffixIcon,
   }) {
+    final border = context.border;
+    final text1 = context.text1;
+    final text2 = context.text2;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: textSecondary)),
-        const SizedBox(height: 6),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: text2),
+        ),
+        const SizedBox(height: 5),
         TextFormField(
           controller: controller,
           obscureText: obscure,
           keyboardType: keyboardType,
           validator: validator,
-          style: GoogleFonts.inter(color: textPrimary, fontSize: 14),
+          style: GoogleFonts.inter(color: text1, fontSize: 13.5),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                GoogleFonts.inter(color: textSecondary.withValues(alpha: 0.5), fontSize: 13),
-            prefixIcon: Icon(icon, color: textSecondary, size: 18),
+            hintStyle: GoogleFonts.inter(color: text2.withValues(alpha: 0.5), fontSize: 13),
+            prefixIcon: Icon(icon, color: text2, size: 18),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: surface2,
+            fillColor: context.bg,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: border),
@@ -382,14 +284,13 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _amber, width: 1.5),
+              borderSide: const BorderSide(color: AdminColors.indigo, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _red),
+              borderSide: const BorderSide(color: AdminColors.rose),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
         ),
       ],

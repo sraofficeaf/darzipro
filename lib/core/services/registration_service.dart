@@ -303,4 +303,55 @@ class RegistrationService {
     }
   }
 
+  /// Instant Free Trial registration (Phase 7):
+  /// 1. Creates user in auth.users
+  /// 2. Executes register_new_shop_free_trial RPC to atomic setup shop + profile + trial
+  /// 3. Returns success and logs in immediately
+  Future<Map<String, dynamic>> registerFreeTrial({
+    required String email,
+    required String password,
+    required String shopName,
+    required String ownerName,
+    required String phone,
+    required String address,
+    String? city,
+    String? inviteCode,
+  }) async {
+    try {
+      final client = Supabase.instance.client;
+      // 1. Sign up user via Supabase Auth
+      final authRes = await client.auth.signUp(
+        email: email,
+        password: password,
+      );
+      final user = authRes.user;
+      if (user == null) {
+        return {'success': false, 'error': 'Failed to create user account. Please check credentials.'};
+      }
+
+      // 2. Call register_new_shop_free_trial RPC
+      final rpcRes = await client.rpc('register_new_shop_free_trial', params: {
+        'p_user_id': user.id,
+        'p_shop_name': shopName,
+        'p_owner_name': ownerName,
+        'p_phone': phone,
+        'p_address': address,
+        'p_city': city,
+        'p_invite_code': (inviteCode != null && inviteCode.trim().isNotEmpty) ? inviteCode.trim() : null,
+      });
+
+      if (rpcRes is Map && rpcRes['success'] == true) {
+        return {
+          'success': true,
+          'shopId': rpcRes['shop_id'],
+          'inviteCode': rpcRes['invite_code'],
+        };
+      } else {
+        return {'success': false, 'error': rpcRes?['error'] ?? 'Shop setup failed'};
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
 }

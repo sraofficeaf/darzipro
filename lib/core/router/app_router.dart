@@ -30,11 +30,13 @@ import '../../features/admin/admin_support_screen.dart';
 import '../../features/admin/admin_reports_screen.dart';
 import '../../features/admin/admin_settings_screen.dart';
 import '../../features/admin/admin_vps_resources_screen.dart';
+import '../../features/admin/admin_subscription_plans_screen.dart';
+import '../../features/admin/admin_users_screen.dart';
 
 import '../../features/invite_earn/invite_earn_shell.dart';
 import '../../features/registration/registration_flow_screen.dart';
-import '../../features/auth/platform_blocked_screen.dart';
-import '../../features/upgrade/upgrade_request_screen.dart';
+import '../../features/billing/subscription_plan_screen.dart';
+import '../../features/billing/subscription_payment_screen.dart';
 import '../responsive/app_shell.dart';
 
 import '../constants/app_enums.dart';
@@ -224,11 +226,22 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/platform-blocked',
-          builder: (context, state) => const PlatformBlockedScreen(),
+          redirect: (context, state) => '/dashboard', // Removed — no platform restriction
         ),
         GoRoute(
           path: '/upgrade-plan',
-          builder: (context, state) => const UpgradeRequestScreen(),
+          redirect: (context, state) => '/subscription',
+        ),
+        GoRoute(
+          path: '/subscription',
+          builder: (context, state) => const SubscriptionPlanScreen(),
+        ),
+        GoRoute(
+          path: '/subscription/pay',
+          builder: (context, state) {
+            final plan = state.extra as Map<String, dynamic>?;
+            return SubscriptionPaymentScreen(planData: plan);
+          },
         ),
         // ── Invite Dashboard (legacy redirect) ────────────────────────
         GoRoute(
@@ -312,11 +325,18 @@ final appRouter = GoRouter(
           path: '/admin/vps-resources',
           pageBuilder: (context, state) => const NoTransitionPage(child: AdminVpsResourcesScreen()),
         ),
+        GoRoute(
+          path: '/admin/subscription-plans',
+          pageBuilder: (context, state) => const NoTransitionPage(child: AdminSubscriptionPlansScreen()),
+        ),
         // Legacy redirects to Approvals
         GoRoute(path: '/admin/registrations', redirect: (context, state) => '/admin/approvals'),
         GoRoute(path: '/admin/upgrades', redirect: (context, state) => '/admin/approvals'),
         GoRoute(path: '/admin/licenses', redirect: (context, state) => '/admin/approvals'),
-        GoRoute(path: '/admin/users', redirect: (context, state) => '/admin/approvals'),
+        GoRoute(
+          path: '/admin/users',
+          pageBuilder: (context, state) => const NoTransitionPage(child: AdminUsersScreen()),
+        ),
       ],
     ),
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -11,6 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_enums.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../shared/models/models.dart';
@@ -89,6 +91,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
   String _shalwarStyle = 'Straight';
 
   // Persistence, Drafts & Loading
+  String? _currentMeasurementId;
   bool _initialized = false;
   bool _isSaving = false;
   bool _isPrinting = false;
@@ -142,11 +145,50 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
   }
 
   // ── DATA LOADING & PRE-FILLING ──────────────────────────────────────────
-  void _loadCustomerData(String customerId) {
+  void _loadCustomerData(String customerId, [MeasurementModel? specificMeasurement]) {
     for (final ctrl in _controllers.values) {
       ctrl.clear();
     }
     _notesCtrl.clear();
+
+    if (specificMeasurement != null) {
+      _currentMeasurementId = specificMeasurement.id;
+      _selectedCategory = specificMeasurement.category;
+      _profileNameCtrl.text = specificMeasurement.profileName;
+      if (_profilePresetTypes.contains(specificMeasurement.profileName)) {
+        _selectedProfileType = specificMeasurement.profileName;
+      } else {
+        _selectedProfileType = 'custom';
+      }
+
+      for (final section in specificMeasurement.sections) {
+        if (section.title == 'Design Options') {
+          for (final f in section.fields) {
+            if (f.key == 'collar_type') _collarType = f.value;
+            if (f.key == 'neck_style') _neckStyle = f.value;
+            if (f.key == 'kaf_style') _kafStyle = f.value;
+            if (f.key == 'front_style') _frontStyle = f.value;
+            if (f.key == 'pocket_type') _pocketType = f.value;
+            if (f.key == 'shape') _shape = f.value;
+            if (f.key == 'shalwar_style') _shalwarStyle = f.value;
+          }
+        } else {
+          for (final field in section.fields) {
+            if (_controllers.containsKey(field.key)) {
+              _controllers[field.key]!.text = field.value;
+            }
+          }
+        }
+      }
+
+      if (specificMeasurement.silaiOptions != null && specificMeasurement.silaiOptions!.isNotEmpty) {
+        _silaiOptions = specificMeasurement.silaiOptions!.map((o) => Map<String, dynamic>.from(o)).toList();
+      }
+      _notesCtrl.text = specificMeasurement.silaiNotes ?? '';
+      _initialized = true;
+      if (mounted) setState(() {});
+      return;
+    }
 
     final Box draftBox = Hive.box('naap_drafts_box');
     dynamic draft;
@@ -208,6 +250,17 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       }
     }
 
+    if (draftLoaded && _currentMeasurementId == null) {
+      final existingMeasurements = ref.read(customerMeasurementsProvider).valueOrNull ?? [];
+      final existing = existingMeasurements.where(
+        (m) => m.customerId == customerId &&
+               m.profileName.trim().toLowerCase() == _profileNameCtrl.text.trim().toLowerCase(),
+      ).firstOrNull;
+      if (existing != null) {
+        _currentMeasurementId = existing.id;
+      }
+    }
+
     if (!draftLoaded) {
       try {
         final existingMeasurements = ref.read(customerMeasurementsProvider).valueOrNull ?? [];
@@ -219,6 +272,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         }
 
         if (existing != null) {
+          _currentMeasurementId = existing.id;
           _selectedCategory = existing.category;
           _profileNameCtrl.text = existing.profileName;
           if (_profilePresetTypes.contains(existing.profileName)) {
@@ -267,6 +321,35 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     }
 
     _initialized = true;
+    if (mounted) setState(() {});
+  }
+
+  void _startNewMeasurement(String customerId) {
+    for (final ctrl in _controllers.values) {
+      ctrl.clear();
+    }
+    _notesCtrl.clear();
+    _currentMeasurementId = null;
+    _profileNameCtrl.text = 'شلوار قمیض';
+    _selectedProfileType = 'شلوار قمیض';
+    _selectedCategory = MeasurementCategory.men;
+    _collarType = 'Standard';
+    _neckStyle = 'Round';
+    _kafStyle = 'Standard';
+    _frontStyle = 'Standard';
+    _pocketType = 'Chest';
+    _shape = 'Straight';
+    _shalwarStyle = 'Straight';
+    _silaiOptions = [
+      {'label': 'ڈبل سلائی', 'checked': false},
+      {'label': 'سنگل سلائی', 'checked': false},
+      {'label': 'تریپائی', 'checked': false},
+      {'label': 'کپڑا بٹن', 'checked': false},
+      {'label': 'پلاسٹک بٹن', 'checked': false},
+      {'label': 'امبرائیڈری', 'checked': false},
+    ];
+    _initialized = true;
+    ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customerId;
     if (mounted) setState(() {});
   }
 
@@ -334,8 +417,20 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         ? _profileNameCtrl.text.trim()
         : (widget.profileName ?? 'شلوار قمیض');
 
+    // 1 customer ke liye 1 profile name (e.g. Shalwar Kameez) ka duplicate na bane
+    final allMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
+    final existingSameProfile = allMeasurements.where(
+      (m) => m.customerId == customerId &&
+             m.profileName.trim().toLowerCase() == resolvedProfileName.trim().toLowerCase(),
+    ).firstOrNull;
+
+    final effectiveId = _currentMeasurementId ??
+                        widget.measurementId ??
+                        existingSameProfile?.id ??
+                        const Uuid().v4();
+
     return MeasurementModel(
-      id: widget.measurementId ?? const Uuid().v4(),
+      id: effectiveId,
       customerId: customerId,
       title: resolvedProfileName,
       profileName: resolvedProfileName,
@@ -444,16 +539,19 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
       if (!mounted) return;
 
-      // KEY FIX: Pop se PEHLE messenger reference lo
-      // Phir pop karo (screen deactivate hogi)
-      // Phir messenger par snackbar dikhao — parent screen ke Scaffold par show hoga
+      // Sab references pop se PEHLE store karo
       final messenger = ScaffoldMessenger.of(context);
       final profileName = measurement.profileName;
 
-      setState(() => _isSaving = false);
-      Navigator.of(context).pop(); // Pehle pop
+      // go_router: pehle canPop check karo
+      // agar screen stack mein hai toh pop, warna measurements list par go
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.measurements);
+      }
 
-      // Ab parent screen par snackbar — koi crash nahi
+      // Parent screen ke Scaffold par snackbar — safe hai
       messenger.showSnackBar(
         SnackBar(
           content: Row(
@@ -501,9 +599,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         );
       }
     } finally {
+      // Screen pop ho chuki hoti hai — mounted false hoga, setState nahi chalega
       if (mounted && _isSaving) setState(() => _isSaving = false);
     }
   }
+
 
   // ── STEP VALIDATION & NAVIGATION ─────────────────────────────────────────
   void _goToNextStep() {
@@ -547,7 +647,12 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       _saveDraft();
       setState(() => _currentStep--);
     } else {
-      Navigator.of(context).maybePop();
+      // go_router: canPop check karo
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.measurements);
+      }
     }
   }
 
@@ -820,56 +925,65 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                   ],
                 ),
 
-                const Spacer(),
-
-                // Grouped Customer Details Card (Desktop - soft blue container matching screenshot)
                 if (isDesktop) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF132238) : const Color(0xFFF1F7FD),
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        color: isDark ? const Color(0x223B82F6) : const Color(0xFFE0EDF8),
-                        width: 1.0,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF132238) : const Color(0xFFF1F7FD),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? const Color(0x223B82F6) : const Color(0xFFE0EDF8),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 1. Customer ID
+                              _buildHeaderInfoItem(
+                                icon: Icons.person_outline_rounded,
+                                label: 'Customer ID',
+                                value: '#$customerIdDisplay',
+                              ),
+                              _buildHeaderDivider(),
+                              // 2. Customer Name (Large Bold) + Mobile Subtitle
+                              _buildHeaderInfoItem(
+                                icon: Icons.person_outline_rounded,
+                                label: 'Customer Name',
+                                value: customerName,
+                                subtitle: customerPhone.isNotEmpty ? customerPhone : '0300-0000000',
+                                isName: true,
+                              ),
+                              _buildHeaderDivider(),
+                              // 3. Customer Joined Date (New Customer / Since)
+                              _buildHeaderInfoItem(
+                                icon: Icons.calendar_today_outlined,
+                                label: 'Joined Date',
+                                value: joinedDateStr,
+                              ),
+                              _buildHeaderDivider(),
+                              // 4. Total Orders Count
+                              _buildHeaderInfoItem(
+                                icon: Icons.shopping_bag_outlined,
+                                label: 'Total Orders',
+                                value: '$orderCount Orders',
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 1. Customer ID
-                        _buildHeaderInfoItem(
-                          icon: Icons.person_outline_rounded,
-                          label: 'Customer ID',
-                          value: '#$customerIdDisplay',
-                        ),
-                        _buildHeaderDivider(),
-                        // 2. Customer Name (Large Bold) + Mobile Subtitle
-                        _buildHeaderInfoItem(
-                          icon: Icons.person_outline_rounded,
-                          label: 'Customer Name',
-                          value: customerName,
-                          subtitle: customerPhone.isNotEmpty ? customerPhone : '0300-0000000',
-                          isName: true,
-                        ),
-                        _buildHeaderDivider(),
-                        // 3. Customer Joined Date (New Customer / Since)
-                        _buildHeaderInfoItem(
-                          icon: Icons.calendar_today_outlined,
-                          label: 'Joined Date',
-                          value: joinedDateStr,
-                        ),
-                        _buildHeaderDivider(),
-                        // 4. Total Orders Count
-                        _buildHeaderInfoItem(
-                          icon: Icons.shopping_bag_outlined,
-                          label: 'Total Orders',
-                          value: '$orderCount Orders',
-                        ),
-                      ],
-                    ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 10),
+                ] else ...[
+                  const Spacer(),
                 ],
 
                 // Print Button
@@ -1049,8 +1163,8 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF2563EB)),
-        const SizedBox(width: 8),
+        Icon(icon, size: 16, color: const Color(0xFF2563EB)),
+        const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -1058,7 +1172,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 9,
+                fontSize: 8.5,
                 fontWeight: FontWeight.w500,
                 color: isDark ? Colors.white54 : const Color(0xFF64748B),
               ),
@@ -1068,12 +1182,12 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
               value,
               style: isUrdu
                   ? GoogleFonts.notoNastaliqUrdu(
-                      fontSize: isName ? 15.5 : 12.5,
+                      fontSize: isName ? 14.5 : 12,
                       fontWeight: FontWeight.w800,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     )
                   : GoogleFonts.outfit(
-                      fontSize: isName ? 16.5 : 13,
+                      fontSize: isName ? 15 : 12.5,
                       fontWeight: isName ? FontWeight.w800 : FontWeight.w700,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
@@ -1082,7 +1196,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
               Text(
                 subtitle,
                 style: GoogleFonts.jetBrainsMono(
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: FontWeight.w500,
                   color: isDark ? Colors.white60 : const Color(0xFF64748B),
                 ),
@@ -1097,8 +1211,8 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     final isDark = context.isDark;
     return Container(
       width: 1,
-      height: 30,
-      margin: const EdgeInsets.symmetric(horizontal: 14),
+      height: 26,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
       color: isDark ? const Color(0x223B82F6) : const Color(0xFFD6E4F0),
     );
   }
@@ -2614,17 +2728,10 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     final bg = isDark ? AppColors.bgDark : Colors.white;
     final text1 = isDark ? Colors.white : const Color(0xFF0A0F1C);
     final text2 = isDark ? Colors.white54 : const Color(0xFF4A5568);
+    final allMeasurements = ref.watch(measurementsProvider).valueOrNull ?? [];
 
     return Scaffold(
       backgroundColor: bg,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF12213A),
-        title: Text(
-          'Select Customer (گاہک منتخب کریں)',
-          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-        ),
-        centerTitle: true,
-      ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
@@ -2680,42 +2787,186 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                     itemCount: filtered.length,
                     itemBuilder: (context, idx) {
                       final c = filtered[idx];
+                      final rawMeasurements = allMeasurements.where((m) => m.customerId == c.id).toList();
+
+                      // Deduplicate by profileName (keeping the latest one for each profile)
+                      final Map<String, MeasurementModel> uniqueMap = {};
+                      for (final m in rawMeasurements) {
+                        final key = m.profileName.trim().toLowerCase();
+                        if (!uniqueMap.containsKey(key) || m.updatedAt.isAfter(uniqueMap[key]!.updatedAt)) {
+                          uniqueMap[key] = m;
+                        }
+                      }
+                      final cMeasurements = uniqueMap.values.toList();
+
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(bottom: 10),
                         child: AppCard(
                           onTap: () {
                             HapticFeedback.lightImpact();
-                            _loadCustomerData(c.id);
-                            ref.read(selectedMeasurementCustomerIdProvider.notifier).state = c.id;
+                            if (cMeasurements.isNotEmpty) {
+                              _showNaapDetailModal(context, c, cMeasurements.first);
+                            } else {
+                              _startNewMeasurement(c.id);
+                            }
                           },
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CustomerAvatar(name: c.name, size: 40, borderRadius: 10),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      c.name,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: text1,
-                                      ),
+                              // Customer Header Row
+                              Row(
+                                children: [
+                                  CustomerAvatar(name: c.name, size: 42, borderRadius: 10),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                c.name,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: text1,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: cMeasurements.isNotEmpty
+                                                    ? (isDark ? const Color(0x1F10CBA0) : const Color(0xFFE6FFFA))
+                                                    : (isDark ? const Color(0x1A94A3B8) : const Color(0xFFF1F5F9)),
+                                                borderRadius: BorderRadius.circular(5),
+                                              ),
+                                              child: Text(
+                                                cMeasurements.isNotEmpty
+                                                    ? '${cMeasurements.length} Naap'
+                                                    : 'No Naap',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: cMeasurements.isNotEmpty
+                                                      ? const Color(0xFF0D9488)
+                                                      : text2,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          c.phone,
+                                          style: GoogleFonts.jetBrainsMono(
+                                            fontSize: 12,
+                                            color: text2,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      c.phone,
-                                      style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 12,
-                                        color: text2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                  Text(c.gender.emoji, style: const TextStyle(fontSize: 18)),
+                                ],
                               ),
-                              Text(c.gender.emoji, style: const TextStyle(fontSize: 18)),
+
+                              const SizedBox(height: 10),
+
+                              // Quick Action Buttons (Naap Profiles & + Naya Naap)
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  ...cMeasurements.map((m) {
+                                    return Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () {
+                                          HapticFeedback.lightImpact();
+                                          _showNaapDetailModal(context, c, m);
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0x1F10CBA0) : const Color(0xFFECFDF5),
+                                            border: Border.all(
+                                              color: isDark ? const Color(0x4D10CBA0) : const Color(0x8010CBA0),
+                                              width: 1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.straighten_rounded, size: 13, color: Color(0xFF0D9488)),
+                                              const SizedBox(width: 5),
+                                              Text(
+                                                m.profileName.isNotEmpty ? m.profileName : 'ناپ',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Icon(
+                                                Icons.visibility_rounded,
+                                                size: 12,
+                                                color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+
+                                  // + Naya Naap / Add Button
+                                  Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(8),
+                                      onTap: () {
+                                        HapticFeedback.lightImpact();
+                                        _startNewMeasurement(c.id);
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: isDark ? const Color(0x1AF5A623) : const Color(0xFFFFFBEB),
+                                          border: Border.all(
+                                            color: isDark ? const Color(0x4DF5A623) : const Color(0x99F5A623),
+                                            width: 1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.add_rounded, size: 14, color: Color(0xFFD97706)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '+ نیا ناپ',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark ? const Color(0xFFF5A623) : const Color(0xFFB45309),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -2729,5 +2980,499 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         ),
       ),
     );
+  }
+
+  // ── NAAP QUICK VIEW MODAL (WITH PRINT & EDIT BUTTONS) ───────────────────
+  void _showNaapDetailModal(BuildContext context, CustomerModel customer, MeasurementModel measurement) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final surfaceColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final text1 = isDark ? Colors.white : const Color(0xFF0F172A);
+    final text2 = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    // Extract non-empty measurement fields
+    final fieldsList = <Map<String, String>>[];
+    for (final section in measurement.sections) {
+      if (section.title != 'Design Options') {
+        for (final field in section.fields) {
+          if (field.value.trim().isNotEmpty) {
+            final config = k15MeasurementFields.where((f) => f.key == field.key).firstOrNull;
+            fieldsList.add({
+              'key': field.key,
+              'urdu': config?.nameUrdu ?? field.label,
+              'eng': config?.nameEng ?? field.key,
+              'value': field.value.trim(),
+            });
+          }
+        }
+      }
+    }
+
+    // Extract design options
+    final designOptions = <Map<String, String>>[];
+    for (final section in measurement.sections) {
+      if (section.title == 'Design Options') {
+        for (final f in section.fields) {
+          if (f.value.trim().isNotEmpty && f.value != 'None' && f.value != 'Standard') {
+            designOptions.add({
+              'label': f.label,
+              'value': f.value,
+            });
+          }
+        }
+      }
+    }
+
+    // Silai options
+    final activeSilaiOpts = (measurement.silaiOptions ?? [])
+        .where((opt) => opt['checked'] == true)
+        .map((opt) => opt['label'] as String? ?? '')
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: bg,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 580, maxHeight: 720),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 16, 16),
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    border: Border(bottom: BorderSide(color: borderColor)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10CBA0).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF10CBA0).withValues(alpha: 0.3)),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.straighten_rounded, color: Color(0xFF10CBA0), size: 24),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    customer.name,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      color: text1,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5A623).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFF5A623).withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    measurement.profileName,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${customer.phone} · ${measurement.category.label}',
+                              style: GoogleFonts.inter(fontSize: 12, color: text2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: ctx,
+                            builder: (dCtx) => AlertDialog(
+                              title: const Text('پروفائل ڈیلیٹ کریں؟'),
+                              content: Text('${customer.name} کا "${measurement.profileName}" ناپ ڈیلیٹ ہو جائے گا۔'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(dCtx).pop(false), child: const Text('منسوخ (Cancel)')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3A58)),
+                                  onPressed: () => Navigator.of(dCtx).pop(true),
+                                  child: const Text('ڈیلیٹ کریں (Delete)', style: TextStyle(color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true && ctx.mounted) {
+                            Navigator.of(ctx).pop();
+                            await ref.read(measurementsProvider.notifier).deleteMeasurement(measurement.id);
+                          }
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF3A58), size: 20),
+                        tooltip: 'Delete Profile',
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: Icon(Icons.close_rounded, color: text2),
+                        tooltip: 'Close',
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Content (Scrollable)
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Measurement values grid
+                        Text(
+                          'پیمائش کی تفصیلات (Measurements)',
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: text1,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (fieldsList.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: surfaceColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'ابھی کوئی پیمائش درج نہیں ہے / No measurement values recorded',
+                              style: GoogleFonts.inter(fontSize: 12, color: text2),
+                            ),
+                          )
+                        else
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: fieldsList.map((f) {
+                              return Container(
+                                width: 120,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: surfaceColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: borderColor),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      f['urdu']!,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: text2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      f['eng']!,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10,
+                                        color: text2.withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${f['value']!}"',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFFD97706),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+
+                        // Design Options
+                        if (designOptions.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Text(
+                            'ڈیزائن کی ترتیبات (Design Options)',
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: text1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: designOptions.map((opt) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: surfaceColor,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: borderColor),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${opt['label']}: ',
+                                      style: GoogleFonts.inter(fontSize: 11, color: text2),
+                                    ),
+                                    Text(
+                                      opt['value']!,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: text1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+
+                        // Silai options
+                        if (activeSilaiOpts.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Text(
+                            'سلائی کی تفصیل (Stitching Details)',
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: text1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: activeSilaiOpts.map((s) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10CBA0).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF10CBA0).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF10CBA0)),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      s,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+
+                        // Notes
+                        if (measurement.silaiNotes != null && measurement.silaiNotes!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Text(
+                            'خصوصی ہدایات (Notes)',
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: text1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: surfaceColor,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Text(
+                              measurement.silaiNotes!,
+                              style: GoogleFonts.inter(fontSize: 12, color: text1, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Footer Action Buttons
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                    border: Border(top: BorderSide(color: borderColor)),
+                  ),
+                  child: Row(
+                    children: [
+                      // 1. Print Button
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _printSpecificMeasurement(customer, measurement);
+                          },
+                          icon: const Icon(Icons.print_rounded, size: 17),
+                          label: Text(
+                            'پرنٹ کارڈ (Print)',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF10CBA0),
+                            side: const BorderSide(color: Color(0xFF10CBA0)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // 2. Edit/Update Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            HapticFeedback.lightImpact();
+                            _loadCustomerData(customer.id, measurement);
+                            ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customer.id;
+                          },
+                          icon: const Icon(Icons.edit_note_rounded, size: 18),
+                          label: Text(
+                            'اپڈیٹ کریں (Edit / Update)',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF5A623),
+                            foregroundColor: const Color(0xFF1A0A00),
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── PRINT SPECIFIC MEASUREMENT NAAP CARD ────────────────────────────────
+  Future<void> _printSpecificMeasurement(CustomerModel customer, MeasurementModel measurement) async {
+    if (_isPrinting) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final customerOrders = ref.read(ordersProvider).valueOrNull
+          ?.where((o) => o.customerId == customer.id)
+          .toList() ?? [];
+      if (customerOrders.isNotEmpty) {
+        customerOrders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
+      }
+      final latestOrder = customerOrders.firstOrNull;
+
+      final effectiveOrder = latestOrder ?? OrderModel(
+        id: 'naap_${DateTime.now().millisecondsSinceEpoch}',
+        customerId: customer.id,
+        customerName: customer.name,
+        tokenNumber: 'NAAP',
+        orderNumber: 1,
+        orderDate: DateTime.now(),
+        status: OrderStatus.pending,
+        totalAmount: 0,
+        items: const [],
+        payments: const [],
+      );
+
+      List<int> pdfBytes;
+      try {
+        final pngBytes = await CardImageCapturer.captureOnDemand(
+          context,
+          cardWidget: NaapCardWidget(
+            order: effectiveOrder,
+            customer: customer,
+            measurement: measurement,
+          ),
+        );
+        pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(
+          pngBytes,
+          pageFormat: PdfPageFormat.a5,
+        );
+      } catch (captureErr) {
+        debugPrint('NaapCard captureOnDemand failed, using direct pdf builder: $captureErr');
+        pdfBytes = await DarziPdfBuilder.buildTraditionalNaapCard(
+          effectiveOrder,
+          customer,
+          measurement,
+        );
+      }
+
+      await Printing.layoutPdf(
+        name: 'Naap_${customer.name}_${measurement.profileName}.pdf',
+        onLayout: (_) async => Uint8List.fromList(pdfBytes),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Print Error: $e', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            backgroundColor: const Color(0xFFFF3A58),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
   }
 }

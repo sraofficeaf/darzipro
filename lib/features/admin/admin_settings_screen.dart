@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/services/admin_service.dart';
+import 'widgets/admin_ui_kit.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -20,13 +20,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final _enterprisePriceCtrl = TextEditingController(text: '70000');
   final _storageMonthlyCtrl = TextEditingController(text: '1200');
   final _storageAnnualCtrl = TextEditingController(text: '10000');
-  
+
   bool _basicActive = true;
   bool _proActive = true;
   bool _enterpriseActive = true;
   bool _storageMonthlyActive = true;
   bool _storageAnnualActive = true;
-  
+
   bool _notifyOnNewRegistration = true;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -97,7 +97,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       setState(() => _isSaving = false);
       if (ok1 && ok2 && ok3) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Settings saved! Plan status (Active/Inactive) & pricing updated successfully.')),
+          const SnackBar(content: Text('Settings saved! Plan status (Active/Inactive) & pricing updated successfully.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -132,400 +132,375 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Header ───────────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: surface,
-                border: Border(bottom: BorderSide(color: border)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '⚙️ Admin Settings',
-                          style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: text1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Configure business model parameters, payout rules, and notifications',
-                          style: GoogleFonts.inter(fontSize: 12, color: text2),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            // Top Header Bar (RepaintBoundary for zero scroll cost)
+            RepaintBoundary(
+              child: AdminPageHeader(
+                title: 'Admin Settings',
+                subtitle: 'Configure business model parameters, payout rules, and notifications',
+                action: AdminButton.primary(
+                  label: _isSaving ? 'Saving...' : 'Save Settings',
+                  icon: _isSaving ? null : Icons.save_rounded,
+                  onPressed: _isSaving ? null : _saveSettings,
+                ),
               ),
             ),
 
-            // ── Body ─────────────────────────────────────────────────────────
+            // Body
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+                  ? const Center(child: CircularProgressIndicator(color: AdminColors.indigo))
                   : ListView(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       children: [
                         // Section 1: Business Model & Payout Configuration
-                        Text('💰 Business Model & Payout Configuration', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  if (constraints.maxWidth < 500) {
-                                    return Column(
+                        Text(
+                          '💰 Business Model & Payout Configuration',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1),
+                        ),
+                        const SizedBox(height: 10),
+                        RepaintBoundary(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                              boxShadow: context.cardShadow,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 500) {
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Minimum Payout Threshold (Rs)', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: text1)),
+                                          const SizedBox(height: 6),
+                                          TextField(
+                                            controller: _thresholdCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              hintText: 'e.g. 1000',
+                                              prefixText: 'Rs ',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text('Payout Delay (Days)', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: text1)),
+                                          const SizedBox(height: 6),
+                                          TextField(
+                                            controller: _delayCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              hintText: 'e.g. 0',
+                                              suffixText: 'Days',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+                                    return Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text('Minimum Payout Threshold (Rs)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text1)),
-                                        const SizedBox(height: 6),
-                                        TextField(
-                                          controller: _thresholdCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            hintText: 'e.g. 1000',
-                                            prefixText: 'Rs ',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Minimum Payout Threshold (Rs)', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: text1)),
+                                              const SizedBox(height: 6),
+                                              TextField(
+                                                controller: _thresholdCtrl,
+                                                keyboardType: TextInputType.number,
+                                                style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                                decoration: InputDecoration(
+                                                  hintText: 'e.g. 1000',
+                                                  prefixText: 'Rs ',
+                                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 12),
-                                        Text('Payout Delay (Days)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text1)),
-                                        const SizedBox(height: 6),
-                                        TextField(
-                                          controller: _delayCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            hintText: 'e.g. 0',
-                                            suffixText: 'Days',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Payout Delay (Days)', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: text1)),
+                                              const SizedBox(height: 6),
+                                              TextField(
+                                                controller: _delayCtrl,
+                                                keyboardType: TextInputType.number,
+                                                style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                                decoration: InputDecoration(
+                                                  hintText: 'e.g. 0',
+                                                  suffixText: 'Days',
+                                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
                                     );
-                                  }
-                                  return Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('Minimum Payout Threshold (Rs)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text1)),
-                                            const SizedBox(height: 6),
-                                            TextField(
-                                              controller: _thresholdCtrl,
-                                              keyboardType: TextInputType.number,
-                                              style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                              decoration: InputDecoration(
-                                                hintText: 'e.g. 1000',
-                                                prefixText: 'Rs ',
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('Payout Delay (Days)', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text1)),
-                                            const SizedBox(height: 6),
-                                            TextField(
-                                              controller: _delayCtrl,
-                                              keyboardType: TextInputType.number,
-                                              style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                              decoration: InputDecoration(
-                                                hintText: 'e.g. 0',
-                                                suffixText: 'Days',
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              Text('• Minimum Payout Threshold: Shops must reach this amount before payout processing.\n• Payout Delay: Number of days earnings must age before becoming eligible for payout (0 = immediate).', style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                              const SizedBox(height: 16),
-                              const Divider(),
-                              const SizedBox(height: 12),
-                              Text('Multi-Level Profit Percentages', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
-                              const SizedBox(height: 8),
-                              const _RuleRow('Level 1 (Direct Inviter)', '15.0%'),
-                              const _RuleRow('Level 2 (2nd Generation)', '2.5%'),
-                              const _RuleRow('Level 3 (3rd Generation)', '1.5%'),
-                              const _RuleRow('Level 4 (4th Generation)', '1.0%'),
-                            ],
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '• Minimum Payout Threshold: Shops must reach this amount before payout processing.\n• Payout Delay: Number of days earnings must age before becoming eligible for payout (0 = immediate).',
+                                  style: GoogleFonts.inter(fontSize: 11, color: text2),
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 12),
+                                Text('Multi-Level Profit Percentages', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
+                                const SizedBox(height: 8),
+                                const _RuleRow('Level 1 (Direct Inviter)', '15.0%'),
+                                const _RuleRow('Level 2 (2nd Generation)', '2.5%'),
+                                const _RuleRow('Level 3 (3rd Generation)', '1.5%'),
+                                const _RuleRow('Level 4 (4th Generation)', '1.0%'),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 20),
 
                         // Section 2: Plan Customization & Price Controls
-                        Text('🏷️ Plan Pricing & Storage Customization', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Membership Tier Pricing & Active Status', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text('📱 Basic (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Switch(
-                                              value: _basicActive,
-                                              onChanged: (v) => setState(() => _basicActive = v),
-                                              activeTrackColor: AppColors.accent,
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        TextField(
-                                          controller: _basicPriceCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            prefixText: 'Rs ',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text('🚀 Pro (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Switch(
-                                              value: _proActive,
-                                              onChanged: (v) => setState(() => _proActive = v),
-                                              activeTrackColor: AppColors.accent,
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        TextField(
-                                          controller: _proPriceCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            prefixText: 'Rs ',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text('👑 Enterprise', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Switch(
-                                              value: _enterpriseActive,
-                                              onChanged: (v) => setState(() => _enterpriseActive = v),
-                                              activeTrackColor: AppColors.accent,
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        TextField(
-                                          controller: _enterprisePriceCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            prefixText: 'Rs ',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              const Divider(),
-                              const SizedBox(height: 12),
-                              Text('💾 Extra Storage Add-on Pricing & Active Status', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text('Monthly (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Switch(
-                                              value: _storageMonthlyActive,
-                                              onChanged: (v) => setState(() => _storageMonthlyActive = v),
-                                              activeTrackColor: AppColors.accent,
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        TextField(
-                                          controller: _storageMonthlyCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            prefixText: 'Rs ',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text('Annual (Rs)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Switch(
-                                              value: _storageAnnualActive,
-                                              onChanged: (v) => setState(() => _storageAnnualActive = v),
-                                              activeTrackColor: AppColors.accent,
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        TextField(
-                                          controller: _storageAnnualCtrl,
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(fontSize: 13, color: text1),
-                                          decoration: InputDecoration(
-                                            prefixText: 'Rs ',
-                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0x0FFF3A58),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: const Color(0x26FF3A58)),
-                                ),
-                                child: Row(
+                        Text(
+                          '🏷️ Plan Pricing & Storage Customization',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1),
+                        ),
+                        const SizedBox(height: 10),
+                        RepaintBoundary(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                              boxShadow: context.cardShadow,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Membership Tier Pricing & Active Status', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
+                                const SizedBox(height: 12),
+                                Row(
                                   children: [
-                                    const Icon(Icons.block_rounded, color: Color(0xFFFF3A58), size: 16),
-                                    const SizedBox(width: 8),
                                     Expanded(
-                                      child: Text(
-                                        'Referral Commission for Storage Add-ons: 0% (Disabled globally for storage purchases).',
-                                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFFF3A58)),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('📱 Basic', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                              Switch(
+                                                value: _basicActive,
+                                                onChanged: (v) => setState(() => _basicActive = v),
+                                                activeTrackColor: AdminColors.indigo,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          TextField(
+                                            controller: _basicPriceCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              prefixText: 'Rs ',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('🚀 Pro', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                              Switch(
+                                                value: _proActive,
+                                                onChanged: (v) => setState(() => _proActive = v),
+                                                activeTrackColor: AdminColors.indigo,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          TextField(
+                                            controller: _proPriceCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              prefixText: 'Rs ',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('👑 Enterprise', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                              Switch(
+                                                value: _enterpriseActive,
+                                                onChanged: (v) => setState(() => _enterpriseActive = v),
+                                                activeTrackColor: AdminColors.indigo,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          TextField(
+                                            controller: _enterprisePriceCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              prefixText: 'Rs ',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () => context.go('/admin/vps-resources'),
-                                  icon: const Icon(Icons.dns_rounded, size: 16),
-                                  label: const Text('🖥️ View Live VPS & Shop Resource Usage Analytics'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.accent,
-                                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
-                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 12),
+                                Text('💾 Extra Storage Add-on Pricing & Active Status', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: text1)),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Monthly', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                              Switch(
+                                                value: _storageMonthlyActive,
+                                                onChanged: (v) => setState(() => _storageMonthlyActive = v),
+                                                activeTrackColor: AdminColors.indigo,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          TextField(
+                                            controller: _storageMonthlyCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              prefixText: 'Rs ',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Annual', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                              Switch(
+                                                value: _storageAnnualActive,
+                                                onChanged: (v) => setState(() => _storageAnnualActive = v),
+                                                activeTrackColor: AdminColors.indigo,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          TextField(
+                                            controller: _storageAnnualCtrl,
+                                            keyboardType: TextInputType.number,
+                                            style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                            decoration: InputDecoration(
+                                              prefixText: 'Rs ',
+                                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                const AdminInfoBox.rose(
+                                  text: 'Referral Commission for Storage Add-ons: 0% (Disabled globally for storage purchases).',
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => context.go('/admin/vps-resources'),
+                                    icon: const Icon(Icons.dns_rounded, size: 16),
+                                    label: const Text('🖥️ View Live VPS & Shop Resource Usage Analytics'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AdminColors.indigo,
+                                      side: BorderSide(color: AdminColors.indigo.withValues(alpha: 0.5)),
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 20),
 
                         // Section 3: Notifications
                         Text('🔔 Admin Notifications', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
-                        const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
-                          child: Column(
-                            children: [
-                              SwitchListTile(
-                                value: _notifyOnNewRegistration,
-                                onChanged: (v) => setState(() => _notifyOnNewRegistration = v),
-                                title: Text('Notify on new registrations', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text1)),
-                                subtitle: Text('Receive alerts when shops submit self-registration requests', style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                                activeTrackColor: AppColors.accent,
-                              ),
-                            ],
+                        const SizedBox(height: 10),
+                        RepaintBoundary(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                              boxShadow: context.cardShadow,
+                            ),
+                            child: SwitchListTile(
+                              value: _notifyOnNewRegistration,
+                              onChanged: (v) => setState(() => _notifyOnNewRegistration = v),
+                              title: Text('Notify on new registrations', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text1)),
+                              subtitle: Text('Receive alerts when shops submit self-registration requests', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                              activeTrackColor: AdminColors.indigo,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),
-
-                        ElevatedButton.icon(
-                          onPressed: _isSaving ? null : _saveSettings,
-                          icon: _isSaving
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Icon(Icons.save_rounded),
-                          label: Text(_isSaving ? 'Saving...' : 'Save Settings'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
                       ],
                     ),
             ),
@@ -550,7 +525,7 @@ class _RuleRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(level, style: GoogleFonts.inter(fontSize: 12, color: context.text2)),
-          Text(percent, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.accent)),
+          Text(percent, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AdminColors.indigo)),
         ],
       ),
     );

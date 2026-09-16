@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/theme/theme_extensions.dart';
 import 'reports/reports_pdf_builder.dart';
+import 'widgets/admin_ui_kit.dart';
 
 enum DateRangePreset {
   today('Today'),
@@ -108,7 +108,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppColors.accent,
+                  primary: AdminColors.indigo,
                 ),
           ),
           child: child!,
@@ -287,81 +287,30 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Header Bar ───────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                color: surface,
-                border: Border(bottom: BorderSide(color: border)),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 600;
-                  final titleWidget = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '📊 Reports & Financial Analytics',
-                        style: GoogleFonts.outfit(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: text1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Period: $dateRangeText',
-                        style: GoogleFonts.inter(fontSize: 12, color: text2, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  );
-
-                  final downloadBtn = ElevatedButton.icon(
-                    onPressed: _isGeneratingPdf ? null : _generateFullPdf,
-                    icon: _isGeneratingPdf
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('📥', style: TextStyle(fontSize: 14)),
-                    label: Text(_isGeneratingPdf ? 'Generating...' : 'Download Report (PDF)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      textStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  );
-
-                  if (isWide) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [titleWidget, downloadBtn],
-                    );
-                  } else {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        titleWidget,
-                        const SizedBox(height: 10),
-                        SizedBox(width: double.infinity, child: downloadBtn),
-                      ],
-                    );
-                  }
-                },
+            // Top Header Bar (RepaintBoundary for zero scroll cost)
+            RepaintBoundary(
+              child: AdminPageHeader(
+                title: 'Reports & Financial Analytics',
+                subtitle: 'Period: $dateRangeText',
+                action: AdminButton.primary(
+                  label: _isGeneratingPdf ? 'Generating...' : 'Download Report (PDF)',
+                  icon: _isGeneratingPdf ? null : Icons.download_rounded,
+                  onPressed: _isGeneratingPdf ? null : _generateFullPdf,
+                ),
               ),
             ),
 
-            // ── Main Content Scroll Area ─────────────────────────────────────
+            // Main Content Scroll Area
             Expanded(
               child: RefreshIndicator(
-                color: AppColors.accent,
+                color: AdminColors.indigo,
                 onRefresh: _loadReportData,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // ── Date Range Presets Bar ───────────────────────────────
+                      // Date Range Presets Bar
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
@@ -369,20 +318,11 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                             final isSelected = _selectedPreset == preset;
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(preset.label),
-                                selected: isSelected,
-                                selectedColor: AppColors.accent.withValues(alpha: 0.15),
-                                backgroundColor: context.surface2,
-                                side: BorderSide(
-                                  color: isSelected ? AppColors.accent : border,
-                                ),
-                                labelStyle: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                  color: isSelected ? AppColors.accent : text1,
-                                ),
-                                onSelected: (val) {
+                              child: AdminChip(
+                                label: preset.label,
+                                isSelected: isSelected,
+                                color: AdminColors.indigo,
+                                onTap: () {
                                   if (preset == DateRangePreset.custom) {
                                     _pickCustomDateRange();
                                   } else {
@@ -394,152 +334,161 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                           }).toList(),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       if (_isLoading)
-                        const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: AppColors.accent)))
+                        const Padding(
+                          padding: EdgeInsets.all(40),
+                          child: Center(child: CircularProgressIndicator(color: AdminColors.indigo)),
+                        )
                       else ...[
-                        // ── 1. SUMMARY CARDS (4-Grid) ──────────────────────────
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final w = constraints.maxWidth;
-                            final crossCount = w >= 900 ? 4 : (w >= 500 ? 2 : 1);
-                            return GridView.count(
-                              crossAxisCount: crossCount,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: w >= 900 ? 1.8 : (w >= 500 ? 2.1 : 2.6),
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              children: [
-                                _SummaryCard(
-                                  title: 'Total Revenue',
-                                  value: _fmt(_summaryData['total_revenue'] ?? 0),
-                                  icon: Icons.account_balance_wallet_rounded,
-                                  color: AppColors.accent,
-                                  subtitle: 'Registrations + Upgrades + Add-ons',
-                                ),
-                                _SummaryCard(
-                                  title: 'Invite Payouts',
-                                  value: _fmt(_summaryData['total_payouts'] ?? 0),
-                                  icon: Icons.payments_rounded,
-                                  color: const Color(0xFFE11D48),
-                                  subtitle: 'Money sent out to inviters (Paid)',
-                                ),
-                                _SummaryCard(
-                                  title: 'Net Revenue',
-                                  value: _fmt(_summaryData['net_revenue'] ?? 0),
-                                  icon: Icons.trending_up_rounded,
-                                  color: const Color(0xFF3B82F6),
-                                  subtitle: 'Total Revenue - Invite Payouts',
-                                ),
-                                _SummaryCard(
-                                  title: 'Transaction Count',
-                                  value: '${_summaryData['transaction_count'] ?? 0}',
-                                  icon: Icons.receipt_long_rounded,
-                                  color: const Color(0xFF8B5CF6),
-                                  subtitle: 'Successful payments in range',
-                                ),
-                              ],
-                            );
-                          },
+                        // 1. SUMMARY CARDS (4-Grid)
+                        RepaintBoundary(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final w = constraints.maxWidth;
+                              final crossCount = w >= 900 ? 4 : (w >= 500 ? 2 : 1);
+                              return GridView.count(
+                                crossAxisCount: crossCount,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: w >= 900 ? 1.8 : (w >= 500 ? 2.1 : 2.6),
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                children: [
+                                  AdminStatCard(
+                                    title: 'Total Revenue',
+                                    value: _fmt(_summaryData['total_revenue'] ?? 0),
+                                    icon: Icons.account_balance_wallet_rounded,
+                                    color: AdminColors.amber,
+                                    subtitle: 'Registrations + Upgrades + Add-ons',
+                                  ),
+                                  AdminStatCard(
+                                    title: 'Invite Payouts',
+                                    value: _fmt(_summaryData['total_payouts'] ?? 0),
+                                    icon: Icons.payments_rounded,
+                                    color: AdminColors.rose,
+                                    subtitle: 'Money sent out to inviters (Paid)',
+                                  ),
+                                  AdminStatCard(
+                                    title: 'Net Revenue',
+                                    value: _fmt(_summaryData['net_revenue'] ?? 0),
+                                    icon: Icons.trending_up_rounded,
+                                    color: AdminColors.blue,
+                                    subtitle: 'Total Revenue - Invite Payouts',
+                                  ),
+                                  AdminStatCard(
+                                    title: 'Transaction Count',
+                                    value: '${_summaryData['transaction_count'] ?? 0}',
+                                    icon: Icons.receipt_long_rounded,
+                                    color: AdminColors.violet,
+                                    subtitle: 'Successful payments in range',
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                        // ── 2. REVENUE BREAKDOWN ───────────────────────────────
+                        // 2. REVENUE BREAKDOWN
                         Text('Revenue Breakdown', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: text1)),
                         const SizedBox(height: 12),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isDesktop = constraints.maxWidth >= 720;
-                            final byType = _breakdownData['by_type'] as Map<String, dynamic>? ?? {};
-                            final byTier = _breakdownData['by_tier'] as Map<String, dynamic>? ?? {};
+                        RepaintBoundary(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isDesktop = constraints.maxWidth >= 720;
+                              final byType = _breakdownData['by_type'] as Map<String, dynamic>? ?? {};
+                              final byTier = _breakdownData['by_tier'] as Map<String, dynamic>? ?? {};
 
-                            final typeWidget = _buildBreakdownCard(
-                              title: 'By Category / Type',
-                              icon: Icons.category_rounded,
-                              children: [
-                                _BreakdownRow('Registrations', _fmt(byType['registrations']?['amount'] ?? 0), '${byType['registrations']?['count'] ?? 0} txs'),
-                                _BreakdownRow('Upgrades', _fmt(byType['upgrades']?['amount'] ?? 0), '${byType['upgrades']?['count'] ?? 0} txs'),
-                                _BreakdownRow('Storage (Monthly)', _fmt(byType['storage_monthly']?['amount'] ?? 0), '${byType['storage_monthly']?['count'] ?? 0} txs'),
-                                _BreakdownRow('Storage (Annual)', _fmt(byType['storage_annual']?['amount'] ?? 0), '${byType['storage_annual']?['count'] ?? 0} txs'),
-                              ],
-                            );
-
-                            final tierWidget = _buildBreakdownCard(
-                              title: 'By Plan Tier',
-                              icon: Icons.layers_rounded,
-                              children: [
-                                _BreakdownRow('Mobile Only', _fmt(byTier['mobile_only']?['amount'] ?? 0), 'Tier Revenue'),
-                                _BreakdownRow('Full Access', _fmt(byTier['full_access']?['amount'] ?? 0), 'Tier Revenue'),
-                                _BreakdownRow('Full Access + 3yr', _fmt(byTier['full_access_3yr']?['amount'] ?? 0), 'Tier Revenue'),
-                              ],
-                            );
-
-                            if (isDesktop) {
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              final typeWidget = _buildBreakdownCard(
+                                title: 'By Category / Type',
+                                icon: Icons.category_rounded,
                                 children: [
-                                  Expanded(child: typeWidget),
-                                  const SizedBox(width: 14),
-                                  Expanded(child: tierWidget),
+                                  _BreakdownRow('Registrations', _fmt(byType['registrations']?['amount'] ?? 0), '${byType['registrations']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Upgrades', _fmt(byType['upgrades']?['amount'] ?? 0), '${byType['upgrades']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Storage (Monthly)', _fmt(byType['storage_monthly']?['amount'] ?? 0), '${byType['storage_monthly']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Storage (Annual)', _fmt(byType['storage_annual']?['amount'] ?? 0), '${byType['storage_annual']?['count'] ?? 0} txs'),
                                 ],
                               );
-                            } else {
-                              return Column(
+
+                              final tierWidget = _buildBreakdownCard(
+                                title: 'By Plan Tier',
+                                icon: Icons.layers_rounded,
                                 children: [
-                                  typeWidget,
-                                  const SizedBox(height: 14),
-                                  tierWidget,
+                                  _BreakdownRow('Mobile Only', _fmt(byTier['mobile_only']?['amount'] ?? 0), 'Tier Revenue'),
+                                  _BreakdownRow('Full Access', _fmt(byTier['full_access']?['amount'] ?? 0), 'Tier Revenue'),
+                                  _BreakdownRow('Full Access + 3yr', _fmt(byTier['full_access_3yr']?['amount'] ?? 0), 'Tier Revenue'),
                                 ],
                               );
-                            }
-                          },
+
+                              if (isDesktop) {
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: typeWidget),
+                                    const SizedBox(width: 14),
+                                    Expanded(child: tierWidget),
+                                  ],
+                                );
+                              } else {
+                                return Column(
+                                  children: [
+                                    typeWidget,
+                                    const SizedBox(height: 14),
+                                    tierWidget,
+                                  ],
+                                );
+                              }
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                        // ── 3. TOP EARNERS TABLE ───────────────────────────────
+                        // 3. TOP EARNERS TABLE
                         Text('Top Inviter Earners', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: text1)),
                         const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: border),
-                            boxShadow: context.cardShadow,
-                          ),
-                          child: _topEarners.isEmpty
-                              ? Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Center(child: Text('No earning events recorded for this range.', style: GoogleFonts.inter(color: text2))),
-                                )
-                              : SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('#')),
-                                      DataColumn(label: Text('Shop Name')),
-                                      DataColumn(label: Text('Earning Events')),
-                                      DataColumn(label: Text('Total Earned')),
-                                    ],
-                                    rows: _topEarners.take(10).toList().asMap().entries.map((entry) {
-                                      final idx = entry.key + 1;
-                                      final row = entry.value;
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(Text('$idx', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
-                                          DataCell(Text('${row['shop_name'] ?? 'Unknown'}', style: GoogleFonts.inter(fontWeight: FontWeight.w600))),
-                                          DataCell(Text('${row['events_count'] ?? 0} events')),
-                                          DataCell(Text(_fmt(row['total_earned'] ?? 0), style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.bold, color: AppColors.accent))),
-                                        ],
-                                      );
-                                    }).toList(),
+                        RepaintBoundary(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                              boxShadow: context.cardShadow,
+                            ),
+                            child: _topEarners.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Center(child: Text('No earning events recorded for this range.', style: GoogleFonts.inter(color: text2))),
+                                  )
+                                : SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      columns: const [
+                                        DataColumn(label: Text('#')),
+                                        DataColumn(label: Text('Shop Name')),
+                                        DataColumn(label: Text('Earning Events')),
+                                        DataColumn(label: Text('Total Earned')),
+                                      ],
+                                      rows: _topEarners.take(10).toList().asMap().entries.map((entry) {
+                                        final idx = entry.key + 1;
+                                        final row = entry.value;
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(Text('$idx', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
+                                            DataCell(Text('${row['shop_name'] ?? 'Unknown'}', style: GoogleFonts.inter(fontWeight: FontWeight.w600))),
+                                            DataCell(Text('${row['events_count'] ?? 0} events')),
+                                            DataCell(Text(_fmt(row['total_earned'] ?? 0), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AdminColors.amber))),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                        // ── 4. PAYOUT RECIPIENTS SECTION ───────────────────────
+                        // 4. PAYOUT RECIPIENTS SECTION
                         LayoutBuilder(
                           builder: (context, constraints) {
                             final isWide = constraints.maxWidth >= 600;
@@ -555,19 +504,10 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                               ],
                             );
 
-                            final exportBtn = OutlinedButton.icon(
+                            final exportBtn = AdminButton.ghost(
+                              label: _isGeneratingPayoutPdf ? 'Exporting...' : 'Export History (PDF)',
+                              icon: _isGeneratingPayoutPdf ? null : Icons.picture_as_pdf_rounded,
                               onPressed: _isGeneratingPayoutPdf ? null : _exportPayoutHistoryPdf,
-                              icon: _isGeneratingPayoutPdf
-                                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
-                                  : const Text('📄', style: TextStyle(fontSize: 14)),
-                              label: Text(_isGeneratingPayoutPdf ? 'Exporting...' : 'Export Payout History (PDF)'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.accent,
-                                side: BorderSide(color: AppColors.accent),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                textStyle: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold),
-                              ),
                             );
 
                             if (isWide) {
@@ -609,7 +549,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.accent),
+                              borderSide: const BorderSide(color: AdminColors.indigo),
                             ),
                           ),
                           style: GoogleFonts.inter(fontSize: 13, color: text1),
@@ -617,68 +557,70 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                         const SizedBox(height: 12),
 
                         // Interactive Payout Recipients Table
-                        Container(
-                          decoration: BoxDecoration(
-                            color: surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: border),
-                            boxShadow: context.cardShadow,
-                          ),
-                          child: _filteredRecipients.isEmpty
-                              ? Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Center(child: Text('No payout recipients found.', style: GoogleFonts.inter(color: text2))),
-                                )
-                              : SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    sortColumnIndex: _sortColumnIndex,
-                                    sortAscending: _sortAscending,
-                                    columns: [
-                                      DataColumn(
-                                        label: const Text('Shop Name'),
-                                        onSort: (idx, asc) => _sortRecipients(idx, asc),
-                                      ),
-                                      DataColumn(
-                                        label: const Text('This Month Paid'),
-                                        numeric: true,
-                                        onSort: (idx, asc) => _sortRecipients(idx, asc),
-                                      ),
-                                      DataColumn(
-                                        label: const Text('Last Month Paid'),
-                                        numeric: true,
-                                        onSort: (idx, asc) => _sortRecipients(idx, asc),
-                                      ),
-                                      DataColumn(
-                                        label: const Text('Total Paid Lifetime'),
-                                        numeric: true,
-                                        onSort: (idx, asc) => _sortRecipients(idx, asc),
-                                      ),
-                                      DataColumn(
-                                        label: const Text('Last Payout Date'),
-                                        onSort: (idx, asc) => _sortRecipients(idx, asc),
-                                      ),
-                                    ],
-                                    rows: _filteredRecipients.map((r) {
-                                      final lastDateStr = r['last_payout_date'] != null
-                                          ? _dateFmt.format(DateTime.parse(r['last_payout_date'].toString()))
-                                          : '-';
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(Text('${r['shop_name'] ?? 'Unknown'}', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
-                                          DataCell(Text(_fmt(r['this_month_paid'] ?? 0), style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.bold, color: AppColors.accent))),
-                                          DataCell(Text(_fmt(r['last_month_paid'] ?? 0), style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w600))),
-                                          DataCell(Text(_fmt(r['total_paid_lifetime'] ?? 0), style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.bold))),
-                                          DataCell(Text(lastDateStr, style: GoogleFonts.inter(fontSize: 12, color: text2))),
-                                        ],
-                                      );
-                                    }).toList(),
+                        RepaintBoundary(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                              boxShadow: context.cardShadow,
+                            ),
+                            child: _filteredRecipients.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Center(child: Text('No payout recipients found.', style: GoogleFonts.inter(color: text2))),
+                                  )
+                                : SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      sortColumnIndex: _sortColumnIndex,
+                                      sortAscending: _sortAscending,
+                                      columns: [
+                                        DataColumn(
+                                          label: const Text('Shop Name'),
+                                          onSort: (idx, asc) => _sortRecipients(idx, asc),
+                                        ),
+                                        DataColumn(
+                                          label: const Text('This Month Paid'),
+                                          numeric: true,
+                                          onSort: (idx, asc) => _sortRecipients(idx, asc),
+                                        ),
+                                        DataColumn(
+                                          label: const Text('Last Month Paid'),
+                                          numeric: true,
+                                          onSort: (idx, asc) => _sortRecipients(idx, asc),
+                                        ),
+                                        DataColumn(
+                                          label: const Text('Total Paid Lifetime'),
+                                          numeric: true,
+                                          onSort: (idx, asc) => _sortRecipients(idx, asc),
+                                        ),
+                                        DataColumn(
+                                          label: const Text('Last Payout Date'),
+                                          onSort: (idx, asc) => _sortRecipients(idx, asc),
+                                        ),
+                                      ],
+                                      rows: _filteredRecipients.map((r) {
+                                        final lastDateStr = r['last_payout_date'] != null
+                                            ? _dateFmt.format(DateTime.parse(r['last_payout_date'].toString()))
+                                            : '-';
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(Text('${r['shop_name'] ?? 'Unknown'}', style: GoogleFonts.inter(fontWeight: FontWeight.bold))),
+                                            DataCell(Text(_fmt(r['this_month_paid'] ?? 0), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AdminColors.amber))),
+                                            DataCell(Text(_fmt(r['last_month_paid'] ?? 0), style: GoogleFonts.outfit(fontWeight: FontWeight.w600))),
+                                            DataCell(Text(_fmt(r['total_paid_lifetime'] ?? 0), style: GoogleFonts.outfit(fontWeight: FontWeight.bold))),
+                                            DataCell(Text(lastDateStr, style: GoogleFonts.inter(fontSize: 12, color: text2))),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                        // ── 5. FULL TRANSACTION LIST ───────────────────────────
+                        // 5. FULL TRANSACTION LIST
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -696,17 +638,11 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                               final isSelected = _txFilterType == filter;
                               return Padding(
                                 padding: const EdgeInsets.only(right: 6),
-                                child: ChoiceChip(
-                                  label: Text(filter),
-                                  selected: isSelected,
-                                  selectedColor: AppColors.accent.withValues(alpha: 0.15),
-                                  backgroundColor: context.surface2,
-                                  labelStyle: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                    color: isSelected ? AppColors.accent : text1,
-                                  ),
-                                  onSelected: (_) => setState(() => _txFilterType = filter),
+                                child: AdminChip(
+                                  label: filter,
+                                  isSelected: isSelected,
+                                  color: AdminColors.indigo,
+                                  onTap: () => setState(() => _txFilterType = filter),
                                 ),
                               );
                             }).toList(),
@@ -715,65 +651,56 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                         const SizedBox(height: 12),
 
                         // Transaction Ledger Table
-                        Container(
-                          decoration: BoxDecoration(
-                            color: surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: border),
-                            boxShadow: context.cardShadow,
-                          ),
-                          child: _filteredTransactions.isEmpty
-                              ? Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Center(child: Text('No transactions match the selected filter.', style: GoogleFonts.inter(color: text2))),
-                                )
-                              : SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Date')),
-                                      DataColumn(label: Text('Type')),
-                                      DataColumn(label: Text('Shop Name')),
-                                      DataColumn(label: Text('Dir')),
-                                      DataColumn(label: Text('Amount')),
-                                      DataColumn(label: Text('Status')),
-                                      DataColumn(label: Text('Receipt')),
-                                    ],
-                                    rows: _filteredTransactions.map((tx) {
-                                      final isOut = tx['direction'] == 'Out';
-                                      final dateStr = tx['date'] != null ? _dateFmt.format(DateTime.parse(tx['date'].toString())) : '-';
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(Text(dateStr, style: GoogleFonts.inter(fontSize: 12))),
-                                          DataCell(Text('${tx['type'] ?? '-'}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
-                                          DataCell(Text('${tx['shop_name'] ?? '-'}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold))),
-                                          DataCell(
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: isOut ? const Color(0xFFFFE4E6) : const Color(0xFFCCFBF1),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                isOut ? 'OUT' : 'IN',
-                                                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: isOut ? const Color(0xFFE11D48) : AppColors.accent),
+                        RepaintBoundary(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: border),
+                              boxShadow: context.cardShadow,
+                            ),
+                            child: _filteredTransactions.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Center(child: Text('No transactions match the selected filter.', style: GoogleFonts.inter(color: text2))),
+                                  )
+                                : SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      columns: const [
+                                        DataColumn(label: Text('Date')),
+                                        DataColumn(label: Text('Type')),
+                                        DataColumn(label: Text('Shop Name')),
+                                        DataColumn(label: Text('Dir')),
+                                        DataColumn(label: Text('Amount')),
+                                        DataColumn(label: Text('Status')),
+                                        DataColumn(label: Text('Receipt')),
+                                      ],
+                                      rows: _filteredTransactions.map((tx) {
+                                        final isOut = tx['direction'] == 'Out';
+                                        final dateStr = tx['date'] != null ? _dateFmt.format(DateTime.parse(tx['date'].toString())) : '-';
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(Text(dateStr, style: GoogleFonts.inter(fontSize: 12))),
+                                            DataCell(Text('${tx['type'] ?? '-'}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
+                                            DataCell(Text('${tx['shop_name'] ?? '-'}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold))),
+                                            DataCell(AdminDirectionPill(isOut: isOut)),
+                                            DataCell(Text(_fmt(tx['amount'] ?? 0), style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold))),
+                                            DataCell(Text('${tx['status'] ?? 'completed'}', style: GoogleFonts.inter(fontSize: 11, color: text2))),
+                                            DataCell(
+                                              AdminIconBtn(
+                                                icon: Icons.receipt_long_rounded,
+                                                size: 32,
+                                                tooltip: 'Download Invoice Receipt',
+                                                onPressed: () => _generateTransactionInvoicePdf(tx),
                                               ),
                                             ),
-                                          ),
-                                          DataCell(Text(_fmt(tx['amount'] ?? 0), style: GoogleFonts.jetBrainsMono(fontSize: 12, fontWeight: FontWeight.bold))),
-                                          DataCell(Text('${tx['status'] ?? 'completed'}', style: GoogleFonts.inter(fontSize: 11, color: text2))),
-                                          DataCell(
-                                            IconButton(
-                                              icon: const Text('📄', style: TextStyle(fontSize: 16)),
-                                              tooltip: 'Download Invoice Receipt',
-                                              onPressed: () => _generateTransactionInvoicePdf(tx),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
                         const SizedBox(height: 30),
                       ],
@@ -801,7 +728,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
         boxShadow: context.cardShadow,
       ),
@@ -810,64 +737,13 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: AppColors.accent),
+              Icon(icon, size: 18, color: AdminColors.indigo),
               const SizedBox(width: 8),
               Text(title, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: text1)),
             ],
           ),
           const SizedBox(height: 12),
           ...children,
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final String subtitle;
-
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.border),
-        boxShadow: context.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.text2)),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 18),
-              ),
-            ],
-          ),
-          Text(value, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900, color: context.text1)),
-          Text(subtitle, style: GoogleFonts.inter(fontSize: 10, color: context.text3), maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
     );
@@ -901,7 +777,7 @@ class _BreakdownRow extends StatelessWidget {
                 Text(detail, style: GoogleFonts.inter(fontSize: 9.5, color: context.text3)),
               ],
             ),
-            Text(value, style: GoogleFonts.jetBrainsMono(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent)),
+            Text(value, style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.amber)),
           ],
         ),
       ),

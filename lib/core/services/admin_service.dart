@@ -1811,6 +1811,201 @@ class AdminService {
       return [];
     }
   }
+
+  // =========================================================================
+  // ── SUBSCRIPTION MANAGEMENT ──────────────────────────────────────────────
+  // =========================================================================
+
+  Future<List<Map<String, dynamic>>> fetchSubscriptionPayments({String status = 'pending_admin_review'}) async {
+    try {
+      final res = await http.get(
+        _restUri('/subscription_payments?status=eq.$status&order=created_at.desc'),
+        headers: _adminHeaders,
+      );
+      if (res.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      }
+    } catch (e) {
+      debugPrint('Error fetching subscription payments: $e');
+    }
+    return [];
+  }
+
+  Future<bool> approveSubscriptionPayment({
+    required String paymentId,
+    required String shopId,
+    String? cycleId,
+  }) async {
+    try {
+      // 1. Mark payment as approved
+      final payRes = await http.patch(
+        _restUri('/subscription_payments?id=eq.$paymentId'),
+        headers: _restHeaders,
+        body: jsonEncode({'status': 'approved', 'reviewed_at': DateTime.now().toUtc().toIso8601String()}),
+      );
+      if (payRes.statusCode != 200 && payRes.statusCode != 204) return false;
+
+      // 2. Update usage cycle to paid
+      if (cycleId != null) {
+        await http.patch(
+          _restUri('/shop_usage_cycles?id=eq.$cycleId'),
+          headers: _restHeaders,
+          body: jsonEncode({'payment_status': 'paid', 'paid_at': DateTime.now().toUtc().toIso8601String()}),
+        );
+      }
+
+      // 3. Activate shop subscription
+      await http.patch(
+        _restUri('/shops?id=eq.$shopId'),
+        headers: _restHeaders,
+        body: jsonEncode({'subscription_status': 'active'}),
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('Error approving subscription payment: $e');
+      return false;
+    }
+  }
+
+  Future<bool> rejectSubscriptionPayment({required String paymentId, required String reason}) async {
+    try {
+      final res = await http.patch(
+        _restUri('/subscription_payments?id=eq.$paymentId'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'status': 'rejected',
+          'rejection_reason': reason,
+          'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      return res.statusCode == 200 || res.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error rejecting subscription payment: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchSubscriptionPlans() async {
+    try {
+      final res = await http.get(
+        _restUri('/subscription_plans?order=sort_order.asc'),
+        headers: _adminHeaders,
+      );
+      if (res.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      }
+    } catch (e) {
+      debugPrint('Error fetching subscription plans: $e');
+    }
+    return [];
+  }
+
+  Future<bool> upsertSubscriptionPlan(Map<String, dynamic> plan) async {
+    try {
+      final res = await http.post(
+        _restUri('/subscription_plans'),
+        headers: {
+          ..._restHeaders,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: jsonEncode(plan),
+      );
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (e) {
+      debugPrint('Error upserting subscription plan: $e');
+      return false;
+    }
+  }
+
+  Future<bool> grantLifetimeAccess(String shopId, {double storageGb = 5.0}) async {
+    try {
+      final res = await http.patch(
+        _restUri('/shops?id=eq.$shopId'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'lifetime_access': true,
+          'subscription_status': 'lifetime',
+          'plan_code': 'unlimited',
+          'lifetime_storage_limit_bytes': (storageGb * 1073741824).toInt(),
+        }),
+      );
+      return res.statusCode == 200 || res.statusCode == 204;
+    } catch (e) {
+      debugPrint('Error granting lifetime access: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchSubscriptionStats() async {
+    try {
+      // Fetch all shops with subscription columns
+      final res = await http.get(
+        _restUri('/shops?select=plan_code,subscription_status,billing_cycle_end&status=neq.deleted'),
+        headers: _adminHeaders,
+      );
+      if (res.statusCode != 200) return {};
+
+      final shops = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+
+      // Calculate plan prices from subscription_plans table
+      final plansRes = await http.get(
+        _restUri('/subscription_plans?select=code,price_pkr'),
+        headers: _adminHeaders,
+      );
+      final planPriceMap = <String, int>{};
+      if (plansRes.statusCode == 200) {
+        for (final p in List<Map<String, dynamic>>.from(jsonDecode(plansRes.body))) {
+          planPriceMap[p['code'] as String] = (p['price_pkr'] as int?) ?? 0;
+        }
+      }
+
+      // Aggregate
+      final planCounts = <String, int>{};
+      int mrr = 0;
+      int graceCount = 0;
+      int readOnlyCount = 0;
+      int lifetimeCount = 0;
+      final now = DateTime.now();
+      int upcomingRenewals = 0;
+
+      for (final shop in shops) {
+        final planCode = shop['plan_code'] as String? ?? 'trial';
+        final status = shop['subscription_status'] as String? ?? 'trial';
+        final cycleEnd = shop['billing_cycle_end'] as String?;
+
+        planCounts[planCode] = (planCounts[planCode] ?? 0) + 1;
+
+        if (status == 'lifetime') {
+          lifetimeCount++;
+        } else if (status == 'active' || status == 'expiring') {
+          mrr += planPriceMap[planCode] ?? 0;
+        } else if (status == 'grace') {
+          graceCount++;
+        } else if (status == 'read_only') {
+          readOnlyCount++;
+        }
+
+        if (cycleEnd != null) {
+          final end = DateTime.tryParse(cycleEnd);
+          if (end != null && end.isAfter(now) && end.isBefore(now.add(const Duration(days: 7)))) {
+            upcomingRenewals++;
+          }
+        }
+      }
+
+      return {
+        'mrr': mrr,
+        'plan_counts': planCounts,
+        'grace_count': graceCount,
+        'read_only_count': readOnlyCount,
+        'lifetime_count': lifetimeCount,
+        'upcoming_renewals_7d': upcomingRenewals,
+        'total_shops': shops.length,
+      };
+    } catch (e) {
+      debugPrint('Error fetching subscription stats: $e');
+      return {};
+    }
+  }
 }
-
-

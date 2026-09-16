@@ -109,3 +109,17 @@ final adminReportsDataProvider = FutureProvider<Map<String, dynamic>>((ref) asyn
   return await AdminService.instance.fetchReportsData(startDate: start, endDate: end);
 });
 
+// Subscription payments pending admin review
+final adminSubscriptionPaymentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return await AdminService.instance.fetchSubscriptionPayments();
+});
+
+// Subscription plan definitions (admin CRUD)
+final adminSubscriptionPlansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return await AdminService.instance.fetchSubscriptionPlans();
+});
+
+// Subscription stats: MRR, plan breakdown, grace/read-only counts, upcoming renewals
+final adminSubscriptionStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return await AdminService.instance.fetchSubscriptionStats();
+});

@@ -11,6 +11,8 @@ import '../../shared/models/models.dart';
 import '../customers/add_customer_modal.dart';
 import '../orders/new_order_modal.dart';
 import '../storage/storage_addon_modal.dart';
+import '../billing/widgets/readonly_banner.dart';
+import '../billing/widgets/usage_widget.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -449,7 +451,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               physics: const BouncingScrollPhysics(),
               children: [
                 headerWidget,
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
+                const ReadOnlyBanner(),
+                const SizedBox(height: 10),
+                const UsageWidget(compact: true),
+                const SizedBox(height: 16),
                 // Storage warning banner (shows at 80%+ usage, hidden if addon active)
                 _StorageWarningBanner(shopAsync: shopAsync),
                 revenueWidget,

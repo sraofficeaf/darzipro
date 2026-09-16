@@ -10,6 +10,7 @@ import '../models/models.dart';
 import 'supabase_providers.dart';
 import 'sync_manager.dart';
 import 'license_provider.dart';
+import 'subscription_provider.dart';
 
 // ── Theme Provider ─────────────────────────────────────────────────────
 final themeModeProvider = StateProvider<ThemeMode>((ref) {
@@ -135,6 +136,8 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
         await supabase.from('customers').insert(json);
         final bytes = utf8.encode(jsonEncode(json)).length;
         await StorageService.instance.incrementStorageUsed(shopId, bytes);
+        // Non-blocking subscription check — customer creation always succeeds first
+        _ref.read(subscriptionStateProvider.notifier).onCustomerCreated();
         await _fetchCustomers();
       } catch (e) {
         final errStr = e.toString().toLowerCase();
@@ -416,6 +419,8 @@ class OrdersNotifier extends StateNotifier<AsyncValue<List<OrderModel>>> {
           });
         }
 
+        // Non-blocking subscription check — order always succeeds first
+        _ref.read(subscriptionStateProvider.notifier).onOrderCreated();
         await _fetchOrders();
       } catch (e) {
         final errStr = e.toString().toLowerCase();
@@ -832,16 +837,43 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
     if (shopId == null) return;
 
     final currentList = state.value ?? [];
-    final exists = currentList.any((m) => m.id == measurement.id);
-    final newList = exists
-        ? [for (final m in currentList) if (m.id == measurement.id) measurement else m]
-        : [measurement, ...currentList];
+    final normProfile = measurement.profileName.trim().toLowerCase();
+
+    // 1 customer ke liye same profile name (e.g. Shalwar Kameez) ka 1 hi record ho
+    final existingIndex = currentList.indexWhere(
+      (m) => m.id == measurement.id ||
+             (m.customerId == measurement.customerId &&
+              m.profileName.trim().toLowerCase() == normProfile),
+    );
+
+    final exists = existingIndex != -1;
+    final effectiveId = exists ? currentList[existingIndex].id : measurement.id;
+    final effectiveMeasurement = MeasurementModel(
+      id: effectiveId,
+      customerId: measurement.customerId,
+      title: measurement.title,
+      profileName: measurement.profileName,
+      category: measurement.category,
+      sections: measurement.sections,
+      updatedAt: DateTime.now(),
+      silaiOptions: measurement.silaiOptions,
+      silaiNotes: measurement.silaiNotes,
+    );
+
+    // Older duplicate entries for the same customer + profile name ko remove karo
+    final otherItems = currentList.where(
+      (m) => m.id != effectiveId &&
+             !(m.customerId == measurement.customerId &&
+               m.profileName.trim().toLowerCase() == normProfile),
+    ).toList();
+
+    final newList = [effectiveMeasurement, ...otherItems];
 
     await _updateLocalCache(newList);
 
     if (isCloudEnabled) {
       final supabase = _ref.read(supabaseClientProvider);
-      final json = measurement.toJson(shopId);
+      final json = effectiveMeasurement.toJson(shopId);
       try {
         await supabase.from('measurements').upsert(json);
         final bytes = utf8.encode(jsonEncode(json)).length;
@@ -862,6 +894,25 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
           await _fetchMeasurements();
           rethrow;
         }
+      }
+    }
+  }
+
+  Future<void> deleteMeasurement(String id) async {
+    final shopId = _ref.read(currentShopIdProvider);
+    if (shopId == null) return;
+
+    final currentList = state.value ?? [];
+    final newList = currentList.where((m) => m.id != id).toList();
+    await _updateLocalCache(newList);
+
+    if (isCloudEnabled) {
+      final supabase = _ref.read(supabaseClientProvider);
+      try {
+        await supabase.from('measurements').delete().eq('id', id);
+        await _fetchMeasurements();
+      } catch (e) {
+        debugPrint('Error deleting measurement: $e');
       }
     }
   }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/utils/plan_utils.dart';
+import 'widgets/admin_ui_kit.dart';
 
 class AdminVpsResourcesScreen extends StatefulWidget {
   const AdminVpsResourcesScreen({super.key});
@@ -82,205 +82,208 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Header ───────────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: surface,
-                border: Border(bottom: BorderSide(color: border)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '🖥️ VPS Server & Shop Resource Usage',
-                          style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: text1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Monitor real-time VPS CPU load, database storage, and feature usage per shop',
-                          style: GoogleFonts.inter(fontSize: 12, color: text2),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    tooltip: 'Refresh Analytics',
-                    onPressed: _loadVpsUsageData,
-                  ),
-                ],
+            // Top Header (RepaintBoundary for zero scroll cost)
+            RepaintBoundary(
+              child: AdminPageHeader(
+                title: 'VPS Server & Shop Resource Usage',
+                subtitle: 'Monitor real-time VPS CPU load, database storage, and feature usage per shop',
+                action: AdminIconBtn(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh Analytics',
+                  onPressed: _loadVpsUsageData,
+                ),
               ),
             ),
 
-            // ── Body ─────────────────────────────────────────────────────────
+            // Body
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+                  ? const Center(child: CircularProgressIndicator(color: AdminColors.indigo))
                   : RefreshIndicator(
                       onRefresh: _loadVpsUsageData,
-                      color: AppColors.accent,
+                      color: AdminColors.indigo,
                       child: ListView(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(16),
                         children: [
-                          // ── Live VPS System Hardware Health Panel ────────────────
+                          // Live VPS System Hardware Health Panel
+                          RepaintBoundary(
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: border),
+                                boxShadow: context.cardShadow,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: const BoxDecoration(
+                                              color: AdminColors.emerald,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'VPS Server Health: ONLINE & HEALTHY (99.9% Uptime)',
+                                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AdminColors.emerald),
+                                          ),
+                                        ],
+                                      ),
+                                      Text('Host: Supabase Cloud VPS', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Divider(),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.memory_rounded, size: 16, color: AdminColors.blue),
+                                            const SizedBox(width: 6),
+                                            Text('Server RAM: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Text('1.8 GB / 4.0 GB (45%)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.dns_rounded, size: 16, color: AdminColors.violet),
+                                            const SizedBox(width: 6),
+                                            Text('SSD Disk: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Text('12.4 GB / 80.0 GB (15%)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.speed_rounded, size: 16, color: AdminColors.emerald),
+                                            const SizedBox(width: 6),
+                                            Text('CPU Cores: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Text('4 Cores @ 2.4 GHz', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // VPS Health Summary Cards (3 cards)
+                          RepaintBoundary(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isWide = constraints.maxWidth >= 700;
+                                final cards = [
+                                  AdminStatCard(
+                                    icon: Icons.storage_rounded,
+                                    color: AdminColors.blue,
+                                    title: 'Total Storage Occupied',
+                                    value: _fmtBytes(totalVpsBytes),
+                                    subtitle: 'Across ${_allShops.length} registered shops',
+                                  ),
+                                  AdminStatCard(
+                                    icon: Icons.memory_rounded,
+                                    color: AdminColors.emerald,
+                                    title: 'Estimated VPS CPU Load',
+                                    value: '${totalCpu.toStringAsFixed(1)}%',
+                                    subtitle: 'Current system usage',
+                                  ),
+                                  AdminStatCard(
+                                    icon: Icons.data_usage_rounded,
+                                    color: AdminColors.violet,
+                                    title: 'Daily Database Ops',
+                                    value: '$totalDbOps',
+                                    subtitle: 'Read/Write queries',
+                                  ),
+                                ];
+
+                                if (isWide) {
+                                  return Row(
+                                    children: cards.map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: c))).toList(),
+                                  );
+                                } else {
+                                  return Column(
+                                    children: cards.map((c) => Padding(padding: const EdgeInsets.only(bottom: 10), child: c)).toList(),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Search & Filters Toolbar
                           Container(
-                            padding: const EdgeInsets.all(16),
-                            margin: const EdgeInsets.only(bottom: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
                               color: surface,
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: border),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 10,
-                                          height: 10,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFF10B981),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'VPS Server Health: ONLINE & HEALTHY (99.9% Uptime)',
-                                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF10B981)),
-                                        ),
-                                      ],
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 38,
+                                    child: TextField(
+                                      onChanged: (val) {
+                                        _searchQuery = val;
+                                        _applyFilters();
+                                      },
+                                      style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                      decoration: InputDecoration(
+                                        hintText: 'Search by shop name, phone, or city...',
+                                        hintStyle: GoogleFonts.inter(fontSize: 12, color: text2),
+                                        prefixIcon: Icon(Icons.search_rounded, size: 18, color: text2),
+                                        contentPadding: EdgeInsets.zero,
+                                        filled: true,
+                                        fillColor: bg,
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: border)),
+                                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: border)),
+                                      ),
                                     ),
-                                    Text('Host: Supabase Cloud VPS', style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                                  ],
+                                  ),
                                 ),
-                                const SizedBox(height: 14),
-                                const Divider(),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.memory_rounded, size: 16, color: Color(0xFF3B82F6)),
-                                          const SizedBox(width: 6),
-                                          Text('Server RAM: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                          Text('1.8 GB / 4.0 GB (45%)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.dns_rounded, size: 16, color: Color(0xFF8B5CF6)),
-                                          const SizedBox(width: 6),
-                                          Text('SSD Disk: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                          Text('12.4 GB / 80.0 GB (15%)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.speed_rounded, size: 16, color: Color(0xFF10B981)),
-                                          const SizedBox(width: 6),
-                                          Text('CPU Cores: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                          Text('4 Cores @ 2.4 GHz', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
-                                        ],
-                                      ),
-                                    ),
+                                const SizedBox(width: 12),
+                                DropdownButton<String>(
+                                  value: _selectedTier,
+                                  dropdownColor: surface,
+                                  underline: const SizedBox.shrink(),
+                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: text1),
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('All Tiers')),
+                                    DropdownMenuItem(value: 'mobile_only', child: Text('Basic Plan')),
+                                    DropdownMenuItem(value: 'full_access', child: Text('Professional')),
+                                    DropdownMenuItem(value: 'full_access_3yr', child: Text('Enterprise')),
                                   ],
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      _selectedTier = val;
+                                      _applyFilters();
+                                    }
+                                  },
                                 ),
                               ],
                             ),
                           ),
+                          const SizedBox(height: 14),
 
-                          // ── VPS Health Summary Cards ───────────────────────
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _MetricSummaryCard(
-                                  icon: Icons.storage_rounded,
-                                  color: const Color(0xFF3B82F6),
-                                  title: 'Total Storage Occupied',
-                                  value: _fmtBytes(totalVpsBytes),
-                                  subtitle: 'Across ${_allShops.length} registered shops',
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _MetricSummaryCard(
-                                  icon: Icons.memory_rounded,
-                                  color: const Color(0xFF10B981),
-                                  title: 'Estimated VPS CPU Load',
-                                  value: '${totalCpu.toStringAsFixed(1)}%',
-                                  subtitle: 'Current system usage',
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _MetricSummaryCard(
-                                  icon: Icons.data_usage_rounded,
-                                  color: const Color(0xFF8B5CF6),
-                                  title: 'Daily Database Ops',
-                                  value: '$totalDbOps',
-                                  subtitle: 'Read/Write queries',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-
-                          // ── Search & Filters ──────────────────────────────
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  onChanged: (val) {
-                                    _searchQuery = val;
-                                    _applyFilters();
-                                  },
-                                  decoration: InputDecoration(
-                                    hintText: 'Search by shop name, phone, or city...',
-                                    prefixIcon: const Icon(Icons.search_rounded),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              DropdownButton<String>(
-                                value: _selectedTier,
-                                underline: const SizedBox.shrink(),
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('All Tiers')),
-                                  DropdownMenuItem(value: 'mobile_only', child: Text('Basic Plan')),
-                                  DropdownMenuItem(value: 'full_access', child: Text('Professional')),
-                                  DropdownMenuItem(value: 'full_access_3yr', child: Text('Enterprise')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    _selectedTier = val;
-                                    _applyFilters();
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // ── Shops Resource Consumption List ────────────────
+                          // Shops Resource Consumption List
                           if (_filteredShops.isEmpty)
                             Center(
                               child: Padding(
@@ -289,9 +292,11 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
                               ),
                             )
                           else
-                            ..._filteredShops.map((shop) => _ShopResourceCard(
-                                  shop: shop,
-                                  fmtBytes: _fmtBytes,
+                            ..._filteredShops.map((shop) => RepaintBoundary(
+                                  child: _ShopResourceCard(
+                                    shop: shop,
+                                    fmtBytes: _fmtBytes,
+                                  ),
                                 )),
                         ],
                       ),
@@ -304,20 +309,11 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
   }
 }
 
-class _MetricSummaryCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String value;
-  final String subtitle;
+class _ShopResourceCard extends StatelessWidget {
+  final Map<String, dynamic> shop;
+  final String Function(int bytes) fmtBytes;
 
-  const _MetricSummaryCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.value,
-    required this.subtitle,
-  });
+  const _ShopResourceCard({required this.shop, required this.fmtBytes});
 
   @override
   Widget build(BuildContext context) {
@@ -326,96 +322,50 @@ class _MetricSummaryCard extends StatelessWidget {
     final text1 = context.text1;
     final text2 = context.text2;
 
+    final name = shop['name'] ?? 'Unnamed Shop';
+    final plan = shop['plan'] ?? 'mobile_only';
+    final city = shop['city'] ?? 'N/A';
+    final phone = shop['phone'] ?? 'N/A';
+
+    final bytes = (shop['storage_used_bytes'] as int? ?? 0);
+    final quotaMb = PlanUtils.getStorageQuotaMb(plan);
+    final quotaBytes = quotaMb * 1024 * 1024;
+    final pctUsed = (bytes / quotaBytes).clamp(0.0, 1.0);
+
+    final dbOps = shop['est_db_ops'] as int? ?? 0;
+    final cpuPct = shop['est_cpu_pct'] as double? ?? 0.0;
+
+    final (planLabel, planColor) = _getPlanDetails(plan);
+
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  title,
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: text2),
-                  overflow: TextOverflow.ellipsis,
+                  name,
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1),
                 ),
               ),
+              AdminBadge(label: planLabel, color: planColor),
             ],
           ),
+          const SizedBox(height: 4),
+          Text('$city · $phone', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: text1),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: GoogleFonts.inter(fontSize: 11, color: text2),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
-class _ShopResourceCard extends StatelessWidget {
-  final Map<String, dynamic> shop;
-  final String Function(int) fmtBytes;
-
-  const _ShopResourceCard({
-    required this.shop,
-    required this.fmtBytes,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final surface = context.surface;
-    final border = context.border;
-    final text1 = context.text1;
-    final text2 = context.text2;
-
-    final planStr = shop['plan'] as String? ?? 'mobile_only';
-    final planInfo = AppPlanUtils.getDisplayInfo(planStr);
-    final planName = planInfo.$1;
-    final planColor = planInfo.$2;
-    final bytesUsed = shop['storage_used_bytes'] as int? ?? 0;
-    final addonActive = shop['storage_addon_active'] == true;
-    final isUnlimited = planStr == 'full_access_3yr' || addonActive;
-    final limitBytes = isUnlimited ? 500 * 1024 * 1024 : 1.5 * 1024 * 1024;
-    final usagePct = (bytesUsed / limitBytes).clamp(0.0, 1.0);
-
-    final cCount = shop['customer_count'] as int? ?? 0;
-    final mCount = shop['measurement_count'] as int? ?? 0;
-    final oCount = shop['order_count'] as int? ?? 0;
-    final estCpu = shop['est_cpu_pct'] as double? ?? 0.0;
-    final estOps = shop['est_db_ops'] as int? ?? 0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
+          // Resource meters
           Row(
             children: [
               Expanded(
@@ -423,167 +373,51 @@ class _ShopResourceCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          shop['name'] ?? 'Unnamed Shop',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: text1),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: planColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: planColor.withValues(alpha: 0.3)),
-                          ),
-                          child: Text(
-                            planName,
-                            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: planColor),
-                          ),
-                        ),
-                        if (addonActive) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-                            ),
-                            child: Text(
-                              '💾 Unlimited Storage',
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF10B981)),
-                            ),
-                          ),
-                        ],
+                        Text('Storage Quota', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                        Text('${fmtBytes(bytes)} / ${quotaMb}MB', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: text1)),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '📞 ${shop['phone']}  •  📍 ${shop['city']}',
-                      style: GoogleFonts.inter(fontSize: 12, color: text2),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: pctUsed,
+                      backgroundColor: border,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        pctUsed > 0.8 ? AdminColors.rose : AdminColors.indigo,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 16),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    'CPU Load: $estCpu%',
-                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: estCpu > 5.0 ? Colors.orange : AppColors.accent),
-                  ),
-                  Text(
-                    '~ $estOps DB Ops/day',
-                    style: GoogleFonts.inter(fontSize: 11, color: text2),
-                  ),
+                  Text('Est. CPU', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                  Text('${cpuPct.toStringAsFixed(1)}%', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.emerald)),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('DB Ops', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                  Text('$dbOps', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.violet)),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Storage Bar
-          Row(
-            children: [
-              Text('Database Storage:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: text1)),
-              const SizedBox(width: 8),
-              Text(
-                '${fmtBytes(bytesUsed)} ${isUnlimited ? '(Unlimited Plan)' : 'of 1.5 MB limit'}',
-                style: GoogleFonts.inter(fontSize: 12, color: text2),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: isUnlimited ? 0.05 : usagePct,
-              minHeight: 8,
-              backgroundColor: border,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                usagePct >= 0.9 ? Colors.red : (usagePct >= 0.75 ? Colors.orange : const Color(0xFF10B981)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Feature Usage Breakdown Tiles
-          Text('🧩 VPS Feature-by-Feature Resource Usage:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: text1)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              _FeatureChip(
-                icon: Icons.people_rounded,
-                label: 'Customers Book',
-                value: '$cCount recs (${fmtBytes(shop['customer_bytes'] as int? ?? 0)})',
-                color: const Color(0xFF3B82F6),
-              ),
-              _FeatureChip(
-                icon: Icons.straighten_rounded,
-                label: 'Naap / Measurements',
-                value: '$mCount recs (${fmtBytes(shop['measurement_bytes'] as int? ?? 0)})',
-                color: const Color(0xFF8B5CF6),
-              ),
-              _FeatureChip(
-                icon: Icons.shopping_bag_rounded,
-                label: 'Orders & Slips',
-                value: '$oCount orders (${fmtBytes(shop['order_bytes'] as int? ?? 0)})',
-                color: const Color(0xFF10B981),
-              ),
-              _FeatureChip(
-                icon: Icons.image_rounded,
-                label: 'Media & Attachments',
-                value: fmtBytes(shop['other_bytes'] as int? ?? 0),
-                color: const Color(0xFFF59E0B),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
-}
 
-class _FeatureChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _FeatureChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            '$label: ',
-            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: context.text1),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: color),
-          ),
-        ],
-      ),
-    );
-  }
+  (String, Color) _getPlanDetails(String plan) => switch (plan) {
+        'mobile_only' => ('Basic Plan', AdminColors.blue),
+        'full_access' => ('Professional', AdminColors.amber),
+        'full_access_3yr' => ('Enterprise', AdminColors.emerald),
+        _ => ('Basic Plan', AdminColors.blue),
+      };
 }

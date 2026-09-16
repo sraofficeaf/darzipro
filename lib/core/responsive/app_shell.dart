@@ -10,11 +10,10 @@ import '../constants/app_translations.dart';
 import 'responsive.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/providers/license_provider.dart';
+import '../services/license/license_model.dart';
 import '../../shared/providers/supabase_providers.dart';
 import '../../shared/providers/reminders_provider.dart';
-import '../../core/services/license/license_model.dart';
-import '../config/supabase_config.dart';
-import '../widgets/shared_widgets.dart';
+import '../../features/billing/widgets/readonly_banner.dart';
 import '../theme/theme_extensions.dart';
 import '../../shared/widgets/dashboard_switcher.dart';
 
@@ -65,32 +64,10 @@ class _DesktopShell extends ConsumerWidget {
           _Sidebar(currentSection: currentSection),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _TopBar(currentSection: currentSection),
-                Consumer(builder: (context, ref, _) {
-                  final license = ref.watch(licenseProvider);
-                  if (license.isExpiringSoon) {
-                    return Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      color: AppColors.accentS,
-                      child: Row(children: [
-                        const Text('⚠️'),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Pro plan expires in ${license.daysRemaining} days.',
-                          style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent),
-                        ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => context.push('/upgrade'),
-                          child: Text('Renew →', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.accent)),
-                        ),
-                      ]),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                }),
+                const ReadOnlyBanner(),
                 Expanded(child: child),
               ],
             ),
@@ -315,7 +292,6 @@ class _Sidebar extends ConsumerWidget {
 
     final shopAsync = ref.watch(currentShopProvider);
     final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
-    final logoUrl = shopAsync.value?['logo_url'] as String?;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -342,8 +318,9 @@ class _Sidebar extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Brand Header
+          // Brand Header / Panel Switcher
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
@@ -352,60 +329,9 @@ class _Sidebar extends ConsumerWidget {
                 ),
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: logoUrl != null && logoUrl.isNotEmpty
-                        ? Image.network(
-                            logoUrl.startsWith('http') || logoUrl.startsWith('assets')
-                                ? logoUrl
-                                : '${SupabaseConfig.shopLogosUrl}/$logoUrl',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Image.asset(
-                              'assets/logo/app_logo.png',
-                              fit: BoxFit.cover,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          )
-                        : Image.asset(
-                            'assets/logo/app_logo.png',
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.high,
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Darzi Pro',
-                      style: GoogleFonts.outfit(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: context.text1,
-                      ),
-                    ),
-                    Text(
-                      'TAILOR SUITE',
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: context.text3,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            child: const DashboardSwitcherDropdown(
+              currentMode: DashboardMode.shop,
+              compact: false,
             ),
           ),
 
@@ -1405,6 +1331,7 @@ class _TopBarState extends ConsumerState<_TopBar> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
+          width: double.infinity,
           height: 58,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
@@ -1417,81 +1344,86 @@ class _TopBarState extends ConsumerState<_TopBar> {
             ),
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                titleText,
-                style: GoogleFonts.outfit(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: context.text1,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Flexible(
-                child: CompositedTransformTarget(
-                  link: _layerLink,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _isFocused 
-                          ? context.accentBg
-                          : context.surface2,
-                      border: Border.all(
-                        color: _isFocused 
-                            ? context.accent 
-                            : context.border,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search_rounded,
-                          color: context.text3,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            onChanged: (val) {
-                              if (val.isNotEmpty) {
-                                _showOverlay();
-                              } else {
-                                _hideOverlay();
-                              }
-                            },
-                            style: GoogleFonts.inter(
-                              fontSize: 12, 
-                              color: context.text1,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search...',
-                              hintStyle: GoogleFonts.inter(
-                                fontSize: 12, 
-                                color: context.text3,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
+              // ── Left: Title + Search Bar ──
               Row(
-
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Green Dollar Earn Button ──
+                  Text(
+                    titleText,
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: context.text1,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  CompositedTransformTarget(
+                    link: _layerLink,
+                    child: Container(
+                      width: 280,
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _isFocused 
+                            ? context.accentBg
+                            : context.surface2,
+                        border: Border.all(
+                          color: _isFocused 
+                              ? context.accent 
+                              : context.border,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.search_rounded,
+                            color: context.text3,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              onChanged: (val) {
+                                if (val.isNotEmpty) {
+                                  _showOverlay();
+                                } else {
+                                  _hideOverlay();
+                                }
+                              },
+                              style: GoogleFonts.inter(
+                                fontSize: 12, 
+                                color: context.text1,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search...',
+                                hintStyle: GoogleFonts.inter(
+                                  fontSize: 12, 
+                                  color: context.text3,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // ── Right: Action Icons & Profile Avatar ──
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Green Dollar Earn Button
                   GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
@@ -1517,40 +1449,12 @@ class _TopBarState extends ConsumerState<_TopBar> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  _buildTopBarIconButton(
-                    icon: Icons.print_rounded,
-                    onTap: () {
-                      final selectedOrderId = ref.read(selectedOrderIdProvider);
-                      if (selectedOrderId != null) {
-                        context.push('/print/$selectedOrderId');
-                      } else {
-                        showAppSnackBar(
-                          context: context,
-                          message: 'Pehle ek order select karein! / Please select an order first!',
-                          isError: true,
-                        );
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                   _buildTopBarIconButton(
                     icon: Icons.notifications_rounded,
                     hasBadge: hasUnread,
                     onTap: () => _showNotificationsDialog(context, ref),
                   ),
-                  const SizedBox(width: 4),
-                  _buildTopBarIconButton(
-                    icon: Icons.settings_rounded,
-                    onTap: () => context.push('/profile'),
-                  ),
-                  const SizedBox(width: 10),
-                  // ── Unified Dashboard Switcher ────────────────
-                  const DashboardSwitcherDropdown(
-                    currentMode: DashboardMode.shop,
-                    compact: false,
-                  ),
-
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => context.push('/profile'),
@@ -1576,7 +1480,6 @@ class _TopBarState extends ConsumerState<_TopBar> {
                     ),
                   ),
                 ],
-
               ),
             ],
           ),

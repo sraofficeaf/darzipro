@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../shared/providers/admin_providers.dart';
+import 'widgets/admin_ui_kit.dart';
 
 class AdminRevenueScreen extends ConsumerStatefulWidget {
   const AdminRevenueScreen({super.key});
@@ -25,14 +25,7 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = context.bg;
-    final surface = context.surface;
-    final border = context.border;
-    final text1 = context.text1;
-    final text2 = context.text2;
-
     final reportsAsync = ref.watch(adminReportsDataProvider);
-
     final reportsData = reportsAsync.valueOrNull ?? {};
     final rawTxs = List<Map<String, dynamic>>.from(reportsData['transactions'] ?? []);
 
@@ -45,11 +38,9 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
         'payment_method': t['payment_method'] ?? 'Online',
         'transaction_id': t['transaction_id'] ?? 'N/A',
         'status': (t['status'] ?? 'approved').toString(),
-
         'date': t['date'] ?? '',
       };
     }).toList();
-
 
     // Calculate totals
     int totalRev = 0;
@@ -97,285 +88,401 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
       return shop.contains(query) || tx.contains(query);
     }).toList();
 
-    final isWide = MediaQuery.of(context).size.width >= 720;
-
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: context.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header Bar ─────────────────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '💰 Revenue & Financials',
-                        style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: text1),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Combined financials from registrations, upgrades, and storage add-ons',
-                        style: GoogleFonts.inter(fontSize: 12, color: text2),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    color: text2,
-                    onPressed: () {
-                      ref.invalidate(adminAllRegistrationsProvider);
-                      ref.invalidate(adminUpgradeRequestsProvider);
-                      ref.invalidate(adminStorageAddonsProvider);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // ── Metric Cards ───────────────────────────────────────────
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final w = constraints.maxWidth;
-                  final cardW = w >= 600 ? (w - 24) / 3 : w;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(width: cardW, child: _buildMetricCard(context, 'TOTAL REVENUE', 'Rs ${_fmt(totalRev)}', const Color(0xFF10B981))),
-                      SizedBox(width: cardW, child: _buildMetricCard(context, 'REGISTRATIONS', 'Rs ${_fmt(regRev)}', const Color(0xFF3B82F6))),
-                      SizedBox(width: cardW, child: _buildMetricCard(context, 'UPGRADES & STORAGE', 'Rs ${_fmt(upgRev + storageRev)}', const Color(0xFFF5A623))),
-                    ],
-                  );
+        child: Column(
+          children: [
+            // ── Top Header ─────────────────────────────────────────────
+            AdminPageHeader(
+              title: 'Revenue & Financials',
+              subtitle: 'Combined financials from registrations, upgrades, and storage add-ons',
+              action: AdminButton(
+                label: 'Refresh',
+                icon: Icons.refresh_rounded,
+                isOutlined: true,
+                onPressed: () {
+                  ref.invalidate(adminAllRegistrationsProvider);
+                  ref.invalidate(adminUpgradeRequestsProvider);
+                  ref.invalidate(adminStorageAddonsProvider);
+                  ref.invalidate(adminReportsDataProvider);
                 },
               ),
-              const SizedBox(height: 20),
+            ),
 
-              // ── Revenue Split Breakdown ───────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('📊 Revenue Split by Type', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
-                    const SizedBox(height: 12),
-                    _SplitRow(title: '📱 Registrations', amount: regRev, color: const Color(0xFF3B82F6)),
-                    const Divider(),
-                    _SplitRow(title: '⭐ Plan Upgrades', amount: upgRev, color: const Color(0xFFF5A623)),
-                    const Divider(),
-                    _SplitRow(title: '💾 Storage Add-ons', amount: storageRev, color: const Color(0xFF10B981)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // ── Payment Methods Breakdown ───────────────────────────────
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final w = constraints.maxWidth;
-                  final cardW = w >= 600 ? (w - 24) / 3 : w;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(width: cardW, child: _buildMethodCard(context, 'Easypaisa', 'Rs ${_fmt(easypaisaTotal)}', const Color(0xFF10B981))),
-                      SizedBox(width: cardW, child: _buildMethodCard(context, 'JazzCash', 'Rs ${_fmt(jazzcashTotal)}', const Color(0xFFF5A623))),
-                      SizedBox(width: cardW, child: _buildMethodCard(context, 'Bank Transfer', 'Rs ${_fmt(bankTotal)}', const Color(0xFF3B82F6))),
-                    ],
-                  );
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── Filter & Search Bar ────────────────────────────────────
-              Row(
+            // ── Content Scrollable ──────────────────────────────────────
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Search by shop name or tx ID...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  // ── Metric Cards ───────────────────────────────────────────
+                  RepaintBoundary(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        final cardW = w >= 800 ? (w - 32) / 3 : (w >= 540 ? (w - 16) / 2 : w);
+                        return Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: [
+                            SizedBox(
+                              width: cardW,
+                              child: AdminStatCard(
+                                title: 'Total Revenue',
+                                value: 'Rs ${_fmt(totalRev)}',
+                                icon: Icons.account_balance_wallet_rounded,
+                                color: AdminColors.emerald,
+                                subtext: '${combinedPayments.length} verified payments',
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardW,
+                              child: AdminStatCard(
+                                title: 'Registrations',
+                                value: 'Rs ${_fmt(regRev)}',
+                                icon: Icons.how_to_reg_rounded,
+                                color: AdminColors.blue,
+                                subtext: 'Base shop license fees',
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardW,
+                              child: AdminStatCard(
+                                title: 'Upgrades & Storage',
+                                value: 'Rs ${_fmt(upgRev + storageRev)}',
+                                icon: Icons.upgrade_rounded,
+                                color: AdminColors.amber,
+                                subtext: 'Plan diffs & storage renewals',
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Revenue Split & Payment Gateway Summary ───────────────
+                  RepaintBoundary(
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: context.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.border),
+                        boxShadow: context.cardShadow,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '📊 Revenue Breakdown by Category',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: context.text1,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _SplitRow(
+                            title: '📱 Registrations',
+                            amount: regRev,
+                            total: totalRev,
+                            color: AdminColors.blue,
+                          ),
+                          const Divider(height: 20),
+                          _SplitRow(
+                            title: '⭐ Plan Upgrades',
+                            amount: upgRev,
+                            total: totalRev,
+                            color: AdminColors.amber,
+                          ),
+                          const Divider(height: 20),
+                          _SplitRow(
+                            title: '💾 Storage Add-ons',
+                            amount: storageRev,
+                            total: totalRev,
+                            color: AdminColors.emerald,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  DropdownButton<String>(
-                    value: _typeFilter,
-                    dropdownColor: surface,
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: text1),
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All Types')),
-                      DropdownMenuItem(value: 'registration', child: Text('Registrations')),
-                      DropdownMenuItem(value: 'upgrade', child: Text('Upgrades')),
-                      DropdownMenuItem(value: 'storage', child: Text('Storage Add-ons')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _typeFilter = v);
-                    },
+                  const SizedBox(height: 20),
+
+                  // ── Payment Methods Breakdown ───────────────────────────────
+                  RepaintBoundary(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        final cardW = w >= 600 ? (w - 24) / 3 : w;
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            SizedBox(
+                              width: cardW,
+                              child: AdminMiniStat(
+                                label: 'Easypaisa',
+                                value: 'Rs ${_fmt(easypaisaTotal)}',
+                                color: AdminColors.emerald,
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardW,
+                              child: AdminMiniStat(
+                                label: 'JazzCash',
+                                value: 'Rs ${_fmt(jazzcashTotal)}',
+                                color: AdminColors.amber,
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardW,
+                              child: AdminMiniStat(
+                                label: 'Bank Transfer',
+                                value: 'Rs ${_fmt(bankTotal)}',
+                                color: AdminColors.blue,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Filter & Search Bar ────────────────────────────────────
+                  RepaintBoundary(
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: context.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: _searchCtrl,
+                            onChanged: (_) => setState(() {}),
+                            style: GoogleFonts.inter(fontSize: 13, color: context.text1),
+                            decoration: InputDecoration(
+                              hintText: 'Search by shop name or tx ID...',
+                              hintStyle: GoogleFonts.inter(fontSize: 13, color: context.text3),
+                              prefixIcon: Icon(Icons.search_rounded, size: 18, color: context.text2),
+                              isDense: true,
+                              filled: true,
+                              fillColor: context.surface2,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: context.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: context.border),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                AdminChip(
+                                  label: 'All (${combinedPayments.length})',
+                                  isSelected: _typeFilter == 'all',
+                                  onSelected: () => setState(() => _typeFilter = 'all'),
+                                ),
+                                const SizedBox(width: 8),
+                                AdminChip(
+                                  label: 'Registrations',
+                                  isSelected: _typeFilter == 'registration',
+                                  onSelected: () => setState(() => _typeFilter = 'registration'),
+                                ),
+                                const SizedBox(width: 8),
+                                AdminChip(
+                                  label: 'Upgrades',
+                                  isSelected: _typeFilter == 'upgrade',
+                                  onSelected: () => setState(() => _typeFilter = 'upgrade'),
+                                ),
+                                const SizedBox(width: 8),
+                                AdminChip(
+                                  label: 'Storage Add-ons',
+                                  isSelected: _typeFilter == 'storage',
+                                  onSelected: () => setState(() => _typeFilter = 'storage'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Payment History List ──────────────────────────────────
+                  if (filtered.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: context.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.border),
+                      ),
+                      child: Text(
+                        'No transactions match the selected criteria',
+                        style: GoogleFonts.inter(fontSize: 13, color: context.text3),
+                      ),
+                    )
+                  else
+                    ...filtered.map((p) => _buildPaymentCard(context, p)),
+                  const SizedBox(height: 40),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // ── Payment History List ──────────────────────────────────
-              isWide ? _buildPaymentTable(context, filtered) : _buildPaymentCards(context, filtered),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildMetricCard(BuildContext context, String label, String val, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: context.text2)),
-          const SizedBox(height: 6),
-          Text(val, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
-        ],
-      ),
-    );
-  }
+  Widget _buildPaymentCard(BuildContext context, Map<String, dynamic> p) {
+    final type = p['type'] as String;
+    final (badgeType, badgeLabel) = switch (type) {
+      'Registration' => (AdminBadgeType.blue, 'Registration'),
+      'Upgrade' => (AdminBadgeType.amber, 'Upgrade'),
+      'Storage Add-on' => (AdminBadgeType.emerald, 'Storage'),
+      _ => (AdminBadgeType.gray, type),
+    };
 
-  Widget _buildMethodCard(BuildContext context, String method, String val, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(method, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: context.text1)),
-          const SizedBox(height: 4),
-          Text(val, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w800, color: color)),
-        ],
-      ),
-    );
-  }
+    final dateStr = p['date'] as String? ?? '';
+    final dateFormatted = dateStr.isNotEmpty ? DateFormat('MMM dd, yyyy').format(DateTime.parse(dateStr)) : '';
 
-  Widget _buildPaymentTable(BuildContext context, List<Map<String, dynamic>> items) {
-    final surface = context.surface;
-    final border = context.border;
-    final text1 = context.text1;
-    final text2 = context.text2;
-
-    return Container(
-      decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
-      child: Column(
-        children: items.map((p) {
-          final type = p['type'] as String;
-          final (typeLabel, typeColor) = _getTypeBadgeInfo(type);
-          final dateStr = p['date'] as String? ?? '';
-          final dateFormatted = dateStr.isNotEmpty ? DateFormat('MMM dd, yyyy').format(DateTime.parse(dateStr)) : '';
-
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: border))),
-            child: Row(
-              children: [
-                _TypeBadge(label: typeLabel, color: typeColor),
-                const SizedBox(width: 12),
-                Expanded(child: Text(p['shop_name'] as String? ?? 'Shop', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: text1))),
-                Expanded(child: Text('Tx: ${p['transaction_id'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2))),
-                Expanded(child: Text(dateFormatted, style: GoogleFonts.inter(fontSize: 12, color: text2))),
-                Text('Rs ${_fmt(p['amount'] as int? ?? 0)}', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.accent)),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildPaymentCards(BuildContext context, List<Map<String, dynamic>> items) {
-    final surface = context.surface;
-    final border = context.border;
-    final text1 = context.text1;
-    final text2 = context.text2;
-
-    return Column(
-      children: items.map((p) {
-        final type = p['type'] as String;
-        final (typeLabel, typeColor) = _getTypeBadgeInfo(type);
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: border)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return RepaintBoundary(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: context.border),
+          boxShadow: context.cardShadow,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Text(p['shop_name'] as String? ?? 'Shop', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: text1))),
-                  _TypeBadge(label: typeLabel, color: typeColor),
+                  Row(
+                    children: [
+                      AdminBadge(label: badgeLabel, type: badgeType),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          p['shop_name'] as String? ?? 'Shop',
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: context.text1,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tx ID: ${p['transaction_id'] ?? 'N/A'} · Method: ${p['payment_method'] ?? 'N/A'} ${dateFormatted.isNotEmpty ? '· $dateFormatted' : ''}',
+                    style: GoogleFonts.inter(fontSize: 12, color: context.text2),
+                  ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text('Tx ID: ${p['transaction_id'] ?? 'N/A'} · Method: ${p['payment_method'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-              const SizedBox(height: 4),
-              Text('Amount: Rs ${_fmt(p['amount'] as int? ?? 0)}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.accent)),
-            ],
-          ),
-        );
-      }).toList(),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Rs ${_fmt(p['amount'] as int? ?? 0)}',
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AdminColors.emerald,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
-
-  (String, Color) _getTypeBadgeInfo(String type) => switch (type) {
-        'Registration' => ('Registration', const Color(0xFF3B82F6)),
-        'Upgrade' => ('Upgrade', const Color(0xFFF5A623)),
-        'Storage Add-on' => ('Storage', const Color(0xFF10B981)),
-        _ => (type, AppColors.accent),
-      };
 }
 
 class _SplitRow extends StatelessWidget {
   final String title;
   final int amount;
+  final int total;
   final Color color;
 
-  const _SplitRow({required this.title, required this.amount, required this.color});
+  const _SplitRow({
+    required this.title,
+    required this.amount,
+    required this.total,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final pct = total > 0 ? (amount / total) : 0.0;
+    return Column(
       children: [
-        Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.text1)),
-        Text('Rs ${_fmt(amount)}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: context.text1,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  '${(pct * 100).toStringAsFixed(1)}%',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: context.text2,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Rs ${_fmt(amount)}',
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct.clamp(0.0, 1.0),
+            backgroundColor: context.surface2,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 6,
+          ),
+        ),
       ],
-    );
-  }
-}
-
-class _TypeBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _TypeBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: 0.4))),
-      child: Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
     );
   }
 }

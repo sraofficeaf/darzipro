@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../shared/providers/admin_providers.dart';
+import 'widgets/admin_ui_kit.dart';
 
 class AdminApprovalsScreen extends ConsumerStatefulWidget {
   const AdminApprovalsScreen({super.key});
@@ -20,7 +20,7 @@ class _AdminApprovalsScreenState extends ConsumerState<AdminApprovalsScreen> wit
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -33,6 +33,7 @@ class _AdminApprovalsScreenState extends ConsumerState<AdminApprovalsScreen> wit
     ref.invalidate(adminRegistrationsProvider);
     ref.invalidate(adminUpgradeRequestsProvider);
     ref.invalidate(adminStorageAddonsProvider);
+    ref.invalidate(adminSubscriptionPaymentsProvider);
   }
 
   @override
@@ -40,75 +41,44 @@ class _AdminApprovalsScreenState extends ConsumerState<AdminApprovalsScreen> wit
     final regsAsync = ref.watch(adminRegistrationsProvider);
     final upgAsync = ref.watch(adminUpgradeRequestsProvider);
     final storageAsync = ref.watch(adminStorageAddonsProvider);
+    final subPaymentsAsync = ref.watch(adminSubscriptionPaymentsProvider);
 
     final regCount = regsAsync.valueOrNull?.length ?? 0;
     final upgCount = upgAsync.valueOrNull?.length ?? 0;
     final storageCount = storageAsync.valueOrNull?.length ?? 0;
+    final subPayCount = subPaymentsAsync.valueOrNull?.length ?? 0;
 
     final bg = context.bg;
     final surface = context.surface;
-    final border = context.border;
-    final text1 = context.text1;
-    final text2 = context.text2;
 
     return Scaffold(
       backgroundColor: bg,
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar / Header ─────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: surface,
-                border: Border(bottom: BorderSide(color: border)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '✅ Approval Queues',
-                          style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: text1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Review and approve pending registrations, upgrades, and storage add-ons',
-                          style: GoogleFonts.inter(fontSize: 12, color: text2),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    color: text2,
-                    tooltip: 'Refresh Queues',
-                    onPressed: _refreshAll,
-                  ),
-                ],
+            // ── Top Header (RepaintBoundary for zero scroll cost) ──────────
+            RepaintBoundary(
+              child: AdminPageHeader(
+                title: 'Approvals Queue',
+                subtitle: 'Review and approve pending registrations, upgrades, and storage add-ons',
+                action: AdminIconBtn(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh Queues',
+                  onPressed: _refreshAll,
+                ),
               ),
             ),
 
-            // ── Tab Bar with Count Badges ────────────────────────────────
+            // ── Tab Bar with Live Count Badges ───────────────────────────
             Container(
               color: surface,
-              child: TabBar(
+              child: AdminTabBar(
                 controller: _tabController,
-                indicatorColor: AppColors.accent,
-                labelColor: AppColors.accent,
-                unselectedLabelColor: text2,
-                labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
-                unselectedLabelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
                 tabs: [
-                  Tab(child: _buildTabHeader('Registrations', regCount, const Color(0xFF3B82F6))),
-                  Tab(child: _buildTabHeader('Upgrades', upgCount, const Color(0xFFF5A623))),
-                  Tab(child: _buildTabHeader('Storage Add-ons', storageCount, const Color(0xFF10B981))),
+                  Tab(child: AdminCountBadge(label: 'Registrations', count: regCount, color: AdminColors.blue)),
+                  Tab(child: AdminCountBadge(label: 'Upgrades', count: upgCount, color: AdminColors.amber)),
+                  Tab(child: AdminCountBadge(label: 'Storage Add-ons', count: storageCount, color: AdminColors.emerald)),
+                  Tab(child: AdminCountBadge(label: 'Subscriptions', count: subPayCount, color: AdminColors.violet)),
                 ],
               ),
             ),
@@ -121,36 +91,13 @@ class _AdminApprovalsScreenState extends ConsumerState<AdminApprovalsScreen> wit
                   _RegistrationsQueueTab(regsAsync: regsAsync, onRefresh: _refreshAll),
                   _UpgradesQueueTab(upgAsync: upgAsync, onRefresh: _refreshAll),
                   _StorageAddonsQueueTab(storageAsync: storageAsync, onRefresh: _refreshAll),
+                  _SubscriptionsQueueTab(paymentsAsync: subPaymentsAsync, onRefresh: _refreshAll),
                 ],
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTabHeader(String label, int count, Color badgeColor) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
-        if (count > 0) ...[
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              '$count',
-              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: badgeColor),
-            ),
-          ),
-        ],
-      ],
     );
   }
 }
@@ -186,9 +133,11 @@ class _RegistrationsQueueTab extends ConsumerWidget {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final reg = items[index];
-              return isWide
-                  ? _buildWideRegCard(context, ref, reg)
-                  : _buildMobileRegCard(context, ref, reg);
+              return RepaintBoundary(
+                child: isWide
+                    ? _buildWideRegCard(context, ref, reg)
+                    : _buildMobileRegCard(context, ref, reg),
+              );
             },
           ),
         );
@@ -214,6 +163,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,43 +181,45 @@ class _RegistrationsQueueTab extends ConsumerWidget {
                       style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1),
                     ),
                     const SizedBox(width: 8),
-                    _PlanBadge(label: '$planLabel ($planPrice)', color: planColor),
+                    AdminBadge(label: '$planLabel ($planPrice)', color: planColor),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text('Owner: ${reg['owner_name'] ?? 'N/A'} · Email: ${reg['email'] ?? 'N/A'} · Phone: ${reg['phone'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                const SizedBox(height: 4),
-                Text('Address: ${reg['address'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                const SizedBox(height: 4),
-                Text('Tx ID: ${reg['transaction_id'] ?? 'N/A'} · Method: ${reg['payment_method'] ?? 'N/A'} · Code Used: ${reg['invite_code_used'] ?? 'None'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                const SizedBox(height: 4),
-                Text('Submitted: $formattedDate', style: GoogleFonts.inter(fontSize: 11, color: text2.withValues(alpha: 0.7))),
+                const SizedBox(height: 5),
+                Text(
+                  'Owner: ${reg['owner_name'] ?? 'N/A'}  ·  Email: ${reg['email'] ?? 'N/A'}  ·  Phone: ${reg['phone'] ?? 'N/A'}',
+                  style: GoogleFonts.inter(fontSize: 12, color: text2),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Address: ${reg['address'] ?? 'N/A'}',
+                  style: GoogleFonts.inter(fontSize: 12, color: text2),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Tx ID: ${reg['transaction_id'] ?? 'N/A'}  ·  Method: ${reg['payment_method'] ?? 'N/A'}  ·  Code: ${reg['invite_code_used'] ?? 'None'}',
+                  style: GoogleFonts.inter(fontSize: 12, color: text2),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Submitted: $formattedDate',
+                  style: GoogleFonts.inter(fontSize: 11, color: text2.withValues(alpha: 0.7)),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 16),
           Column(
             children: [
-              ElevatedButton.icon(
+              AdminButton.success(
+                label: 'Approve',
+                icon: Icons.check_rounded,
                 onPressed: () => _handleApproveReg(context, ref, reg),
-                icon: const Icon(Icons.check_rounded, size: 16),
-                label: const Text('Approve'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
               ),
-              const SizedBox(height: 6),
-              OutlinedButton.icon(
+              const SizedBox(height: 8),
+              AdminButton.danger(
+                label: 'Reject',
+                icon: Icons.close_rounded,
                 onPressed: () => _handleRejectReg(context, ref, reg),
-                icon: const Icon(Icons.close_rounded, size: 16),
-                label: const Text('Reject'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFFF3A58),
-                  side: const BorderSide(color: Color(0xFFFF3A58)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
               ),
             ],
           ),
@@ -292,6 +244,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,13 +258,13 @@ class _RegistrationsQueueTab extends ConsumerWidget {
                   style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: text1),
                 ),
               ),
-              _PlanBadge(label: planLabel, color: planColor),
+              AdminBadge(label: planLabel, color: planColor),
             ],
           ),
           const SizedBox(height: 6),
           Text('Owner: ${reg['owner_name'] ?? 'N/A'} (${reg['phone'] ?? 'N/A'})', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           Text('Address: ${reg['address'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-          Text('Tx ID: ${reg['transaction_id'] ?? 'N/A'} · Amount: $planPrice', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+          Text('Tx ID: ${reg['transaction_id'] ?? 'N/A'}  ·  Amount: $planPrice', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -321,28 +274,18 @@ class _RegistrationsQueueTab extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton(
+                      child: AdminButton.success(
+                        label: 'Approve',
+                        icon: Icons.check_rounded,
                         onPressed: () => _handleApproveReg(context, ref, reg),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Approve', style: TextStyle(fontSize: 12)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: OutlinedButton(
+                      child: AdminButton.danger(
+                        label: 'Reject',
+                        icon: Icons.close_rounded,
                         onPressed: () => _handleRejectReg(context, ref, reg),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFFF3A58),
-                          side: const BorderSide(color: Color(0xFFFF3A58)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Reject', style: TextStyle(fontSize: 12)),
                       ),
                     ),
                   ],
@@ -356,10 +299,10 @@ class _RegistrationsQueueTab extends ConsumerWidget {
   }
 
   (String, String, Color) _getPlanDetails(String plan) => switch (plan) {
-        'mobile_only' => ('📱 Basic Plan', 'Rs 12,000', const Color(0xFF3B82F6)),
-        'full_access' => ('🚀 Professional Plan', 'Rs 35,000', const Color(0xFFF5A623)),
-        'full_access_3yr' => ('👑 Enterprise Plan', 'Rs 70,000', const Color(0xFF10B981)),
-        _ => ('📱 Basic Plan', 'Rs 12,000', const Color(0xFF3B82F6)),
+        'mobile_only' => ('📱 Basic Plan', 'Rs 12,000', AdminColors.blue),
+        'full_access' => ('🚀 Pro Plan', 'Rs 35,000', AdminColors.amber),
+        'full_access_3yr' => ('👑 Enterprise', 'Rs 70,000', AdminColors.emerald),
+        _ => ('📱 Basic Plan', 'Rs 12,000', AdminColors.blue),
       };
 
   void _handleApproveReg(BuildContext context, WidgetRef ref, Map<String, dynamic> reg) async {
@@ -372,7 +315,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            style: ElevatedButton.styleFrom(backgroundColor: AdminColors.emerald),
             child: const Text('Approve Now'),
           ),
         ],
@@ -404,7 +347,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
       onRefresh();
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error approving: ${res['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error approving: ${res['error']}'), backgroundColor: AdminColors.rose));
       }
     }
   }
@@ -423,7 +366,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3A58)),
+            style: ElevatedButton.styleFrom(backgroundColor: AdminColors.rose),
             child: const Text('Reject'),
           ),
         ],
@@ -474,9 +417,11 @@ class _UpgradesQueueTab extends ConsumerWidget {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final upg = items[index];
-              return isWide
-                  ? _buildWideUpgCard(context, ref, upg)
-                  : _buildMobileUpgCard(context, ref, upg);
+              return RepaintBoundary(
+                child: isWide
+                    ? _buildWideUpgCard(context, ref, upg)
+                    : _buildMobileUpgCard(context, ref, upg),
+              );
             },
           ),
         );
@@ -503,6 +448,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,30 +463,34 @@ class _UpgradesQueueTab extends ConsumerWidget {
                   children: [
                     Text(shopName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
                     const SizedBox(width: 8),
-                    _PlanBadge(label: '$currentPlan ➔ $targetPlan', color: const Color(0xFFF5A623)),
+                    AdminBadge(label: '$currentPlan ➔ $targetPlan', color: AdminColors.amber),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('Upgrade Type: ${_formatUpgType(upgradeType)} · Amount Paid: Rs ${_fmt(amount)}', style: GoogleFonts.inter(fontSize: 12, color: text2, fontWeight: FontWeight.w600)),
-                Text('Tx ID: ${upg['transaction_id'] ?? 'N/A'} · Method: ${upg['payment_method'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                Text(
+                  'Upgrade Type: ${_formatUpgType(upgradeType)}  ·  Amount: Rs ${_fmt(amount)}',
+                  style: GoogleFonts.inter(fontSize: 12, color: text2, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'Tx ID: ${upg['transaction_id'] ?? 'N/A'}  ·  Method: ${upg['payment_method'] ?? 'N/A'}',
+                  style: GoogleFonts.inter(fontSize: 12, color: text2),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 16),
           Column(
             children: [
-              ElevatedButton.icon(
+              AdminButton.success(
+                label: 'Approve',
+                icon: Icons.check_rounded,
                 onPressed: () => _handleApproveUpg(context, ref, upg),
-                icon: const Icon(Icons.check_rounded, size: 16),
-                label: const Text('Approve Upgrade'),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
               ),
-              const SizedBox(height: 6),
-              OutlinedButton.icon(
+              const SizedBox(height: 8),
+              AdminButton.danger(
+                label: 'Reject',
+                icon: Icons.close_rounded,
                 onPressed: () => _handleRejectUpg(context, ref, upg),
-                icon: const Icon(Icons.close_rounded, size: 16),
-                label: const Text('Reject'),
-                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF3A58), side: const BorderSide(color: Color(0xFFFF3A58))),
               ),
             ],
           ),
@@ -566,6 +516,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,7 +525,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(child: Text(shopName, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: text1))),
-              _PlanBadge(label: '➔ $targetPlan (Rs ${_fmt(amount)})', color: const Color(0xFFF5A623)),
+              AdminBadge(label: '➔ $targetPlan (Rs ${_fmt(amount)})', color: AdminColors.amber),
             ],
           ),
           const SizedBox(height: 6),
@@ -588,18 +539,18 @@ class _UpgradesQueueTab extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton(
+                      child: AdminButton.success(
+                        label: 'Approve',
+                        icon: Icons.check_rounded,
                         onPressed: () => _handleApproveUpg(context, ref, upg),
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
-                        child: const Text('Approve', style: TextStyle(fontSize: 12)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: OutlinedButton(
+                      child: AdminButton.danger(
+                        label: 'Reject',
+                        icon: Icons.close_rounded,
                         onPressed: () => _handleRejectUpg(context, ref, upg),
-                        style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF3A58), side: const BorderSide(color: Color(0xFFFF3A58))),
-                        child: const Text('Reject', style: TextStyle(fontSize: 12)),
                       ),
                     ),
                   ],
@@ -614,8 +565,8 @@ class _UpgradesQueueTab extends ConsumerWidget {
 
   String _formatUpgType(String t) => switch (t) {
         'to_full_access' => 'Full Access (Rs 23,000)',
-        'to_3yr' => 'Full Access + 3Yr Storage (Rs 35,000)',
-        'mobile_to_3yr' => 'Direct Jump to 3Yr Storage (Rs 58,000)',
+        'to_3yr' => 'Full Access + 3Yr (Rs 35,000)',
+        'mobile_to_3yr' => 'Direct Jump to 3Yr (Rs 58,000)',
         _ => t,
       };
 
@@ -627,7 +578,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
         content: const Text('This will upgrade the shop plan, unlock permanent invite levels, and calculate multi-level profit.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)), child: const Text('Approve')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AdminColors.emerald), child: const Text('Approve')),
         ],
       ),
     );
@@ -650,7 +601,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
       onRefresh();
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res['error']}'), backgroundColor: AdminColors.rose));
       }
     }
   }
@@ -664,7 +615,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
         content: TextField(controller: reasonCtrl, decoration: const InputDecoration(hintText: 'Rejection reason...')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3A58)), child: const Text('Reject')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AdminColors.rose), child: const Text('Reject')),
         ],
       ),
     );
@@ -712,9 +663,11 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final s = items[index];
-              return isWide
-                  ? _buildWideStorageCard(context, ref, s)
-                  : _buildMobileStorageCard(context, ref, s);
+              return RepaintBoundary(
+                child: isWide
+                    ? _buildWideStorageCard(context, ref, s)
+                    : _buildMobileStorageCard(context, ref, s),
+              );
             },
           ),
         );
@@ -739,6 +692,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,32 +707,30 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
                   children: [
                     Text(shopName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
                     const SizedBox(width: 8),
-                    _PlanBadge(
+                    AdminBadge(
                       label: addonType == 'annual' ? 'Annual Storage (Rs 10,000)' : 'Monthly Storage (Rs 1,200)',
-                      color: const Color(0xFF10B981),
+                      color: AdminColors.emerald,
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('Tx ID: ${s['transaction_id'] ?? 'N/A'} · Method: ${s['payment_method'] ?? 'N/A'} · Amount: Rs ${_fmt(amount)}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                Text('Tx ID: ${s['transaction_id'] ?? 'N/A'}  ·  Method: ${s['payment_method'] ?? 'N/A'}  ·  Amount: Rs ${_fmt(amount)}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
               ],
             ),
           ),
           const SizedBox(width: 16),
           Column(
             children: [
-              ElevatedButton.icon(
+              AdminButton.success(
+                label: 'Approve Add-on',
+                icon: Icons.check_rounded,
                 onPressed: () => _handleApproveStorage(context, ref, s),
-                icon: const Icon(Icons.check_rounded, size: 16),
-                label: const Text('Approve Add-on'),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
               ),
-              const SizedBox(height: 6),
-              OutlinedButton.icon(
+              const SizedBox(height: 8),
+              AdminButton.danger(
+                label: 'Reject',
+                icon: Icons.close_rounded,
                 onPressed: () => _handleRejectStorage(context, ref, s),
-                icon: const Icon(Icons.close_rounded, size: 16),
-                label: const Text('Reject'),
-                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF3A58), side: const BorderSide(color: Color(0xFFFF3A58))),
               ),
             ],
           ),
@@ -804,6 +756,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
         color: surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: context.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,11 +765,11 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(child: Text(shopName, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: text1))),
-              _PlanBadge(label: addonType == 'annual' ? 'Annual (10k)' : 'Monthly (1.2k)', color: const Color(0xFF10B981)),
+              AdminBadge(label: addonType == 'annual' ? 'Annual (10k)' : 'Monthly (1.2k)', color: AdminColors.emerald),
             ],
           ),
           const SizedBox(height: 6),
-          Text('Tx ID: ${s['transaction_id'] ?? 'N/A'} · Amount: Rs ${_fmt(amount)}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+          Text('Tx ID: ${s['transaction_id'] ?? 'N/A'}  ·  Amount: Rs ${_fmt(amount)}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -826,18 +779,18 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton(
+                      child: AdminButton.success(
+                        label: 'Approve',
+                        icon: Icons.check_rounded,
                         onPressed: () => _handleApproveStorage(context, ref, s),
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
-                        child: const Text('Approve', style: TextStyle(fontSize: 12)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: OutlinedButton(
+                      child: AdminButton.danger(
+                        label: 'Reject',
+                        icon: Icons.close_rounded,
                         onPressed: () => _handleRejectStorage(context, ref, s),
-                        style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFFF3A58), side: const BorderSide(color: Color(0xFFFF3A58))),
-                        child: const Text('Reject', style: TextStyle(fontSize: 12)),
                       ),
                     ),
                   ],
@@ -858,7 +811,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
         content: const Text('This will activate unlimited storage for this shop. (Note: Storage add-ons carry 0% referral commission).'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)), child: const Text('Approve')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AdminColors.emerald), child: const Text('Approve')),
         ],
       ),
     );
@@ -881,7 +834,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
       onRefresh();
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res['error']}'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res['error']}'), backgroundColor: AdminColors.rose));
       }
     }
   }
@@ -895,7 +848,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
         content: TextField(controller: reasonCtrl, decoration: const InputDecoration(hintText: 'Rejection reason...')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3A58)), child: const Text('Reject')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AdminColors.rose), child: const Text('Reject')),
         ],
       ),
     );
@@ -913,6 +866,202 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
 }
 
 // =============================================================================
+// TAB 4: SUBSCRIPTION PAYMENTS QUEUE
+// =============================================================================
+class _SubscriptionsQueueTab extends ConsumerWidget {
+  final AsyncValue<List<Map<String, dynamic>>> paymentsAsync;
+  final VoidCallback onRefresh;
+
+  const _SubscriptionsQueueTab({required this.paymentsAsync, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return paymentsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
+      data: (items) {
+        if (items.isEmpty) {
+          return const _EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'No Pending Subscription Payments',
+            subtitle: 'All subscription payment submissions have been reviewed!',
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () async => onRefresh(),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              return RepaintBoundary(
+                child: _SubPaymentCard(
+                  payment: items[index],
+                  onApprove: () => _approvePayment(context, ref, items[index]),
+                  onReject: () => _showRejectDialog(context, ref, items[index]),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _approvePayment(BuildContext context, WidgetRef ref, Map<String, dynamic> payment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Approve Subscription Payment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Approve Rs ${payment['amount_pkr']} for plan "${payment['plan_code']}"?\nThis will activate the shop\'s subscription.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AdminColors.emerald),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final success = await AdminService.instance.approveSubscriptionPayment(
+      paymentId: payment['id'] as String,
+      shopId: payment['shop_id'] as String,
+      cycleId: payment['usage_cycle_id'] as String?,
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? '✅ Payment approved!' : '❌ Approval failed'),
+        backgroundColor: success ? AdminColors.emerald : AdminColors.rose,
+      ));
+      if (success) ref.invalidate(adminSubscriptionPaymentsProvider);
+    }
+  }
+
+  Future<void> _showRejectDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> payment) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Reject Subscription Payment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Reason for rejection:'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(hintText: 'e.g., Screenshot unclear', border: OutlineInputBorder()),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AdminColors.rose),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final success = await AdminService.instance.rejectSubscriptionPayment(
+      paymentId: payment['id'] as String,
+      reason: reasonCtrl.text.trim(),
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? '✅ Rejected' : '❌ Failed'),
+        backgroundColor: success ? AdminColors.amber : AdminColors.rose,
+      ));
+      if (success) ref.invalidate(adminSubscriptionPaymentsProvider);
+    }
+  }
+}
+
+class _SubPaymentCard extends StatelessWidget {
+  final Map<String, dynamic> payment;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  const _SubPaymentCard({required this.payment, required this.onApprove, required this.onReject});
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = (payment['amount_pkr'] as int?) ?? 0;
+    final planCode = payment['plan_code'] as String? ?? '';
+    final method = payment['payment_method'] as String? ?? '-';
+    final txId = payment['transaction_id'] as String? ?? '';
+    final screenshotUrl = payment['payment_screenshot_url'] as String?;
+    final createdAt = payment['created_at'] as String?;
+    final formattedDate = createdAt != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(createdAt).toLocal())
+        : '-';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.border),
+        boxShadow: context.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AdminBadge(label: planCode.toUpperCase(), color: AdminColors.violet),
+              const Spacer(),
+              Text('Rs ${NumberFormat('#,###').format(amount)}',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: context.text1)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Via: $method${txId.isNotEmpty ? " · TID: $txId" : ""}',
+              style: GoogleFonts.inter(fontSize: 12, color: context.text2)),
+          Text('Submitted: $formattedDate', style: GoogleFonts.inter(fontSize: 11, color: context.text2)),
+          if (screenshotUrl != null && screenshotUrl.startsWith('http')) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () => showDialog(context: context, builder: (_) => Dialog(child: Image.network(screenshotUrl, fit: BoxFit.contain))),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(screenshotUrl, height: 100, width: double.infinity, fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink()),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: AdminButton.danger(
+                  label: 'Reject',
+                  icon: Icons.close_rounded,
+                  onPressed: onReject,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: AdminButton.success(
+                  label: 'Approve',
+                  icon: Icons.check_rounded,
+                  onPressed: onApprove,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
 // SHARED HELPER WIDGETS
 // =============================================================================
 Widget _buildScreenshotThumb(BuildContext context, String? url, {double size = 64}) {
@@ -920,7 +1069,10 @@ Widget _buildScreenshotThumb(BuildContext context, String? url, {double size = 6
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: context.border.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(
+        color: context.border.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: const Icon(Icons.image_not_supported_rounded, size: 20, color: Colors.grey),
     );
   }
@@ -953,32 +1105,9 @@ Widget _buildScreenshotThumb(BuildContext context, String? url, {double size = 6
           color: Colors.grey.shade800,
           child: const Icon(Icons.broken_image, size: 18, color: Colors.white54),
         ),
-
       ),
     ),
   );
-}
-
-class _PlanBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _PlanBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
-      ),
-    );
-  }
 }
 
 class _EmptyState extends StatelessWidget {
