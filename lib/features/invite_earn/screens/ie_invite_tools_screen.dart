@@ -200,7 +200,7 @@ class IeInviteToolsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // ── Multi-Level Commission Structure ────────────────────
+                // ── Multi-Level Profit Structure ────────────────────
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -212,7 +212,7 @@ class IeInviteToolsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '🏆 Commission Percentages (Every Payment)',
+                        '🏆 Profit Percentages (Every Payment)',
                         style: GoogleFonts.outfit(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -356,7 +356,7 @@ class _ToolButton extends StatelessWidget {
   }
 }
 
-// ── Commission Row ───────────────────────────────────────────────────────────
+// ── Profit Row ───────────────────────────────────────────────────────────
 class _CommRow extends StatelessWidget {
   final String label;
   final String amount;

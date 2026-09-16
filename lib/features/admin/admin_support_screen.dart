@@ -82,7 +82,7 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                     icon: Icons.account_tree_rounded,
                     iconColor: AdminColors.emerald,
                     title: '2. Multi-Level Invite Percentage Breakdown',
-                    subtitle: 'Commission percentage per level & the depth eligibility rule',
+                    subtitle: 'Profit percentage per level & the depth eligibility rule',
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -161,12 +161,12 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                         SizedBox(height: 8),
                         _DetailRowItem(
                           title: '💳 Monthly Add-on (Rs 1,200/mo)',
-                          detail: 'Provides extra storage for 30 days. Triggers Level 1 commission of Rs 180 (15%) for inviter.',
+                          detail: 'Provides extra storage for 30 days. Triggers Level 1 profit of Rs 180 (15%) for inviter.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
                           title: '📅 Annual Add-on (Rs 10,000/yr)',
-                          detail: 'Provides extra storage for 365 days. Triggers Level 1 commission of Rs 1,500 (15%) for inviter.',
+                          detail: 'Provides extra storage for 365 days. Triggers Level 1 profit of Rs 1,500 (15%) for inviter.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(

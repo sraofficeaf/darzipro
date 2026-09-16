@@ -457,7 +457,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 const AdminInfoBox.rose(
-                                  text: 'Referral Commission for Storage Add-ons: 0% (Disabled globally for storage purchases).',
+                                  text: 'Profit Share for Storage Add-ons: 0% (Disabled globally for storage purchases).',
                                 ),
                                 const SizedBox(height: 12),
                                 SizedBox(

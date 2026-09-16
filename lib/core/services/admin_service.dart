@@ -960,7 +960,7 @@ class AdminService {
       'storage_monthly_active': true,
       'storage_annual_price': '10000',
       'storage_annual_active': true,
-      'storage_commission': '0',
+      'storage_profit': '0',
     };
     try {
       final res = await http.get(

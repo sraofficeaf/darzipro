@@ -106,22 +106,30 @@ class SubscriptionState {
       );
 
   factory SubscriptionState.fromJson(Map<String, dynamic> json) {
+    final isLifetime = (json['is_lifetime'] as bool? ?? false) ||
+        json['subscription_status'] == 'lifetime';
     return SubscriptionState(
-      planCode: json['plan_code'] as String? ?? 'trial',
-      planNameEn: json['plan_name_en'] as String? ?? 'Free Trial',
-      planNameUr: json['plan_name_ur'] as String? ?? 'مفت ٹرائل',
-      planPricePkr: (json['plan_price_pkr'] as int?) ?? 0,
-      maxOrders: json['max_orders'] as int?,
-      maxCustomers: json['max_customers'] as int?,
-      ordersUsed: (json['orders_used'] as int?) ?? 0,
-      activeCustomers: (json['active_customers'] as int?) ?? 0,
-      cycleEnd: json['cycle_end'] != null
-          ? DateTime.tryParse(json['cycle_end'] as String)
-          : null,
-      amountDuePkr: (json['amount_due_pkr'] as int?) ?? 0,
-      paymentStatus: json['payment_status'] as String? ?? 'pending',
-      subscriptionStatus: json['subscription_status'] as String? ?? 'trial',
-      isLifetime: json['is_lifetime'] as bool? ?? false,
+        planCode: json['plan_code'] as String? ?? 'trial',
+        planNameEn: json['plan_name_en'] as String? ?? 'Free Trial',
+        planNameUr: json['plan_name_ur'] as String? ?? 'مفت ٹرائل',
+        planPricePkr: isLifetime ? 0 : ((json['plan_price_pkr'] as int?) ?? 0),
+        maxOrders: json['max_orders'] as int?,
+        maxCustomers: json['max_customers'] as int?,
+        ordersUsed: (json['orders_used'] as int?) ?? 0,
+        activeCustomers: (json['active_customers'] as int?) ?? 0,
+        cycleEnd: isLifetime
+            ? null
+            : (json['cycle_end'] != null
+                ? DateTime.tryParse(json['cycle_end'] as String)
+                : null),
+        amountDuePkr: isLifetime ? 0 : ((json['amount_due_pkr'] as int?) ?? 0),
+        paymentStatus: isLifetime
+            ? 'waived'
+            : (json['payment_status'] as String? ?? 'pending'),
+        subscriptionStatus: isLifetime
+            ? 'lifetime'
+            : (json['subscription_status'] as String? ?? 'trial'),
+        isLifetime: isLifetime,
       trialStartedAt: json['trial_started_at'] != null
           ? DateTime.tryParse(json['trial_started_at'] as String)
           : null,

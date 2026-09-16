@@ -10,7 +10,7 @@ import '../../shared/widgets/pro_field.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // Free Trial Registration Flow (Phase 7 — Overhaul):
 //  Step 0 → Shop & Owner (Shop Name, Owner Name, Phone / WhatsApp)
-//  Step 1 → Location & Referral (Address, City, Referral Code optional)
+//  Step 1 → Location & Invite Code (Address, City, Invite Code optional)
 //  Step 2 → Account Credentials (Email, Password, Confirm Password)
 //  Step 3 → Done 🎉 Instant Access on Free Trial
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
     final code = _inviteCodeCtrl.text.trim();
     if (_hasInviteCode) {
       if (code.isEmpty) {
-        _setError('Please enter your referral code or uncheck the referral box');
+        _setError('Please enter your invite code or uncheck the invite box');
         return;
       }
       setState(() { _isLoading = true; _errorMessage = null; });
@@ -162,7 +162,7 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
           _isLoading = false;
           _isInviteValid = false;
         });
-        _setError('❌ Invalid invite code! Please check code or untick referral box.');
+        _setError('❌ Invalid invite code! Please check code or untick invite box.');
         return;
       }
     }
@@ -257,11 +257,11 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
     ],
   );
 
-  // ── Step 1: Location & Referral ───────────────────────────────────────────
+  // ── Step 1: Location & Invite Code ───────────────────────────────────────────
   Widget _buildStep1(bool isDark, Color text, Color sub) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _stepHeader('Location & Referral', 'Where is your shop located?', text, sub),
+      _stepHeader('Location & Invite Code', 'Where is your shop located?', text, sub),
       const SizedBox(height: 16),
       ProField(controller: _cityCtrl, label: 'City', hint: 'e.g. Peshawar, Lahore, Karachi', icon: Icons.location_city_rounded),
       ProField(
@@ -291,7 +291,7 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                'I have a referral / invite code',
+                'I have an invite code',
                 style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: text),
               ),
             ],

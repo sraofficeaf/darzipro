@@ -808,7 +808,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Approve Storage Add-on?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: const Text('This will activate unlimited storage for this shop. (Note: Storage add-ons carry 0% referral commission).'),
+        content: const Text('This will activate unlimited storage for this shop. (Note: Storage add-ons carry 0% profit share).'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AdminColors.emerald), child: const Text('Approve')),

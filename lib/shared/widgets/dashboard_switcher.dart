@@ -216,7 +216,7 @@ class DashboardSwitcherDropdown extends ConsumerWidget {
           child: _buildMenuItem(
             context: ctx,
             title: 'Invite & Earn',
-            subtitle: 'Commission & referral network',
+            subtitle: 'Invite & profit network',
             icon: Icons.monetization_on_rounded,
             iconColors: const [Color(0xFF10CBA0), Color(0xFF059669)],
             isActive: currentMode == DashboardMode.earn,

@@ -280,6 +280,34 @@ begin
     return jsonb_build_object('error', 'shop_not_found');
   end if;
 
+  -- Lifetime shops: never have any amount due, cycle end, or payment required
+  if coalesce(v_shop.lifetime_access, false) = true or v_shop.subscription_status = 'lifetime' then
+    select count(distinct o.customer_id)
+    into   v_active_customers
+    from   orders o
+    where  o.shop_id    = p_shop_id
+      and  o.order_date >= (current_date - interval '12 months');
+
+    return jsonb_build_object(
+      'shop_id',              p_shop_id,
+      'plan_code',            'unlimited',
+      'plan_name_en',         'Unlimited (Lifetime)',
+      'plan_name_ur',         'ان لمیٹڈ (لائف ٹائم)',
+      'plan_price_pkr',       0,
+      'max_orders',           null,
+      'max_customers',        null,
+      'orders_used',          0,
+      'active_customers',     coalesce(v_active_customers, 0),
+      'cycle_start',          null,
+      'cycle_end',            null,
+      'amount_due_pkr',       0,
+      'payment_status',       'waived',
+      'subscription_status',  'lifetime',
+      'is_lifetime',          true,
+      'trial_started_at',     null
+    );
+  end if;
+
   -- Get plan definition (live, not cached)
   select * into v_plan from subscription_plans where code = v_shop.plan_code;
 

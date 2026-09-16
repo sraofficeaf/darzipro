@@ -384,7 +384,7 @@ class _IeGuideScreenState extends State<IeGuideScreen> {
               context,
               title: '📦 Storage Add-on Earnings',
               description:
-                  'Note: Storage Add-on purchases carry 0% referral commission (Commissions apply exclusively to Membership Plan subscriptions & upgrades).',
+                  'Note: Storage Add-on purchases carry 0% profit share (Profit shares apply exclusively to Membership Plan subscriptions & upgrades).',
               child: Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Container(
