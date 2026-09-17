@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_enums.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../core/utils/share_helper.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
+import '../../shared/providers/supabase_providers.dart';
 import 'pdf_builder.dart';
 import 'widgets/card_image_capturer.dart';
 import 'widgets/token_card_widget.dart';
@@ -126,17 +128,21 @@ class _TokenCardScreenState extends ConsumerState<TokenCardScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(ordersProvider);
+    final shopAsync = ref.watch(currentShopProvider);
     final isUrdu = ref.watch(localeProvider) == 'ur';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF070D1A) : const Color(0xFFFFFFFF);
-    final appBarBg = isDark ? const Color(0xFF070D1A) : const Color(0xFFFFFFFF);
+    final bg = isDark ? const Color(0xFF070D1A) : const Color(0xFFF8FAFC);
+    final appBarBg = isDark ? const Color(0xFF070D1A) : Colors.white;
     final text1 = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C);
     final textMuted = isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8);
+
+    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
+    final shopPhone = shopAsync.value?['phone'] as String? ?? '0300-1234567';
+    final shopAddress = shopAsync.value?['address'] as String? ?? 'Saddar, Peshawar';
 
     final orders = ordersAsync.valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
@@ -148,30 +154,40 @@ class _TokenCardScreenState extends ConsumerState<TokenCardScreen> {
         elevation: 0,
         leadingWidth: 56,
         leading: Padding(
-          padding: const EdgeInsets.only(left: 20),
+          padding: const EdgeInsets.only(left: 16),
           child: Center(
             child: _BackButton(
               onPressed: () => Navigator.pop(context),
             ),
           ),
         ),
-        titleSpacing: 16,
+        titleSpacing: 12,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isUrdu ? 'گاہک کا کارڈ' : 'Customer Card',
+              'PRINT PREVIEW',
+              style: GoogleFonts.inter(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFFF5A623),
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              isUrdu ? 'ٹوکن کارڈ' : 'Token Card',
               style: GoogleFonts.outfit(
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
                 color: text1,
               ),
             ),
             if (order != null)
               Text(
-                'Order ${order.tokenNumber} · ${order.customerName}',
+                'Order #${order.tokenNumber} · ${order.customerName}',
                 style: GoogleFonts.inter(
-                  fontSize: 10,
+                  fontSize: 11,
                   color: textMuted,
                 ),
               ),
@@ -225,504 +241,529 @@ class _TokenCardScreenState extends ConsumerState<TokenCardScreen> {
           );
 
           return Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 children: [
-              // PREVIEW LABEL
-              Center(
-                child: Text(
-                  isUrdu ? 'کارڈ کا پیش نظارہ' : 'CARD PREVIEW',
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: textMuted,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // THE CARD
-              Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0A1628), Color(0xFF0D1E3A)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black54,
-                      blurRadius: 40,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      // CARD HEADER (dark)
-                      Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF060E1E), Color(0xFF0D1E3A)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                  // THE TOKEN CARD
+                  RepaintBoundary(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF060E1E), width: 3),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x2E111827),
+                            blurRadius: 40,
+                            offset: Offset(0, 16),
                           ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFFF5A623), Color(0xFFD97706)],
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Center(
-                                child: Text('✂️', style: TextStyle(fontSize: 18)),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'SaifurRahman Tailors',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Saddar, Peshawar · 0300-1234567',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.white.withValues(alpha: 0.5),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: const Color(0x26F5A623),
-                                border: Border.all(color: const Color(0x66F5A623)),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'ORDER NO.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0x99F5A623),
-                                    ),
-                                  ),
-                                  Text(
-                                    order.tokenNumber,
-                                    style: GoogleFonts.jetBrainsMono(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      color: const Color(0xFFF5A623),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                        ],
                       ),
-
-                      // MEASURING TAPE STRIPE
-                      CustomPaint(
-                        size: const Size(double.infinity, 8),
-                        painter: const _TapeStripePainter(),
-                      ),
-
-                      // CARD BODY
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                        child: Column(
-                          children: [
-                            // Customer Row
-                            Row(
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. TOKEN HEAD
+                          Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF060E1E), Color(0xFF0D1E3A)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
                               children: [
-                                CustomerAvatar(
-                                  name: order.customerName,
-                                  size: 40,
-                                  borderRadius: 10,
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Center(
+                                    child: Text('✂️', style: TextStyle(fontSize: 20)),
+                                  ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        order.customerName,
+                                        shopName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: GoogleFonts.outfit(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w900,
-                                          color: const Color(0xFF060E1C),
+                                          color: Colors.white,
                                         ),
                                       ),
-                                      if (customer != null)
-                                        Text(
-                                          '📱 ${customer.phone}',
-                                          style: GoogleFonts.jetBrainsMono(
-                                            fontSize: 11,
-                                            color: const Color(0xFF6B7E96),
-                                          ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '$shopAddress · $shopPhone',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          color: Colors.white.withValues(alpha: 0.5),
                                         ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x26F5A623),
+                                    border: Border.all(color: const Color(0x66F5A623)),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'ORDER NO.',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0x99F5A623),
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        order.tokenNumber,
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFFF5A623),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 14),
+                          ),
 
-                            // Dates 2-column
-                            Row(
+                          // 2. MEASURING TAPE STRIP
+                          CustomPaint(
+                            size: const Size(double.infinity, 8),
+                            painter: const _TapeStripePainter(),
+                          ),
+
+                          // 3. TOKEN BODY
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1F5FF),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'ORDER DATE',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 8,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF8AA0C0),
+                                // Client Row
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFFF5A623), Color(0xFFD88A13)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          order.customerName.isNotEmpty
+                                              ? order.customerName.characters.first.toUpperCase()
+                                              : 'C',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.white,
                                           ),
                                         ),
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          formatDateShort(order.orderDate),
-                                          style: GoogleFonts.jetBrainsMono(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF060E1C),
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF5F5),
-                                      border: Border.all(color: const Color(0xFFFFE0E0)),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'DELIVERY DATE',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 8,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFFE08080),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          order.deliveryDate != null
-                                              ? formatDateShort(order.deliveryDate!)
-                                              : 'Not Set',
-                                          style: GoogleFonts.jetBrainsMono(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFFDC2626),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Items Box
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF5F8FF),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'ORDER ITEMS',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF8AA0C0),
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  ...order.items.map(
-                                    (item) => Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    const SizedBox(width: 13),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '${item.dressType} × ${item.quantity}',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: const Color(0xFF1A2A40),
-                                                  ),
-                                                ),
-                                                if (item.clothDetails.isNotEmpty)
-                                                  Text(
-                                                    item.clothDetails,
-                                                    style: GoogleFonts.inter(
-                                                      fontSize: 10,
-                                                      color: const Color(0xFF6B7E96),
-                                                    ),
-                                                  ),
-                                              ],
+                                          Text(
+                                            order.customerName,
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w900,
+                                              color: const Color(0xFF060E1C),
                                             ),
                                           ),
+                                          const SizedBox(height: 3),
                                           Text(
-                                            formatMoney(item.total),
+                                            customer?.phone.isNotEmpty == true
+                                                ? '📱 ${customer!.phone}'
+                                                : '📱 0300-1234567',
                                             style: GoogleFonts.jetBrainsMono(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF1A2A40),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFF6B7E96),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Money section
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF060E1E), Color(0xFF0D1E3A)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                                  ],
                                 ),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Total Amount',
-                                        style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
-                                      ),
-                                      Text(
-                                        formatMoney(order.totalAmount),
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white.withValues(alpha: 0.85),
+                                const SizedBox(height: 16),
+                                const Divider(height: 1, color: Color(0xFFE5E9F0)),
+                                const SizedBox(height: 16),
+
+                                // Dates 2-column
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5FF),
+                                          borderRadius: BorderRadius.circular(9),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Advance Paid',
-                                        style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
-                                      ),
-                                      Text(
-                                        formatMoney(order.paidAmount),
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white.withValues(alpha: 0.85),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const Divider(color: Color(0x1AFFFFFF), height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Remaining',
-                                        style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
-                                      ),
-                                      order.isFullyPaid
-                                          ? const Text(
-                                              'Fully Paid ✓',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF10CBA0),
-                                              ),
-                                            )
-                                          : Text(
-                                              formatMoney(order.remainingAmount),
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.w900,
-                                                color: const Color(0xFFF5A623),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'ORDER DATE',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 8.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF8AA0C0),
+                                                letterSpacing: 0.5,
                                               ),
                                             ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              formatDateShort(order.orderDate),
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF060E1C),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF5F5),
+                                          border: Border.all(color: const Color(0xFFFFE0E0)),
+                                          borderRadius: BorderRadius.circular(9),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'DELIVERY DATE',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 8.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFFE08080),
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              order.deliveryDate != null
+                                                  ? formatDateShort(order.deliveryDate!)
+                                                  : 'Not Set',
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFFDC2626),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(height: 1, color: Color(0xFFE5E9F0)),
+                                const SizedBox(height: 16),
+
+                                // Order Items
+                                Text(
+                                  'ORDER ITEMS',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF8AA0C0),
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ...order.items.map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 5),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${item.dressType} × ${item.quantity}',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: const Color(0xFF1A2A40),
+                                                ),
+                                              ),
+                                              if (item.clothDetails.isNotEmpty) ...[
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  item.clothDetails,
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: const Color(0xFF6B7E96),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          formatMoney(item.total),
+                                          style: GoogleFonts.jetBrainsMono(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFF1A2A40),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(height: 1, color: Color(0xFFE5E9F0)),
+                                const SizedBox(height: 16),
+
+                                // Money section (Dark navy gradient card)
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF060E1E), Color(0xFF0D1E3A)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Total Amount',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Colors.white.withValues(alpha: 0.55),
+                                            ),
+                                          ),
+                                          Text(
+                                            formatMoney(order.totalAmount),
+                                            style: GoogleFonts.jetBrainsMono(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white.withValues(alpha: 0.9),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Advance Paid',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Colors.white.withValues(alpha: 0.55),
+                                            ),
+                                          ),
+                                          Text(
+                                            formatMoney(order.paidAmount),
+                                            style: GoogleFonts.jetBrainsMono(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white.withValues(alpha: 0.9),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 10),
+                                        child: Divider(height: 1, color: Color(0x1AFFFFFF)),
+                                      ),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Remaining',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Colors.white.withValues(alpha: 0.55),
+                                            ),
+                                          ),
+                                          order.isFullyPaid
+                                              ? Text(
+                                                  'Fully Paid ✓',
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: const Color(0xFF10CBA0),
+                                                  ),
+                                                )
+                                              : Text(
+                                                  formatMoney(order.remainingAmount),
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: const Color(0xFFF5A623),
+                                                    letterSpacing: -0.5,
+                                                  ),
+                                                ),
+                                        ],
+                                      ),
                                     ],
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 14),
+                                ),
+                                const SizedBox(height: 16),
 
-                            // Footer
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5FF),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Generated by Darzi Pro · SaifurRahman Tailors · ${formatDateShort(DateTime.now())}',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 9,
-                                        color: const Color(0xFF8AA0C0),
-                                      ),
-                                      maxLines: 2,
-                                    ),
-                                  ),
-                                  // QR Code
-                                  Container(
-                                    width: 32,
-                                    height: 32,
-                                    color: Colors.white,
-                                    child: QrImageView(
-                                      data: order.id,
-                                      version: QrVersions.auto,
-                                      size: 32,
-                                      padding: EdgeInsets.zero,
-                                      eyeStyle: const QrEyeStyle(
-                                        eyeShape: QrEyeShape.square,
-                                        color: Color(0xFF060E1C),
-                                      ),
-                                      dataModuleStyle: const QrDataModuleStyle(
-                                        dataModuleShape: QrDataModuleShape.square,
-                                        color: Color(0xFF060E1C),
+                                // Footer
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Generated by Darzi Pro · $shopName · ${DateFormat('dd MMM yyyy').format(DateTime.now())}',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xFF8AA0C0),
+                                          height: 1.4,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    const SizedBox(width: 12),
+                                    Container(
+                                      width: 42,
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(color: const Color(0xFF060E1C), width: 1.5),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      padding: const EdgeInsets.all(3),
+                                      child: QrImageView(
+                                        data: order.id,
+                                        version: QrVersions.auto,
+                                        size: 36,
+                                        padding: EdgeInsets.zero,
+                                        eyeStyle: const QrEyeStyle(
+                                          eyeShape: QrEyeShape.square,
+                                          color: Color(0xFF060E1C),
+                                        ),
+                                        dataModuleStyle: const QrDataModuleStyle(
+                                          dataModuleShape: QrDataModuleShape.square,
+                                          color: Color(0xFF060E1C),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ACTION BUTTONS (Match Mockup 2x2: A4 Print, Thermal | WhatsApp, PDF)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _OutlineActionButton(
+                          label: isUrdu ? 'A4 پرنٹ' : 'A4 Print',
+                          icon: Icons.print_rounded,
+                          isLoading: _isPrintingA4,
+                          onPressed: () => _printLayout(order, customer, false),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _OutlineActionButton(
+                          label: isUrdu ? 'تھرمل' : 'Thermal',
+                          icon: Icons.receipt_rounded,
+                          isLoading: _isPrintingThermal,
+                          onPressed: () => _printLayout(order, customer, true),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // ACTION BUTTONS GRID (2x2)
-              Row(
-                children: [
-                  Expanded(
-                    child: _OutlineActionButton(
-                      label: isUrdu ? 'A4 پرنٹ' : 'A4 Print',
-                      icon: Icons.print_rounded,
-                      isLoading: _isPrintingA4,
-                      onPressed: () => _printLayout(order, customer, false),
-                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _WhatsAppActionButton(
+                          label: 'WhatsApp',
+                          icon: Icons.chat_rounded,
+                          isLoading: _isWhatsApping,
+                          onPressed: () => _sendWhatsApp(order, customer),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _PdfActionButton(
+                          label: isUrdu ? 'پی ڈی ایف' : 'PDF',
+                          icon: Icons.picture_as_pdf_rounded,
+                          isLoading: _isPdfSharing,
+                          onPressed: () => _shareAsPdf(order, customer),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _OutlineActionButton(
-                      label: isUrdu ? 'تھرمل' : 'Thermal',
-                      icon: Icons.receipt_rounded,
-                      isLoading: _isPrintingThermal,
-                      onPressed: () => _printLayout(order, customer, true),
-                    ),
-                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _WhatsAppActionButton(
-                      label: 'WhatsApp',
-                      icon: Icons.chat_rounded,
-                      isLoading: _isWhatsApping,
-                      onPressed: () => _sendWhatsApp(order, customer),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _PdfActionButton(
-                      label: isUrdu ? 'پی ڈی ایف' : 'PDF',
-                      icon: Icons.picture_as_pdf_rounded,
-                      isLoading: _isPdfSharing,
-                      onPressed: () => _shareAsPdf(order, customer),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      );
-    },
-  ),
-);
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 

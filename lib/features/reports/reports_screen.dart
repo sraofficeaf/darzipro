@@ -428,7 +428,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Export',
+                          'Export CSV',
                           style: GoogleFonts.inter(
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
@@ -824,39 +824,51 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  // Period Selector Chip Build helper
   Widget _buildPeriodChip({
     required String label,
     required bool isActive,
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isActive
+        ? (isDark ? const Color(0xFFE9A227) : const Color(0xFF151922))
+        : (isDark ? const Color(0xFF181D27) : Colors.white);
+    final textCol = isActive
+        ? (isDark ? const Color(0xFF211500) : Colors.white)
+        : (isDark ? Colors.white70 : const Color(0xFF7B8494));
+    final borderCol = isActive
+        ? Colors.transparent
+        : (isDark ? const Color(0xFF333946) : const Color(0xFFE8EAF0));
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
         onTap();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive
-              ? (isDark ? const Color(0x1AF5A623) : context.accentBg)
-              : (isDark ? const Color(0x08FFFFFF) : context.surface2),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive
-                ? (isDark ? const Color(0x59F5A623) : AppColors.lightAccentBorder)
-                : context.border,
-            width: 1,
-          ),
+          color: bg,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: borderCol, width: 1.5),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: (isDark ? const Color(0xFFE9A227) : const Color(0xFF151922))
+                        .withValues(alpha: 0.15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         alignment: Alignment.center,
         child: Text(
           label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-            color: isActive ? (isDark ? const Color(0xFFF5A623) : context.accent) : context.text2,
+          style: GoogleFonts.manrope(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: textCol,
           ),
         ),
       ),
@@ -1015,8 +1027,8 @@ class _KpiCardState extends State<_KpiCard> {
   }
 }
 
-// ── Dress Type Row Component with Staggered entry animation ───────────
-class _DressTypeRow extends StatefulWidget {
+// ── Dress Type Row Component ──────────────────────────────────────────
+class _DressTypeRow extends StatelessWidget {
   final int rank;
   final String name;
   final double percent;
@@ -1032,64 +1044,19 @@ class _DressTypeRow extends StatefulWidget {
   });
 
   @override
-  State<_DressTypeRow> createState() => _DressTypeRowState();
-}
-
-class _DressTypeRowState extends State<_DressTypeRow> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _animation = Tween<double>(begin: 0.0, end: widget.percent).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-
-    // Stagger delay: 100ms per row rank
-    Future.delayed(Duration(milliseconds: (widget.rank - 1) * 100), () {
-      if (mounted) {
-        _controller.forward();
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(_DressTypeRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.percent != widget.percent) {
-      _animation = Tween<double>(
-        begin: _animation.value,
-        end: widget.percent,
-      ).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-      );
-      _controller.forward(from: 0.0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final clampedPercent = percent.clamp(0.0, 1.0);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
           // Rank
           SizedBox(
-            width: 16,
+            width: 18,
             child: Text(
-              widget.rank.toString().padLeft(2, '0'),
+              rank.toString().padLeft(2, '0'),
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -1102,7 +1069,9 @@ class _DressTypeRowState extends State<_DressTypeRow> with SingleTickerProviderS
           Expanded(
             flex: 1,
             child: Text(
-              widget.name,
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -1114,48 +1083,37 @@ class _DressTypeRowState extends State<_DressTypeRow> with SingleTickerProviderS
           // Progress bar
           Expanded(
             flex: 2,
-            child: AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                return Container(
-                  height: 4,
+            child: Container(
+              height: 5,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0x0FFFFFFF) : context.surface2,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: clampedPercent,
+                child: Container(
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0x0FFFFFFF) : context.surface2,
-                    borderRadius: BorderRadius.circular(2),
+                    gradient: LinearGradient(
+                      colors: gradientColors,
+                    ),
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth * _animation.value;
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          width: width,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: widget.gradientColors,
-                            ),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
           // Amount
           SizedBox(
-            width: 80,
+            width: 85,
             child: Text(
-              formatMoney(widget.revenue),
+              formatMoney(revenue),
               textAlign: TextAlign.right,
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: widget.gradientColors.first,
+                color: gradientColors.first,
               ),
             ),
           ),

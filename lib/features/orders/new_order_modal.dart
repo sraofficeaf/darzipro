@@ -6,19 +6,80 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../../core/constants/app_colors.dart';
+
 import '../../core/constants/app_enums.dart';
-import '../../core/theme/theme_extensions.dart';
 import '../../core/widgets/app_modal.dart';
-import '../../core/widgets/modal_footer.dart';
-import '../../core/widgets/shared_widgets.dart';
-import '../../core/widgets/step_indicator.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
 import '../customers/add_customer_modal.dart';
 import '../printing/pdf_builder.dart';
 import '../../core/utils/share_helper.dart';
 
+// ── COLOR CONSTANTS (CACHED) ────────────────────────────────────────────────
+class _ModalColors {
+  static const ink = Color(0xFF111827);
+  static const muted = Color(0xFF7B8494);
+  static const faint = Color(0xFFAAB2BF);
+  static const line = Color(0xFFE8EAF0);
+  static const paper = Color(0xFFF5F6F8);
+
+  static const dark = Color(0xFF151922);
+  static const darkCard = Color(0xFF181D27);
+  static const darkLine = Color(0xFF333946);
+
+  static const gold = Color(0xFFE9A227);
+  static const gold2 = Color(0xFFFFC65A);
+  static const goldBg = Color(0xFFFFF6E5);
+  static const goldLine = Color(0xFFF3DDA8);
+
+  static const green = Color(0xFF18B887);
+  static const greenBg = Color(0xFFEAFBF5);
+  static const greenLine = Color(0xFFCFEFE3);
+
+  static const rose = Color(0xFFEF5261);
+  static const roseBg = Color(0xFFFFF0F2);
+}
+
+// ── TYPOGRAPHY CONSTANTS (CACHED) ───────────────────────────────────────────
+class _ModalStyles {
+
+  static final stepTitle = GoogleFonts.manrope(
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+  );
+
+  static final stepNum = GoogleFonts.manrope(
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+  );
+
+  static final fieldLabel = GoogleFonts.dmSans(
+    fontSize: 10,
+    fontWeight: FontWeight.w900,
+    letterSpacing: 0.7,
+    color: _ModalColors.muted,
+  );
+
+  static final summaryTitle = GoogleFonts.dmSans(
+    fontSize: 10,
+    fontWeight: FontWeight.w900,
+    color: const Color(0xFF8B6C22),
+    letterSpacing: 1.2,
+  );
+
+  static final summaryKey = GoogleFonts.dmSans(
+    fontSize: 11.5,
+    fontWeight: FontWeight.w700,
+    color: const Color(0xFF8B6C22),
+  );
+
+  static final summaryVal = GoogleFonts.ibmPlexMono(
+    fontSize: 12,
+    fontWeight: FontWeight.w800,
+  );
+}
+
+// ── NEW ORDER MODAL ─────────────────────────────────────────────────────────
 class NewOrderModal extends ConsumerStatefulWidget {
   final CustomerModel? preSelectedCustomer;
 
@@ -27,7 +88,7 @@ class NewOrderModal extends ConsumerStatefulWidget {
   static Future<OrderModel?> show(BuildContext context, {CustomerModel? preSelectedCustomer}) {
     return AppModal(
       title: 'New Order',
-      width: 840,
+      width: 800,
       child: NewOrderModal(preSelectedCustomer: preSelectedCustomer),
     ).show<OrderModel>(context);
   }
@@ -37,7 +98,7 @@ class NewOrderModal extends ConsumerStatefulWidget {
 }
 
 class _NewOrderModalState extends ConsumerState<NewOrderModal> {
-  int _currentStep = 1; // 1, 2, 3, 4
+  int _currentStep = 1; // 1: Client, 2: Items, 3: Payment, 4: Dates
   bool _isSaving = false;
   OrderModel? _savedOrder;
 
@@ -45,7 +106,7 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
   final List<Map<String, dynamic>> _items = [];
   PaymentMethod _paymentMethod = PaymentMethod.cash;
 
-  // Controllers
+  // Form Controllers
   final _searchCtrl = TextEditingController();
   final _dressTypeCtrl = TextEditingController();
   final _clothCtrl = TextEditingController();
@@ -57,20 +118,17 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
   DateTime _orderDate = DateTime.now();
   DateTime? _deliveryDate;
 
-  // Stepper quantity
+  // Quantity for item being added
   int _qty = 1;
 
-  // Selected measurement profile for item being added
+  // Selected measurement profile
   String? _selectedMeasurementProfileId;
 
-  // Search state
+  // Search state & debounce
   String _searchQuery = '';
-  Timer? _debounce;
+  Timer? _debounceTimer;
 
-  // Shake key for validation
-  final GlobalKey<ShakeWidgetState> _shakeKey = GlobalKey<ShakeWidgetState>();
-
-  // Error state
+  // Validation errors
   String? _step1Error;
   String? _step2Error;
   String? _step3Error;
@@ -87,29 +145,29 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchCtrl.dispose();
     _dressTypeCtrl.dispose();
     _clothCtrl.dispose();
     _priceCtrl.dispose();
     _advanceCtrl.dispose();
     _notesCtrl.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      setState(() {
-        _searchQuery = query.trim().toLowerCase();
-      });
+  void _onSearchChanged(String val) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) {
+        setState(() => _searchQuery = val.trim().toLowerCase());
+      }
     });
   }
 
   double get _itemsTotal {
     double total = 0;
-    for (var item in _items) {
-      total += (item['price'] as double) * (item['qty'] as int);
+    for (final it in _items) {
+      total += (it['price'] as double) * (it['qty'] as int);
     }
     return total;
   }
@@ -119,15 +177,14 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
   }
 
   double get _remainingAmount {
-    final remaining = _itemsTotal - _advanceAmount;
-    return remaining < 0 ? 0 : remaining;
+    final rem = _itemsTotal - _advanceAmount;
+    return rem < 0 ? 0 : rem;
   }
 
   bool _validateStep1() {
     setState(() => _step1Error = null);
     if (_selectedCustomer == null) {
       setState(() => _step1Error = 'Please select a client to proceed.');
-      _shakeKey.currentState?.shake();
       HapticFeedback.vibrate();
       return false;
     }
@@ -137,8 +194,7 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
   bool _validateStep2() {
     setState(() => _step2Error = null);
     if (_items.isEmpty) {
-      setState(() => _step2Error = 'Please add at least one item to the order.');
-      _shakeKey.currentState?.shake();
+      setState(() => _step2Error = 'Please add at least one item to proceed.');
       HapticFeedback.vibrate();
       return false;
     }
@@ -147,11 +203,8 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
 
   bool _validateStep3() {
     setState(() => _step3Error = null);
-    final advance = _advanceAmount;
-    final total = _itemsTotal;
-    if (advance > total) {
-      setState(() => _step3Error = 'Advance payment cannot exceed total amount (₨ ${total.toInt()}).');
-      _shakeKey.currentState?.shake();
+    if (_advanceAmount > _itemsTotal) {
+      setState(() => _step3Error = 'Advance cannot exceed total amount.');
       HapticFeedback.vibrate();
       return false;
     }
@@ -162,16 +215,6 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
     setState(() => _step4Error = null);
     if (_deliveryDate == null) {
       setState(() => _step4Error = 'Please select a delivery date.');
-      _shakeKey.currentState?.shake();
-      HapticFeedback.vibrate();
-      return false;
-    }
-    // Check if delivery date is after order date
-    final orderDay = DateUtils.dateOnly(_orderDate);
-    final deliveryDay = DateUtils.dateOnly(_deliveryDate!);
-    if (deliveryDay.isBefore(orderDay) || deliveryDay.isAtSameMomentAs(orderDay)) {
-      setState(() => _step4Error = 'Delivery date must be after order date.');
-      _shakeKey.currentState?.shake();
       HapticFeedback.vibrate();
       return false;
     }
@@ -180,42 +223,30 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
 
   void _nextStep() {
     if (_currentStep == 1) {
-      if (_validateStep1()) {
-        setState(() => _currentStep = 2);
-      }
+      if (_validateStep1()) setState(() => _currentStep = 2);
     } else if (_currentStep == 2) {
-      if (_validateStep2()) {
-        setState(() => _currentStep = 3);
-      }
+      if (_validateStep2()) setState(() => _currentStep = 3);
     } else if (_currentStep == 3) {
-      if (_validateStep3()) {
-        setState(() => _currentStep = 4);
-      }
+      if (_validateStep3()) setState(() => _currentStep = 4);
     } else if (_currentStep == 4) {
-      if (_validateStep4()) {
-        _saveOrder();
-      }
+      if (_validateStep4()) _saveOrder();
     }
   }
 
   void _prevStep() {
     if (_currentStep > 1) {
-      if (_currentStep == 2 && widget.preSelectedCustomer != null) {
-        // If customer was pre-selected, let them go back to step 1
-        setState(() => _currentStep = 1);
-      } else {
-        setState(() => _currentStep--);
-      }
+      setState(() => _currentStep--);
     }
   }
 
   Future<void> _selectDate(BuildContext context, bool isDelivery) async {
-    final initialDate = isDelivery
+    final initial = isDelivery
         ? (_deliveryDate ?? DateTime.now().add(const Duration(days: 7)))
         : _orderDate;
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: initialDate,
+      initialDate: initial,
       firstDate: isDelivery ? DateTime.now() : DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
@@ -224,26 +255,22 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
           data: isDark
               ? ThemeData.dark().copyWith(
                   colorScheme: const ColorScheme.dark(
-                    primary: Color(0xFFF5A623),
-                    onPrimary: Color(0xFF1A0A00),
-                    surface: Color(0xFF0F1C30),
-                    onSurface: Color(0xFFEDF4FF),
-                  ),
-                  dialogTheme: const DialogThemeData(
-                    backgroundColor: Color(0xFF0F1C30),
+                    primary: _ModalColors.gold,
+                    onPrimary: Color(0xFF211500),
+                    surface: _ModalColors.darkCard,
                   ),
                 )
               : ThemeData.light().copyWith(
                   colorScheme: const ColorScheme.light(
-                    primary: Color(0xFFD97706),
+                    primary: _ModalColors.gold,
                     surface: Colors.white,
-                    onSurface: Color(0xFF0F172A),
                   ),
                 ),
           child: child!,
         );
       },
     );
+
     if (picked != null) {
       setState(() {
         if (isDelivery) {
@@ -257,39 +284,31 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
 
   Future<void> _saveOrder() async {
     if (_selectedCustomer == null || _isSaving) return;
-
     setState(() => _isSaving = true);
 
     final total = _itemsTotal;
     final advance = _advanceAmount;
     final orderId = const Uuid().v4();
 
-    final orderItems = _items.asMap().entries.map((entry) {
-      final item = entry.value;
+    final orderItems = _items.map((it) {
       return OrderItemModel(
         id: const Uuid().v4(),
-        dressType: item['dressType'] as String,
-        quantity: item['qty'] as int,
-        clothDetails: item['cloth'] as String,
-        unitPrice: item['price'] as double,
-        measurementProfileId: item['measurementProfileId'] as String?,
+        dressType: it['dressType'] as String,
+        quantity: it['qty'] as int,
+        clothDetails: it['cloth'] as String,
+        unitPrice: it['price'] as double,
+        measurementProfileId: it['measurementProfileId'] as String?,
       );
     }).toList();
 
     final List<PaymentModel> payments = [];
     if (advance > 0) {
-      String payNotes = 'Advance';
-      if (_paymentMethod == PaymentMethod.online) {
-        payNotes = 'Advance via Online';
-      } else if (_paymentMethod == PaymentMethod.card) {
-        payNotes = 'Advance via Card';
-      }
       payments.add(PaymentModel(
         id: const Uuid().v4(),
         amount: advance,
         method: _paymentMethod,
         paidAt: DateTime.now(),
-        note: payNotes,
+        note: 'Advance via ${_paymentMethod.name}',
       ));
     }
 
@@ -311,29 +330,21 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
     try {
       await ref.read(ordersProvider.notifier).addOrder(newOrder);
       final updatedOrders = ref.read(ordersProvider).valueOrNull ?? [];
-      final savedOrder = updatedOrders.firstWhere(
+      final saved = updatedOrders.firstWhere(
         (o) => o.id == orderId,
         orElse: () => newOrder,
       );
-      setState(() {
-        _isSaving = false;
-        _savedOrder = savedOrder;
-      });
-    } catch (e) {
-      setState(() => _isSaving = false);
       if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _savedOrder = saved;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '❌ Failed to save order: $e',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
-            backgroundColor: AppColors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+          SnackBar(content: Text('Failed to save order: $e'), backgroundColor: _ModalColors.rose),
         );
       }
     }
@@ -345,7 +356,7 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
       final msg = '🧵 *Darzi Pro — Token ${order.tokenNumber}*\n\n'
           'Aapka order ready hone ka waqt:\n'
           '📅 Delivery: ${DateFormat('dd MMM yyyy').format(order.deliveryDate ?? DateTime.now())}\n'
-          '💰 Baqi raqam: ₨ ${order.remainingAmount.toInt()}\n\n'
+          '💰 Baqi raqam: Rs ${order.remainingAmount.toInt()}\n\n'
           'Shukriya! 🙏';
       if (mounted) {
         await DarziShareHelper.shareOrSavePdf(
@@ -364,317 +375,403 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
       return _buildSuccessState();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        StepIndicator(
-          totalSteps: 4,
-          currentStep: _currentStep,
-          labels: const ['Client', 'Items', 'Payment', 'Dates & Notes'],
-        ),
-        const SizedBox(height: 14),
+        // 1. STEPPER BAR (MATCHING MOCKUP)
+        _buildStepper(isDark),
+
+        // 2. STEP CONTENT (SCROLLABLE & LIGHTWEIGHT)
         Flexible(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: ShakeWidget(
-              key: _shakeKey,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: child,
-                ),
-                child: _buildStepContent(),
-              ),
-            ),
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
+            child: _buildStepContent(isDark),
           ),
         ),
-        const SizedBox(height: 14),
-        ModalFooter(
-          currentStep: _currentStep,
-          totalSteps: 4,
-          onNext: _nextStep,
-          onBack: _prevStep,
-          nextLabel: _currentStep == 4 ? 'Save Order' : 'Next Step',
-          isLoading: _isSaving,
-        ),
+
+        // 3. MODAL FOOTER ACTIONS
+        _buildFooter(isDark),
       ],
     );
   }
 
-  Widget _buildStepContent() {
+  // ── STEPPER BAR ───────────────────────────────────────────────────────────
+  Widget _buildStepper(bool isDark) {
+    final steps = ['Client', 'Items', 'Payment', 'Dates'];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: List.generate(steps.length * 2 - 1, (index) {
+          if (index.isOdd) {
+            final stepIdx = (index ~/ 2) + 1;
+            final isDone = stepIdx < _currentStep;
+            return Expanded(
+              child: Container(
+                height: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: isDone
+                      ? _ModalColors.green
+                      : (isDark ? _ModalColors.darkLine : _ModalColors.line),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            );
+          }
+
+          final stepNum = (index ~/ 2) + 1;
+          final isDone = stepNum < _currentStep;
+          final isActive = stepNum == _currentStep;
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: isDone
+                      ? _ModalColors.green
+                      : (isActive
+                          ? (isDark ? _ModalColors.gold : _ModalColors.dark)
+                          : (isDark ? _ModalColors.darkCard : Colors.white)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDone
+                        ? _ModalColors.green
+                        : (isActive
+                            ? Colors.transparent
+                            : (isDark ? _ModalColors.darkLine : _ModalColors.line)),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    isDone ? '✓' : '$stepNum',
+                    style: _ModalStyles.stepNum.copyWith(
+                      color: isDone || isActive
+                          ? (isActive && isDark ? const Color(0xFF211500) : Colors.white)
+                          : _ModalColors.muted,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                steps[stepNum - 1],
+                style: _ModalStyles.stepTitle.copyWith(
+                  color: isActive || isDone
+                      ? (isDark ? Colors.white : _ModalColors.ink)
+                      : _ModalColors.muted,
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  // ── STEP CONTENT ROUTER ───────────────────────────────────────────────────
+  Widget _buildStepContent(bool isDark) {
     switch (_currentStep) {
       case 1:
-        return _buildStep1();
+        return _buildStep1(isDark);
       case 2:
-        return _buildStep2();
+        return _buildStep2(isDark);
       case 3:
-        return _buildStep3();
+        return _buildStep3(isDark);
       case 4:
-        return _buildStep4();
+        return _buildStep4(isDark);
       default:
         return const SizedBox.shrink();
     }
   }
 
-  // STEP 1: SELECT CLIENT
-  Widget _buildStep1() {
+  // ── STEP 1: CLIENT SELECTION ──────────────────────────────────────────────
+  Widget _buildStep1(bool isDark) {
     final customersAsync = ref.watch(customersProvider);
 
     return Column(
-      key: const ValueKey('step_1'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppTextField(
-          label: 'Search Client',
-          controller: _searchCtrl,
-          hint: 'Search client by name or phone...',
-          onChanged: _onSearchChanged,
-          prefix: const Icon(Icons.search_rounded, size: 16, color: Color(0xFF2D4060)),
+        if (_step1Error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              _step1Error!,
+              style: const TextStyle(color: _ModalColors.rose, fontSize: 11),
+            ),
+          ),
+
+        // Search Field
+        Text('SEARCH CLIENT', style: _ModalStyles.fieldLabel),
+        const SizedBox(height: 6),
+        Container(
+          height: 46,
+          decoration: BoxDecoration(
+            color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+            border: Border.all(
+              color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              const Icon(Icons.search_rounded, size: 18, color: _ModalColors.muted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: _onSearchChanged,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    color: isDark ? Colors.white : _ModalColors.ink,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name or phone...',
+                    hintStyle: GoogleFonts.dmSans(fontSize: 13, color: _ModalColors.faint),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        // Dashed Add New Client Button
-        GestureDetector(
+        const SizedBox(height: 14),
+
+        // Add Customer Link
+        InkWell(
           onTap: () async {
-            final newCustomer = await AddCustomerModal.show(context);
-            if (newCustomer != null) {
+            final newCust = await AddCustomerModal.show(context);
+            if (newCust != null) {
               setState(() {
-                _selectedCustomer = newCustomer;
+                _selectedCustomer = newCust;
                 _currentStep = 2;
               });
             }
           },
-          child: CustomPaint(
-            painter: _DashedBorderPainter(
-              color: const Color(0x4D10CBA0),
-              strokeWidth: 1.5,
-              borderRadius: 10,
-            ),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0x0A10CBA0),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(
-                child: Text(
-                  '＋ Add New Client',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF10CBA0),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          'CLIENTS LIST',
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF5A7090),
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (_step1Error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_step1Error!, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
-          ),
-        customersAsync.when(
-          data: (customers) {
-            final filtered = customers.where((c) {
-              final nameMatch = c.name.toLowerCase().contains(_searchQuery);
-              final phoneMatch = c.phone.toLowerCase().contains(_searchQuery);
-              return nameMatch || phoneMatch;
-            }).toList();
-
-            final displayList = _searchQuery.isEmpty ? filtered.take(10).toList() : filtered;
-
-            if (displayList.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'No Clients Found',
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF5A7090)),
-                  ),
-                ),
-              );
-            }
-
-            return Column(
-              children: displayList.map((c) {
-                final isSelected = _selectedCustomer?.id == c.id;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildClientListItem(c, isSelected),
-                );
-              }).toList(),
-            );
-          },
-          loading: () => const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFF5A623)),
-            ),
-          ),
-          error: (err, _) => Text('Error: $err', style: const TextStyle(color: Colors.redAccent)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildClientListItem(CustomerModel customer, bool isSelected) {
-    final bg = isSelected ? const Color(0x0FF5A623) : (context.isDark ? Colors.white.withValues(alpha: 0.04) : context.surface2);
-    final border = isSelected ? const Color(0x33F5A623) : (context.isDark ? Colors.white.withValues(alpha: 0.06) : context.border);
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() => _selectedCustomer = customer);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: border, width: 1.5),
           borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            CustomerAvatar(name: customer.name, size: 36, borderRadius: 10),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    customer.name,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: context.text1,
-                    ),
-                  ),
-                  Text(
-                    customer.phone,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 10,
-                      color: context.text2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Container(
-                width: 20,
-                height: 20,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF5A623)),
-                child: const Icon(Icons.check, size: 12, color: Colors.white),
-              )
-            else
-              Icon(Icons.chevron_right_rounded, size: 20, color: context.isDark ? Colors.white.withValues(alpha: 0.15) : context.border),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // STEP 2: ADD ITEMS
-  Widget _buildStep2() {
-    return Column(
-      key: const ValueKey('step_2'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Selected Client Banner
-        if (_selectedCustomer != null)
-          Container(
-            padding: const EdgeInsets.all(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
-              color: const Color(0x0FF5A623),
-              border: Border.all(color: const Color(0x33F5A623), width: 1.5),
+              color: isDark ? const Color(0x14E9A227) : _ModalColors.goldBg,
+              border: Border.all(color: _ModalColors.goldLine, width: 1.5),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CustomerAvatar(name: _selectedCustomer!.name, size: 36, borderRadius: 10),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _selectedCustomer!.name,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: context.text1,
-                        ),
-                      ),
-                      Text(
-                        _selectedCustomer!.phone,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 10,
-                          color: context.text2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _currentStep = 1);
-                  },
-                  child: Text(
-                    'Change',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFFF5A623),
-                    ),
+                const Text('＋', style: TextStyle(fontSize: 15, color: _ModalColors.gold)),
+                const SizedBox(width: 6),
+                Text(
+                  'Add New Client',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFB45309),
                   ),
                 ),
               ],
             ),
           ),
-        const SizedBox(height: 14),
-        Text(
-          'ADDED ITEMS',
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF5A7090),
-            letterSpacing: 1.2,
-          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
+
+        Text('CLIENTS LIST', style: _ModalStyles.fieldLabel),
+        const SizedBox(height: 6),
+
+        // Virtualized Client Picker
+        customersAsync.when(
+          data: (allCustomers) {
+            final filtered = _searchQuery.isEmpty
+                ? allCustomers
+                : allCustomers.where((c) {
+                    final q = _searchQuery;
+                    return c.name.toLowerCase().contains(q) || c.phone.contains(q);
+                  }).toList();
+
+            if (filtered.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                alignment: Alignment.center,
+                child: Text(
+                  'No clients found',
+                  style: GoogleFonts.dmSans(fontSize: 12, color: _ModalColors.muted),
+                ),
+              );
+            }
+
+            return SizedBox(
+              height: 250,
+              child: ListView.builder(
+                itemCount: filtered.length,
+                cacheExtent: 200,
+                itemBuilder: (context, index) {
+                  final c = filtered[index];
+                  final isSelected = _selectedCustomer?.id == c.id;
+
+                  return RepaintBoundary(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: isSelected
+                            ? (isDark ? const Color(0x28E9A227) : _ModalColors.goldBg)
+                            : (isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB)),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            setState(() => _selectedCustomer = c);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: isSelected
+                                    ? _ModalColors.gold
+                                    : (isDark ? _ModalColors.darkLine : _ModalColors.line),
+                                width: 1.5,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            child: Row(
+                              children: [
+                                // Avatar Initial
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [_ModalColors.gold2, Color(0xFFD88A13)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        c.name,
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: isDark ? Colors.white : _ModalColors.ink,
+                                        ),
+                                      ),
+                                      Text(
+                                        c.phone,
+                                        style: GoogleFonts.ibmPlexMono(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: _ModalColors.muted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Checkmark
+                                if (isSelected)
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _ModalColors.gold,
+                                    ),
+                                    child: const Icon(Icons.check, size: 13, color: Colors.white),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: CircularProgressIndicator(strokeWidth: 2, color: _ModalColors.gold),
+            ),
+          ),
+          error: (err, _) => Text('Error: $err', style: const TextStyle(color: _ModalColors.rose)),
+        ),
+      ],
+    );
+  }
+
+  // ── STEP 2: ITEMS SELECTION ───────────────────────────────────────────────
+  Widget _buildStep2(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         if (_step2Error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_step2Error!, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+            child: Text(
+              _step2Error!,
+              style: const TextStyle(color: _ModalColors.rose, fontSize: 11),
+            ),
           ),
-        // List of items
+
+        // Added Items List
+        Text('ADDED ITEMS', style: _ModalStyles.fieldLabel),
+        const SizedBox(height: 6),
         if (_items.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 20),
             decoration: BoxDecoration(
-              color: context.isDark ? Colors.white.withValues(alpha: 0.02) : context.surface2,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.04) : context.border),
+              color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+                width: 1,
+              ),
             ),
             child: Center(
               child: Text(
                 'No items added yet.',
-                style: GoogleFonts.inter(fontSize: 12, color: context.text3),
+                style: GoogleFonts.dmSans(fontSize: 12, color: _ModalColors.muted),
               ),
             ),
           )
@@ -682,145 +779,174 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
           Column(
             children: _items.asMap().entries.map((entry) {
               final idx = entry.key;
-              final item = entry.value;
+              final it = entry.value;
+              final lineTotal = (it['price'] as double) * (it['qty'] as int);
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0x0A10CBA0),
-                  border: Border.all(color: const Color(0x3310CBA0), width: 1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: isDark ? const Color(0x1418B887) : _ModalColors.greenBg,
+                  border: Border.all(
+                    color: isDark ? const Color(0x3318B887) : _ModalColors.greenLine,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    const Text('✅', style: TextStyle(fontSize: 12)),
-                    const SizedBox(width: 8),
+                    const Text('✅', style: TextStyle(fontSize: 13)),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${item['dressType']} × ${item['qty']}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: context.text1,
+                            '${it['dressType']} × ${it['qty']}',
+                            style: GoogleFonts.manrope(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : _ModalColors.ink,
                             ),
                           ),
-                          if (item['cloth'].toString().isNotEmpty)
+                          if (it['cloth'].toString().isNotEmpty)
                             Text(
-                              item['cloth'],
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: context.text2,
+                              it['cloth'].toString(),
+                              style: GoogleFonts.dmSans(
+                                fontSize: 10.5,
+                                color: _ModalColors.muted,
                               ),
                             ),
                         ],
                       ),
                     ),
                     Text(
-                      '₨ ${(item['price'] * item['qty']).toInt()}',
-                      style: GoogleFonts.jetBrainsMono(
+                      'Rs ${lineTotal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                      style: GoogleFonts.ibmPlexMono(
                         fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF10CBA0),
+                        fontWeight: FontWeight.w800,
+                        color: _ModalColors.green,
                       ),
                     ),
                     const SizedBox(width: 10),
-                    GestureDetector(
+                    InkWell(
                       onTap: () {
                         HapticFeedback.lightImpact();
                         setState(() => _items.removeAt(idx));
                       },
-                      child: const Icon(Icons.close_rounded, size: 16, color: Colors.redAccent),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: _ModalColors.roseBg,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: const Center(
+                          child: Text('✕', style: TextStyle(fontSize: 11, color: _ModalColors.rose)),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               );
             }).toList(),
           ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
+
         // Add Item Form Box
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: context.isDark ? const Color(0x06FFFFFF) : context.surface2,
-            border: Border.all(color: context.isDark ? const Color(0x0FFFFFFF) : context.border, width: 1),
-            borderRadius: BorderRadius.circular(12),
+            color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+            border: Border.all(
+              color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '＋ Add Item',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFFF5A623),
+                '＋ ADD ITEM',
+                style: GoogleFonts.dmSans(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  color: _ModalColors.gold,
+                  letterSpacing: 1,
                 ),
               ),
-              const SizedBox(height: 10),
-              AppTextField(
-                label: 'Dress Type',
+              const SizedBox(height: 12),
+
+              // Dress Type
+              Text('DRESS TYPE', style: _ModalStyles.fieldLabel),
+              const SizedBox(height: 5),
+              _buildTextInput(
                 controller: _dressTypeCtrl,
-                hint: 'e.g. Sherwani, Shalwar Kameez',
-                prefix: const Text('👗', style: TextStyle(fontSize: 14)),
+                hint: 'e.g. Shalwar Kameez, Sherwani',
+                prefixIcon: const Text('👗', style: TextStyle(fontSize: 14)),
+                isDark: isDark,
               ),
               const SizedBox(height: 10),
-              AppTextField(
-                label: 'Cloth Details',
+
+              // Cloth Details
+              Text('CLOTH DETAILS', style: _ModalStyles.fieldLabel),
+              const SizedBox(height: 5),
+              _buildTextInput(
                 controller: _clothCtrl,
                 hint: 'Color, fabric, design',
-                prefix: const Text('🎨', style: TextStyle(fontSize: 14)),
+                prefixIcon: const Text('🎨', style: TextStyle(fontSize: 14)),
+                isDark: isDark,
               ),
               const SizedBox(height: 10),
-              // Measurement Profile Picker (if customer has profiles)
-              if (_selectedCustomer != null)
-                _buildMeasurementProfilePicker(),
-              const SizedBox(height: 10),
+
+              // Measurement Profile Picker
+              if (_selectedCustomer != null) _buildMeasurementPicker(isDark),
+
+              // Price & Quantity Row
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: AppTextField(
-                      label: 'Price (Rs)',
-                      controller: _priceCtrl,
-                      hint: '0',
-                      keyboardType: TextInputType.number,
-                      prefix: const Text('💰', style: TextStyle(fontSize: 14)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('PRICE (RS)', style: _ModalStyles.fieldLabel),
+                        const SizedBox(height: 5),
+                        _buildTextInput(
+                          controller: _priceCtrl,
+                          hint: '0',
+                          keyboardType: TextInputType.number,
+                          prefixIcon: const Text('💰', style: TextStyle(fontSize: 14)),
+                          isDark: isDark,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  // Quantity picker
+                  const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'QUANTITY',
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF5A7090),
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
+                      Text('QUANTITY', style: _ModalStyles.fieldLabel),
+                      const SizedBox(height: 5),
                       Row(
                         children: [
-                          _qtyBtn('−', () => setState(() => _qty = _qty > 1 ? _qty - 1 : 1)),
+                          _qtyButton('−', () {
+                            if (_qty > 1) setState(() => _qty--);
+                          }, isDark),
                           Container(
-                            constraints: const BoxConstraints(minWidth: 28),
+                            constraints: const BoxConstraints(minWidth: 32),
                             alignment: Alignment.center,
                             child: Text(
                               '$_qty',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 13,
+                              style: GoogleFonts.ibmPlexMono(
+                                fontSize: 14,
                                 fontWeight: FontWeight.w800,
-                                color: context.text1,
+                                color: isDark ? Colors.white : _ModalColors.ink,
                               ),
                             ),
                           ),
-                          _qtyBtn('＋', () => setState(() => _qty++)),
+                          _qtyButton('＋', () => setState(() => _qty++), isDark),
                         ],
                       ),
                     ],
@@ -828,42 +954,50 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
                 ],
               ),
               const SizedBox(height: 14),
-              // Teal button
-              GestureDetector(
-                onTap: () {
-                  if (_dressTypeCtrl.text.trim().isEmpty) return;
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _items.add({
-                      'dressType': _dressTypeCtrl.text.trim(),
-                      'cloth': _clothCtrl.text.trim(),
-                      'price': double.tryParse(_priceCtrl.text) ?? 0.0,
-                      'qty': _qty,
-                      'measurementProfileId': _selectedMeasurementProfileId,
-                    });
-                    _dressTypeCtrl.clear();
-                    _clothCtrl.clear();
-                    _priceCtrl.clear();
-                    _qty = 1;
-                    _selectedMeasurementProfileId = null;
-                    _step2Error = null;
-                  });
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0x1A10CBA0),
-                    border: Border.all(color: const Color(0x4010CBA0), width: 1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '＋ Add to Order',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF10CBA0),
+
+              // Add to Order Button
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0x2418B887) : _ModalColors.greenBg,
+                  border: Border.all(color: _ModalColors.green, width: 1.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      final dress = _dressTypeCtrl.text.trim();
+                      if (dress.isEmpty) return;
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _items.add({
+                          'dressType': dress,
+                          'cloth': _clothCtrl.text.trim(),
+                          'price': double.tryParse(_priceCtrl.text) ?? 0.0,
+                          'qty': _qty,
+                          'measurementProfileId': _selectedMeasurementProfileId,
+                        });
+                        _dressTypeCtrl.clear();
+                        _clothCtrl.clear();
+                        _priceCtrl.clear();
+                        _qty = 1;
+                        _selectedMeasurementProfileId = null;
+                        _step2Error = null;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      child: Center(
+                        child: Text(
+                          '＋ Add to Order',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: _ModalColors.green,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -872,105 +1006,90 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
       ],
     );
   }
 
-  Widget _buildMeasurementProfilePicker() {
+  Widget _buildMeasurementPicker(bool isDark) {
     final allMeasurements = ref.watch(customerMeasurementsProvider).valueOrNull ?? [];
-    final profiles = allMeasurements
-        .where((m) => m.customerId == _selectedCustomer?.id)
-        .toList();
+    final profiles =
+        allMeasurements.where((m) => m.customerId == _selectedCustomer?.id).toList();
 
     if (profiles.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'MEASUREMENT PROFILE (OPTIONAL)',
-          style: GoogleFonts.inter(
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF5A7090),
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          decoration: BoxDecoration(
-            color: context.isDark ? const Color(0x08FFFFFF) : context.surface2,
-            border: Border.all(
-              color: context.isDark ? const Color(0x0FFFFFFF) : context.border,
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: _selectedMeasurementProfileId,
-              isExpanded: true,
-              dropdownColor: context.isDark ? const Color(0xFF0D1628) : Colors.white,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.text1,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('MEASUREMENT PROFILE (OPTIONAL)', style: _ModalStyles.fieldLabel),
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: isDark ? _ModalColors.darkCard : Colors.white,
+              border: Border.all(
+                color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+                width: 1.5,
               ),
-              items: [
-                DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text(
-                    'None — no profile linked',
-                    style: GoogleFonts.inter(fontSize: 12, color: context.text3),
-                  ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: _selectedMeasurementProfileId,
+                isExpanded: true,
+                dropdownColor: isDark ? _ModalColors.darkCard : Colors.white,
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  color: isDark ? Colors.white : _ModalColors.ink,
                 ),
-                ...profiles.map((p) => DropdownMenuItem<String?>(
-                  value: p.id,
-                  child: Row(
-                    children: [
-                      const Text('📏', style: TextStyle(fontSize: 12)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          p.profileName,
-                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.text1),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('None — no profile linked'),
                   ),
-                )),
-              ],
-              onChanged: (val) => setState(() => _selectedMeasurementProfileId = val),
+                  ...profiles.map((p) => DropdownMenuItem<String?>(
+                        value: p.id,
+                        child: Text('📏 ${p.profileName}'),
+                      )),
+                ],
+                onChanged: (val) => setState(() => _selectedMeasurementProfileId = val),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _qtyBtn(String symbol, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: context.isDark ? const Color(0x0FFFFFFF) : context.surface2,
-          borderRadius: BorderRadius.circular(6),
+  Widget _qtyButton(String label, VoidCallback onTap, bool isDark) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: isDark ? _ModalColors.darkCard : Colors.white,
+        border: Border.all(
+          color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+          width: 1.5,
         ),
-        child: Center(
-          child: Text(
-            symbol,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: context.text2,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.manrope(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : _ModalColors.ink,
+              ),
             ),
           ),
         ),
@@ -978,285 +1097,346 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
     );
   }
 
-  // STEP 3: PAYMENT
-  Widget _buildStep3() {
+  // ── STEP 3: PAYMENT ───────────────────────────────────────────────────────
+  Widget _buildStep3(bool isDark) {
     final total = _itemsTotal;
     final advance = _advanceAmount;
     final remaining = _remainingAmount;
 
     return Column(
-      key: const ValueKey('step_3'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Total Card
+        if (_step3Error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              _step3Error!,
+              style: const TextStyle(color: _ModalColors.rose, fontSize: 11),
+            ),
+          ),
+
+        // Total Banner
         Container(
-          width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: context.isDark ? const Color(0xFF0A1428) : context.surface2,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.05) : context.border),
+            color: isDark ? _ModalColors.darkCard : _ModalColors.paper,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+              width: 1,
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'ORDER TOTAL:',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.dmSans(
                   fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF5A7090),
+                  fontWeight: FontWeight.w900,
                   letterSpacing: 1,
+                  color: _ModalColors.muted,
                 ),
               ),
               Text(
-                '₨ ${total.toInt()}',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 22,
+                'Rs ${total.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                style: GoogleFonts.ibmPlexMono(
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
-                  color: context.text1,
+                  letterSpacing: -1,
+                  color: isDark ? Colors.white : _ModalColors.ink,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        AppTextField(
-          label: 'Advance Payment',
+        const SizedBox(height: 16),
+
+        // Advance Input
+        Text('ADVANCE PAYMENT', style: _ModalStyles.fieldLabel),
+        const SizedBox(height: 5),
+        _buildTextInput(
           controller: _advanceCtrl,
           hint: '0',
           keyboardType: TextInputType.number,
+          prefixIcon: const Text('💵', style: TextStyle(fontSize: 14)),
           onChanged: (_) => setState(() {}),
-          prefix: const Icon(Icons.payments_rounded, size: 16, color: Color(0xFF2D4060)),
+          isDark: isDark,
         ),
-        if (_step3Error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 4),
-            child: Text(_step3Error!, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
-          ),
-        const SizedBox(height: 18),
-        Text(
-          'PAYMENT METHOD',
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF5A7090),
-            letterSpacing: 1,
-          ),
-        ),
+        const SizedBox(height: 16),
+
+        // Payment Method Options
+        Text('PAYMENT METHOD', style: _ModalStyles.fieldLabel),
         const SizedBox(height: 8),
         Row(
           children: [
-            _buildPayMethodOption(PaymentMethod.online, '📱', 'Easypaisa'),
+            _buildPayMethodCard(PaymentMethod.online, '📱', 'Easypaisa', isDark),
             const SizedBox(width: 8),
-            _buildPayMethodOption(PaymentMethod.card, '💳', 'JazzCash'),
+            _buildPayMethodCard(PaymentMethod.card, '💳', 'JazzCash', isDark),
             const SizedBox(width: 8),
-            _buildPayMethodOption(PaymentMethod.cash, '💵', 'Cash'),
+            _buildPayMethodCard(PaymentMethod.cash, '💵', 'Cash', isDark),
           ],
         ),
-        const SizedBox(height: 20),
-        // Live Summary Card
+        const SizedBox(height: 18),
+
+        // Live Summary Box
         Container(
-          width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: context.isDark ? Colors.white.withValues(alpha: 0.02) : context.surface2,
-            border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.04) : context.border),
-            borderRadius: BorderRadius.circular(12),
+            color: _ModalColors.goldBg,
+            border: Border.all(color: _ModalColors.goldLine, width: 1.5),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSummaryRowItem('Total Amount', '₨ ${total.toInt()}'),
-              const SizedBox(height: 6),
-              _buildSummaryRowItem('Advance Paid', '₨ ${advance.toInt()}'),
-              const Divider(color: Colors.white10, height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Remaining',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: context.text2),
-                  ),
-                  if (remaining == 0)
-                    Text(
-                      'Fully Paid ✓',
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w900, color: const Color(0xFF10CBA0)),
-                    )
-                  else
-                    Text(
-                      '₨ ${remaining.toInt()}',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFFF5A623),
-                      ),
-                    ),
-                ],
+              Text('LIVE SUMMARY', style: _ModalStyles.summaryTitle),
+              const SizedBox(height: 10),
+              _buildSummaryLine('Total:', 'Rs ${total.toInt()}'),
+              _buildSummaryLine('Advance:', 'Rs ${advance.toInt()}'),
+              const Divider(color: _ModalColors.goldLine, height: 16),
+              _buildSummaryLine(
+                'Remaining:',
+                'Rs ${remaining.toInt()}',
+                valueColor: const Color(0xFFB45309),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 10),
       ],
     );
   }
 
-  Widget _buildSummaryRowItem(String label, String val) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: context.text2),
-        ),
-        Text(
-          val,
-          style: GoogleFonts.jetBrainsMono(fontSize: 12, fontWeight: FontWeight.w700, color: context.text1),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPayMethodOption(PaymentMethod method, String iconStr, String label) {
+  Widget _buildPayMethodCard(PaymentMethod method, String icon, String label, bool isDark) {
     final isSelected = _paymentMethod == method;
-    final bg = isSelected ? const Color(0x14F5A623) : (context.isDark ? Colors.white.withValues(alpha: 0.03) : context.surface2);
-    final border = isSelected ? const Color(0xFFF5A623) : (context.isDark ? Colors.white.withValues(alpha: 0.05) : context.border);
-    final color = isSelected ? const Color(0xFFF5A623) : context.text2;
 
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          setState(() => _paymentMethod = method);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: bg,
-            border: Border.all(color: border, width: 1.5),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            children: [
-              Text(iconStr, style: const TextStyle(fontSize: 16)),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
+      child: Material(
+        color: isSelected
+            ? (isDark ? const Color(0x28E9A227) : _ModalColors.goldBg)
+            : (isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB)),
+        borderRadius: BorderRadius.circular(13),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            setState(() => _paymentMethod = method);
+          },
+          borderRadius: BorderRadius.circular(13),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isSelected
+                    ? _ModalColors.gold
+                    : (isDark ? _ModalColors.darkLine : _ModalColors.line),
+                width: 2,
               ),
-            ],
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Column(
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 22)),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: GoogleFonts.manrope(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected
+                        ? const Color(0xFFB45309)
+                        : (isDark ? Colors.white70 : _ModalColors.muted),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // STEP 4: DATES & NOTES
-  Widget _buildStep4() {
+  // ── STEP 4: DATES & NOTES ─────────────────────────────────────────────────
+  Widget _buildStep4(bool isDark) {
     return Column(
-      key: const ValueKey('step_4'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (_step4Error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_step4Error!, style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+            child: Text(
+              _step4Error!,
+              style: const TextStyle(color: _ModalColors.rose, fontSize: 11),
+            ),
           ),
+
+        // Date Pickers Row
         Row(
           children: [
             Expanded(
-              child: GestureDetector(
-                onTap: () => _selectDate(context, false),
-                child: AbsorbPointer(
-                  child: AppTextField(
-                    label: 'Order Date',
-                    controller: TextEditingController(text: DateFormat('dd MMM yyyy').format(_orderDate)),
-                    prefix: const Text('📅', style: TextStyle(fontSize: 14)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ORDER DATE', style: _ModalStyles.fieldLabel),
+                  const SizedBox(height: 5),
+                  InkWell(
+                    onTap: () => _selectDate(context, false),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+                        border: Border.all(
+                          color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text('📅', style: TextStyle(fontSize: 14)),
+                          const SizedBox(width: 10),
+                          Text(
+                            DateFormat('dd MMM yyyy').format(_orderDate),
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : _ModalColors.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: GestureDetector(
-                onTap: () => _selectDate(context, true),
-                child: AbsorbPointer(
-                  child: AppTextField(
-                    label: 'Delivery Date',
-                    controller: TextEditingController(
-                        text: _deliveryDate != null ? DateFormat('dd MMM yyyy').format(_deliveryDate!) : 'Select Date'),
-                    prefix: const Text('📅', style: TextStyle(fontSize: 14)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('DELIVERY DATE *', style: _ModalStyles.fieldLabel),
+                  const SizedBox(height: 5),
+                  InkWell(
+                    onTap: () => _selectDate(context, true),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+                        border: Border.all(
+                          color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text('📅', style: TextStyle(fontSize: 14)),
+                          const SizedBox(width: 10),
+                          Text(
+                            _deliveryDate != null
+                                ? DateFormat('dd MMM yyyy').format(_deliveryDate!)
+                                : 'Select Date',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _deliveryDate != null
+                                  ? (isDark ? Colors.white : _ModalColors.ink)
+                                  : _ModalColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        AppTextField(
-          label: 'Order Notes (Optional)',
-          controller: _notesCtrl,
-          hint: 'Sleeve lamba karna, pocket inside...',
-          maxLines: 3,
-          prefix: const Icon(Icons.notes_rounded, size: 16, color: Color(0xFF2D4060)),
+
+        // Order Notes
+        Text('ORDER NOTES (OPTIONAL)', style: _ModalStyles.fieldLabel),
+        const SizedBox(height: 5),
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+            border: Border.all(
+              color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Text('📝', style: TextStyle(fontSize: 15)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _notesCtrl,
+                  maxLines: 3,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    color: isDark ? Colors.white : _ModalColors.ink,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Sleeve lamba karna, collar slim fit...',
+                    hintStyle: GoogleFonts.dmSans(fontSize: 13, color: _ModalColors.faint),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 18),
-        // Final Summary Card
+
+        // Final Summary Box
         Container(
-          width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0x0FF5A623),
-            border: Border.all(color: const Color(0x26F5A623), width: 1.5),
-            borderRadius: BorderRadius.circular(12),
+            color: _ModalColors.goldBg,
+            border: Border.all(color: _ModalColors.goldLine, width: 1.5),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'FINAL DETAILS SUMMARY',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFFF5A623),
-                  letterSpacing: 1.2,
-                ),
-              ),
+              Text('FINAL SUMMARY', style: _ModalStyles.summaryTitle),
               const SizedBox(height: 10),
-              _buildSummaryRow('Client', _selectedCustomer?.name ?? ''),
-              _buildSummaryRow('Items Count', '${_items.length} item(s)'),
-              _buildSummaryRow('Total', '₨ ${_itemsTotal.toInt()}'),
-              _buildSummaryRow('Advance Paid', '₨ ${_advanceAmount.toInt()}'),
-              _buildSummaryRow('Delivery Date', _deliveryDate != null ? DateFormat('dd MMM yyyy').format(_deliveryDate!) : 'Not set'),
+              _buildSummaryLine('Client:', _selectedCustomer?.name ?? '—'),
+              _buildSummaryLine('Items:', '${_items.length} item(s)'),
+              _buildSummaryLine('Total:', 'Rs ${_itemsTotal.toInt()}'),
+              _buildSummaryLine('Advance:', 'Rs ${_advanceAmount.toInt()}'),
             ],
           ),
         ),
-        const SizedBox(height: 10),
       ],
     );
   }
 
-  Widget _buildSummaryRow(String label, String value) {
+  Widget _buildSummaryLine(String k, String v, {Color? valueColor}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              '$label:',
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: context.text2),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: context.text1),
+          Text(k, style: _ModalStyles.summaryKey),
+          Text(
+            v,
+            style: _ModalStyles.summaryVal.copyWith(
+              color: valueColor ?? const Color(0xFF211500),
             ),
           ),
         ],
@@ -1264,170 +1444,241 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
     );
   }
 
-  // SUCCESS STATE
+  // ── MODAL FOOTER ──────────────────────────────────────────────────────────
+  Widget _buildFooter(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+      decoration: BoxDecoration(
+        color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Cancel / Back Button
+          OutlinedButton(
+            onPressed: () {
+              if (_currentStep > 1) {
+                _prevStep();
+              } else {
+                Navigator.pop(context);
+              }
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: isDark ? Colors.white : _ModalColors.ink,
+              backgroundColor: isDark ? _ModalColors.darkCard : Colors.white,
+              side: BorderSide(
+                color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            child: Text(
+              _currentStep > 1 ? '← Back' : 'Cancel',
+              style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800),
+            ),
+          ),
+
+          // Next Step / Save Button
+          Container(
+            decoration: BoxDecoration(
+              gradient: _currentStep == 4
+                  ? const LinearGradient(colors: [_ModalColors.gold2, _ModalColors.gold])
+                  : null,
+              color: _currentStep == 4
+                  ? null
+                  : (isDark ? Colors.white : _ModalColors.dark),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: _currentStep == 4
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x38E9A227),
+                        blurRadius: 14,
+                        offset: Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isSaving ? null : _nextStep,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(
+                          _currentStep == 4 ? '✓ Save Order' : 'Next Step →',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: _currentStep == 4
+                                ? const Color(0xFF211500)
+                                : (isDark ? _ModalColors.dark : Colors.white),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SUCCESS STATE ─────────────────────────────────────────────────────────
   Widget _buildSuccessState() {
     final order = _savedOrder!;
-    return Container(
-      width: double.infinity,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('✅', style: TextStyle(fontSize: 64)),
-          const SizedBox(height: 16),
+          const Text('🎉', style: TextStyle(fontSize: 54)),
+          const SizedBox(height: 14),
           Text(
             'Order Created!',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.manrope(
               fontSize: 22,
               fontWeight: FontWeight.w900,
-              color: context.text1,
+              color: isDark ? Colors.white : _ModalColors.ink,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             order.customerName,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: context.text2,
-            ),
+            style: GoogleFonts.dmSans(fontSize: 14, color: _ModalColors.muted),
           ),
           const SizedBox(height: 18),
+
+          // Token Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0x14F5A623),
-              border: Border.all(color: const Color(0x33F5A623), width: 1.5),
-              borderRadius: BorderRadius.circular(10),
+              color: _ModalColors.goldBg,
+              border: Border.all(color: _ModalColors.goldLine, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               order.tokenNumber,
-              style: GoogleFonts.jetBrainsMono(
+              style: GoogleFonts.ibmPlexMono(
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
-                color: const Color(0xFFF5A623),
+                color: const Color(0xFFB45309),
               ),
             ),
           ),
-          const SizedBox(height: 32),
-          // Action Buttons
-          _buildActionButton(
-            label: '🪪 Print Card',
-            gradient: const LinearGradient(colors: [Color(0xFFF5A623), Color(0xFFD97706)]),
-            onPressed: () {
-              final router = GoRouter.of(context);
-              Navigator.pop(context, order);
-              router.push('/token-card/${order.id}');
-            },
+          const SizedBox(height: 28),
+
+          // Actions
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final router = GoRouter.of(context);
+                    Navigator.pop(context, order);
+                    router.push('/token-card/${order.id}');
+                  },
+                  icon: const Text('🪪'),
+                  label: const Text('Print Card'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _sendWhatsApp(order, _selectedCustomer),
+                  icon: const Text('💬'),
+                  label: const Text('WhatsApp'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          _buildActionButton(
-            label: '💬 WhatsApp',
-            gradient: const LinearGradient(colors: [Color(0xFF10CBA0), Color(0xFF059669)]),
-            onPressed: () => _sendWhatsApp(order, _selectedCustomer),
-          ),
-          const SizedBox(height: 10),
-          _buildActionButton(
-            label: '✕ Close',
-            color: context.isDark ? Colors.white.withValues(alpha: 0.06) : context.surface2,
-            border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : context.border),
+          const SizedBox(height: 12),
+          TextButton(
             onPressed: () => Navigator.pop(context, order),
-            textColor: context.text2,
+            child: Text(
+              '✕ Close',
+              style: GoogleFonts.manrope(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _ModalColors.muted,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton({
-    required String label,
-    LinearGradient? gradient,
-    Color? color,
-    BoxBorder? border,
-    required VoidCallback onPressed,
-    Color textColor = const Color(0xFF1A0A00),
+  // ── HELPER TEXT INPUT ─────────────────────────────────────────────────────
+  Widget _buildTextInput({
+    required TextEditingController controller,
+    required String hint,
+    required Widget prefixIcon,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+    required bool isDark,
   }) {
     return Container(
-      width: double.infinity,
+      height: 48,
       decoration: BoxDecoration(
-        gradient: gradient,
-        color: color,
-        border: border,
-        borderRadius: BorderRadius.circular(10),
+        color: isDark ? _ModalColors.darkCard : const Color(0xFFFAFAFB),
+        border: Border.all(
+          color: isDark ? _ModalColors.darkLine : _ModalColors.line,
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(13),
       ),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          foregroundColor: textColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          prefixIcon,
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              onChanged: onChanged,
+              style: GoogleFonts.dmSans(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : _ModalColors.ink,
+              ),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: GoogleFonts.dmSans(fontSize: 13, color: _ModalColors.faint),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
-}
-
-// Dashed border painter for Add Customer button
-class _DashedBorderPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double borderRadius;
-
-  const _DashedBorderPainter({
-    required this.color,
-    this.strokeWidth = 1.0,
-    this.borderRadius = 12.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Radius.circular(borderRadius),
-      ));
-
-    final dashPath = Path();
-    double distance = 0.0;
-    bool draw = true;
-    const double dash = 5.0;
-    const double gap = 3.0;
-
-    for (final metric in path.computeMetrics()) {
-      while (distance < metric.length) {
-        final len = draw ? dash : gap;
-        if (draw) {
-          dashPath.addPath(
-            metric.extractPath(distance, distance + len),
-            Offset.zero,
-          );
-        }
-        distance += len;
-        draw = !draw;
-      }
-    }
-
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.strokeWidth != strokeWidth ||
-      oldDelegate.borderRadius != borderRadius;
 }

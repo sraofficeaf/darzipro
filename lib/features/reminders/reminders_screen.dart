@@ -1,12 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/app_colors.dart';
+
 import '../../core/responsive/responsive.dart';
-import '../../core/theme/theme_extensions.dart';
 import '../../shared/providers/reminders_provider.dart';
 
+// ── COLOR CONSTANTS (CACHED) ────────────────────────────────────────────────
+class _RemColors {
+  static const ink = Color(0xFF111827);
+  static const muted = Color(0xFF7B8494);
+  static const faint = Color(0xFFAAB2BF);
+  static const line = Color(0xFFE8EAF0);
+  static const paper = Color(0xFFF5F6F8);
+
+  static const dark = Color(0xFF151922);
+  static const darkCard = Color(0xFF181D27);
+  static const darkLine = Color(0xFF333946);
+
+  static const gold = Color(0xFFE9A227);
+  static const goldBg = Color(0xFFFFF6E5);
+  static const goldLine = Color(0xFFF3DDA8);
+
+  static const green = Color(0xFF18B887);
+  static const greenBg = Color(0xFFEAFBF5);
+  static const greenLine = Color(0xFFCFEFE3);
+
+  static const rose = Color(0xFFEF5261);
+  static const roseBg = Color(0xFFFFF0F2);
+  static const roseLine = Color(0xFFFFD9DE);
+}
+
+// ── REMINDERS SCREEN ────────────────────────────────────────────────────────
 class RemindersScreen extends ConsumerWidget {
   const RemindersScreen({super.key});
 
@@ -15,9 +41,10 @@ class RemindersScreen extends ConsumerWidget {
     final reminders = ref.watch(remindersProvider);
     final isDesktop = Responsive.isDesktop(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? _RemColors.dark : _RemColors.paper;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bgDark : context.bg,
+      backgroundColor: bg,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.symmetric(
@@ -27,57 +54,112 @@ class RemindersScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Row
-              Row(
-                children: [
-                  Text(
-                    'Reminders',
-                    style: GoogleFonts.outfit(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: context.text1,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Count badge
-                  if (reminders.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.redS,
-                        border: Border.all(color: AppColors.redS, width: 1),
-                        borderRadius: BorderRadius.circular(20),
+              // 1. SCREEN HEAD
+              RepaintBoundary(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'NOTIFICATIONS',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.6,
+                        color: _RemColors.muted,
                       ),
-                      child: Text(
-                        '${reminders.length}',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.red,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Reminders',
+                              style: GoogleFonts.manrope(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.8,
+                                color: isDark ? Colors.white : _RemColors.ink,
+                              ),
+                            ),
+                            if (reminders.isNotEmpty) ...[
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: _RemColors.roseBg,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${reminders.length}',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: _RemColors.rose,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
+                        if (reminders.isNotEmpty)
+                          OutlinedButton(
+                            onPressed: () {
+                              ref.read(remindersProvider.notifier).clearAll();
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: isDark ? Colors.white : _RemColors.ink,
+                              backgroundColor:
+                                  isDark ? _RemColors.darkCard : Colors.white,
+                              side: BorderSide(
+                                color: isDark ? _RemColors.darkLine : _RemColors.line,
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                            ),
+                            child: Text(
+                              'Clear All',
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Keep track of overdue deliveries, upcoming due orders, and ready-for-pickup items.',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _RemColors.muted,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Keep track of overdue deliveries, upcoming due orders, and items ready for customer pickup.',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: context.text2,
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Reminders list
+              // 2. VIRTUALIZED REMINDERS LIST
               Expanded(
                 child: reminders.isEmpty
-                    ? _buildEmptyState(context)
+                    ? _buildEmptyState(isDark)
                     : ListView.builder(
                         itemCount: reminders.length,
+                        cacheExtent: 200,
                         itemBuilder: (context, index) {
                           final reminder = reminders[index];
-                          return _buildReminderCard(context, ref, reminder);
+                          return RepaintBoundary(
+                            child: _buildReminderCard(context, ref, reminder, isDark),
+                          );
                         },
                       ),
               ),
@@ -88,138 +170,200 @@ class RemindersScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildReminderCard(BuildContext context, WidgetRef ref, ReminderModel reminder) {
-    Color boxBg;
-    Color boxBorder;
+  Widget _buildReminderCard(
+    BuildContext context,
+    WidgetRef ref,
+    ReminderModel reminder,
+    bool isDark,
+  ) {
+    Color iconBg;
+    Color iconBorder;
+    Color accentColor;
     String iconEmoji;
     String titleText;
     String subText;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     if (reminder.type == 'overdue') {
-      boxBg = isDark ? const Color(0x1AFF3A58) : AppColors.lightRedBg;
-      boxBorder = isDark ? const Color(0x33FF3A58) : AppColors.lightRedBorder;
+      iconBg = isDark ? const Color(0x28EF5261) : _RemColors.roseBg;
+      iconBorder = _RemColors.roseLine;
+      accentColor = _RemColors.rose;
       iconEmoji = '🚨';
       titleText = 'Overdue: ${reminder.customerName}';
       subText = reminder.message;
     } else if (reminder.type == 'today') {
-      boxBg = isDark ? const Color(0x1AF5A623) : AppColors.lightAccentBg;
-      boxBorder = isDark ? const Color(0x33F5A623) : AppColors.lightAccentBorder;
+      iconBg = isDark ? const Color(0x28E9A227) : _RemColors.goldBg;
+      iconBorder = _RemColors.goldLine;
+      accentColor = _RemColors.gold;
       iconEmoji = '⏰';
       titleText = 'Due Today: ${reminder.customerName}';
-      subText = 'Due today';
-    } else { // ready
-      boxBg = isDark ? const Color(0x1A10CBA0) : AppColors.lightTealBg;
-      boxBorder = isDark ? const Color(0x3310CBA0) : AppColors.lightTealBorder;
+      subText = 'Delivery scheduled for today';
+    } else {
+      iconBg = isDark ? const Color(0x2818B887) : _RemColors.greenBg;
+      iconBorder = _RemColors.greenLine;
+      accentColor = _RemColors.green;
       iconEmoji = '✅';
       titleText = 'Ready: ${reminder.customerName}';
-      subText = 'Order ${reminder.tokenNumber}';
+      subText = 'Ready for pickup · Order ${reminder.tokenNumber}';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0x09FFFFFF) : context.surface,
-        border: Border.all(color: isDark ? const Color(0x12FFFFFF) : context.border, width: 1),
-        borderRadius: BorderRadius.circular(14),
+    final cardBg = reminder.type == 'overdue'
+        ? (isDark ? const Color(0x18EF5261) : const Color(0xFFFFF9FA))
+        : (isDark ? _RemColors.darkCard : Colors.white);
+
+    final cardBorder = reminder.type == 'overdue'
+        ? _RemColors.roseLine
+        : (isDark ? _RemColors.darkLine : _RemColors.line);
+
+    return Dismissible(
+      key: Key(reminder.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: _RemColors.roseBg,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline_rounded, color: _RemColors.rose, size: 22),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Dismissible(
-          key: Key(reminder.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            color: isDark ? const Color(0x1AFF3A58) : AppColors.lightRedBg,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 24),
-            child: Icon(
-              Icons.delete_outline_rounded,
-              color: isDark ? const Color(0xFFFF3A58) : AppColors.lightRed,
-              size: 24,
-            ),
-          ),
-          onDismissed: (direction) {
-            ref.read(remindersProvider.notifier).removeReminder(reminder.id);
-          },
+      onDismissed: (_) {
+        ref.read(remindersProvider.notifier).removeReminder(reminder.id);
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
           child: InkWell(
             onTap: () {
+              HapticFeedback.lightImpact();
               context.push('/orders/${reminder.orderId}');
             },
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: cardBorder, width: 1.5),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.035),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
                 children: [
-                  // Left icon box
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: boxBg,
-                      border: Border.all(color: boxBorder, width: 1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        iconEmoji,
-                        style: const TextStyle(fontSize: 16),
-                      ),
+                  // Left Accent Line
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 3.5,
+                      color: accentColor,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  // Center texts
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                  // Card Content
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
                       children: [
-                        Text(
-                          titleText,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: context.text1,
+                        const SizedBox(width: 4),
+                        // 44x44px Icon Container
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: iconBg,
+                            border: Border.all(color: iconBorder, width: 1),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: Center(
+                            child: Text(
+                              iconEmoji,
+                              style: const TextStyle(fontSize: 18),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subText,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: context.text2,
+                        const SizedBox(width: 14),
+
+                        // Title & Subtext
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                titleText,
+                                style: GoogleFonts.manrope(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : _RemColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                subText,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: _RemColors.muted,
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
+                        const SizedBox(width: 12),
+
+                        // Time Ago & Dismiss Button
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _timeAgo(reminder.createdAt),
+                              style: GoogleFonts.dmSans(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: _RemColors.faint,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            InkWell(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                ref
+                                    .read(remindersProvider.notifier)
+                                    .removeReminder(reminder.id);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? _RemColors.dark
+                                      : const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    '✕',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: _RemColors.muted,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  // Right time ago & dismiss
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _timeAgo(reminder.createdAt),
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: context.text3,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: () {
-                          ref.read(remindersProvider.notifier).removeReminder(reminder.id);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: context.text3,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -230,8 +374,7 @@ class RemindersScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildEmptyState(bool isDark) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -240,31 +383,31 @@ class RemindersScreen extends ConsumerWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0x0AFFFFFF) : context.surface2,
+              color: isDark ? _RemColors.darkCard : _RemColors.paper,
               shape: BoxShape.circle,
             ),
             child: const Center(
               child: Text(
                 '🔔',
-                style: TextStyle(fontSize: 32),
+                style: TextStyle(fontSize: 34),
               ),
             ),
           ),
           const SizedBox(height: 16),
           Text(
             'No reminders right now',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.manrope(
               fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: context.text1,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : _RemColors.ink,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Overdue and upcoming deliveries will appear here',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: context.text2,
+            'Overdue deliveries and order alerts will appear here',
+            style: GoogleFonts.dmSans(
+              fontSize: 12.5,
+              color: _RemColors.muted,
             ),
             textAlign: TextAlign.center,
           ),
