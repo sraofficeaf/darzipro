@@ -46,9 +46,17 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
         final q = _searchQuery.toLowerCase();
 
         final matchesSearch = name.contains(q) || phone.contains(q) || city.contains(q);
+        if (!matchesSearch) return false;
 
-        if (_selectedTier == 'all') return matchesSearch;
-        return matchesSearch && shop['plan'] == _selectedTier;
+        if (_selectedTier == 'all') return true;
+        final p = (shop['plan'] ?? '').toString().toLowerCase();
+        if (_selectedTier == 'trial') return p == 'trial';
+        if (_selectedTier == 'basic') return p == 'basic';
+        if (_selectedTier == 'standard') return p == 'standard';
+        if (_selectedTier == 'unlimited') return p == 'unlimited';
+        if (_selectedTier == 'founding') return p == 'founding';
+        if (_selectedTier == 'lifetime') return p == 'lifetime' || p == 'mobile_only' || p == 'full_access' || p == 'full_access_3yr' || shop['lifetime_access'] == true;
+        return p == _selectedTier;
       }).toList();
     });
   }
@@ -267,9 +275,12 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
                                   style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: text1),
                                   items: const [
                                     DropdownMenuItem(value: 'all', child: Text('All Tiers')),
-                                    DropdownMenuItem(value: 'mobile_only', child: Text('Basic Plan')),
-                                    DropdownMenuItem(value: 'full_access', child: Text('Professional')),
-                                    DropdownMenuItem(value: 'full_access_3yr', child: Text('Enterprise')),
+                                    DropdownMenuItem(value: 'trial', child: Text('⏳ Free Trial')),
+                                    DropdownMenuItem(value: 'basic', child: Text('⚡ Basic Plan')),
+                                    DropdownMenuItem(value: 'standard', child: Text('🚀 Standard Plan')),
+                                    DropdownMenuItem(value: 'unlimited', child: Text('💎 Unlimited Plan')),
+                                    DropdownMenuItem(value: 'founding', child: Text('👑 Founding Member')),
+                                    DropdownMenuItem(value: 'lifetime', child: Text('👑 Lifetime Access')),
                                   ],
                                   onChanged: (val) {
                                     if (val != null) {
@@ -414,10 +425,13 @@ class _ShopResourceCard extends StatelessWidget {
     );
   }
 
-  (String, Color) _getPlanDetails(String plan) => switch (plan) {
-        'mobile_only' => ('Basic Plan', AdminColors.blue),
-        'full_access' => ('Professional', AdminColors.amber),
-        'full_access_3yr' => ('Enterprise', AdminColors.emerald),
-        _ => ('Basic Plan', AdminColors.blue),
+  (String, Color) _getPlanDetails(String plan) => switch (plan.toLowerCase()) {
+        'trial' => ('Free Trial', AdminColors.text3),
+        'basic' => ('Basic Plan', AdminColors.blue),
+        'standard' => ('Standard Plan', AdminColors.violet),
+        'unlimited' => ('Unlimited Plan', AdminColors.emerald),
+        'founding' => ('👑 Founding', AdminColors.amber),
+        'lifetime' || 'mobile_only' || 'full_access' || 'full_access_3yr' => ('👑 Lifetime', AdminColors.amber),
+        _ => (plan, AdminColors.blue),
       };
 }

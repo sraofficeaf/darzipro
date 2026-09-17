@@ -42,11 +42,23 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
       };
     }).toList();
 
-    // Calculate totals
-    int totalRev = 0;
-    int regRev = 0;
-    int upgRev = 0;
-    int storageRev = 0;
+    // Read breakdown & summary from reports data
+    final summary = reportsData['summary'] as Map<String, dynamic>? ?? {};
+    final breakdown = reportsData['breakdown'] as Map<String, dynamic>? ?? {};
+    final byType = breakdown['by_type'] as Map<String, dynamic>? ?? {};
+
+    final int subMonthlyRev = (byType['subscription_monthly']?['amount'] as num?)?.toInt() ?? 0;
+    final int foundingMonthlyRev = (byType['founding_monthly']?['amount'] as num?)?.toInt() ?? 0;
+    final int storageMonthlyRev = (byType['storage_monthly']?['amount'] as num?)?.toInt() ?? 0;
+
+    final int foundingActivationRev = (byType['founding_activation']?['amount'] as num?)?.toInt() ?? 0;
+    final int storageAnnualRev = (byType['storage_annual']?['amount'] as num?)?.toInt() ?? 0;
+    final int legacyRegRev = ((byType['legacy_registrations']?['amount'] ?? byType['registrations']?['amount']) as num?)?.toInt() ?? 0;
+    final int legacyUpgRev = ((byType['legacy_upgrades']?['amount'] ?? byType['upgrades']?['amount']) as num?)?.toInt() ?? 0;
+
+    final int recurringRev = subMonthlyRev + foundingMonthlyRev + storageMonthlyRev;
+    final int oneTimeRev = foundingActivationRev + storageAnnualRev + legacyRegRev + legacyUpgRev;
+    final int totalRev = (summary['total_revenue'] as num?)?.toInt() ?? (recurringRev + oneTimeRev);
 
     int easypaisaTotal = 0;
     int jazzcashTotal = 0;
@@ -54,16 +66,6 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
 
     for (final p in combinedPayments) {
       final amt = p['amount'] as int? ?? 0;
-      totalRev += amt;
-      final type = p['type'] as String;
-      if (type == 'Registration') {
-        regRev += amt;
-      } else if (type == 'Upgrade') {
-        upgRev += amt;
-      } else if (type == 'Storage Add-on') {
-        storageRev += amt;
-      }
-
       final method = (p['payment_method'] as String? ?? '').toLowerCase();
       if (method.contains('easy')) {
         easypaisaTotal += amt;
@@ -77,10 +79,28 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
     // Filter by query and type
     final query = _searchCtrl.text.trim().toLowerCase();
     final filtered = combinedPayments.where((p) {
+      final type = (p['type'] ?? '').toString().toLowerCase();
       if (_typeFilter != 'all') {
-        if (_typeFilter == 'registration' && p['type'] != 'Registration') return false;
-        if (_typeFilter == 'upgrade' && p['type'] != 'Upgrade') return false;
-        if (_typeFilter == 'storage' && p['type'] != 'Storage Add-on') return false;
+        if (_typeFilter == 'recurring') {
+          final isRec = type.contains('subscription (monthly)') ||
+              type.contains('founding monthly') ||
+              type.contains('storage (monthly)') ||
+              (type.contains('monthly') && !type.contains('annual'));
+          if (!isRec) return false;
+        } else if (_typeFilter == 'onetime') {
+          final isOne = type.contains('activation') ||
+              type.contains('annual') ||
+              type.contains('legacy') ||
+              type.contains('registration') ||
+              type.contains('upgrade');
+          if (!isOne) return false;
+        } else if (_typeFilter == 'subscription') {
+          if (!type.contains('subscription') && !type.contains('founding')) return false;
+        } else if (_typeFilter == 'storage') {
+          if (!type.contains('storage')) return false;
+        } else if (_typeFilter == 'legacy') {
+          if (!type.contains('legacy') && !type.contains('registration') && !type.contains('upgrade')) return false;
+        }
       }
       if (query.isEmpty) return true;
       final shop = (p['shop_name'] ?? '').toString().toLowerCase();
@@ -96,7 +116,7 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
             // ── Top Header ─────────────────────────────────────────────
             AdminPageHeader(
               title: 'Revenue & Financials',
-              subtitle: 'Combined financials from registrations, upgrades, and storage add-ons',
+              subtitle: 'Combined financials from subscriptions, add-ons, and legacy history',
               action: AdminButton(
                 label: 'Refresh',
                 icon: Icons.refresh_rounded,
@@ -132,27 +152,27 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
                                 value: 'Rs ${_fmt(totalRev)}',
                                 icon: Icons.account_balance_wallet_rounded,
                                 color: AdminColors.emerald,
-                                subtext: '${combinedPayments.length} verified payments',
+                                subtext: 'Subscriptions + Add-ons + Legacy History',
                               ),
                             ),
                             SizedBox(
                               width: cardW,
                               child: AdminStatCard(
-                                title: 'Registrations',
-                                value: 'Rs ${_fmt(regRev)}',
-                                icon: Icons.how_to_reg_rounded,
+                                title: 'Recurring Revenue',
+                                value: 'Rs ${_fmt(recurringRev)}',
+                                icon: Icons.autorenew_rounded,
                                 color: AdminColors.blue,
-                                subtext: 'Base shop license fees',
+                                subtext: 'Monthly subscriptions & add-ons',
                               ),
                             ),
                             SizedBox(
                               width: cardW,
                               child: AdminStatCard(
-                                title: 'Upgrades & Storage',
-                                value: 'Rs ${_fmt(upgRev + storageRev)}',
-                                icon: Icons.upgrade_rounded,
+                                title: 'One-Time Revenue',
+                                value: 'Rs ${_fmt(oneTimeRev)}',
+                                icon: Icons.bolt_rounded,
                                 color: AdminColors.amber,
-                                subtext: 'Plan diffs & storage renewals',
+                                subtext: 'Activation fees & legacy history',
                               ),
                             ),
                           ],
@@ -183,26 +203,73 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
                               color: context.text1,
                             ),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 16),
+
+                          // RECURRING SECTION
+                          _GroupSectionHeader(
+                            title: 'RECURRING',
+                            subtotal: 'Rs ${_fmt(recurringRev)}',
+                            color: AdminColors.blue,
+                            icon: Icons.autorenew_rounded,
+                          ),
+                          const SizedBox(height: 10),
                           _SplitRow(
-                            title: '📱 Registrations',
-                            amount: regRev,
+                            title: '🔁 Subscription (Monthly)',
+                            amount: subMonthlyRev,
                             total: totalRev,
                             color: AdminColors.blue,
                           ),
-                          const Divider(height: 20),
+                          const Divider(height: 16),
                           _SplitRow(
-                            title: '⭐ Plan Upgrades',
-                            amount: upgRev,
+                            title: '💎 Founding Monthly',
+                            amount: foundingMonthlyRev,
+                            total: totalRev,
+                            color: AdminColors.indigo,
+                          ),
+                          const Divider(height: 16),
+                          _SplitRow(
+                            title: '💾 Storage (Monthly)',
+                            amount: storageMonthlyRev,
+                            total: totalRev,
+                            color: AdminColors.teal,
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // ONE-TIME SECTION
+                          _GroupSectionHeader(
+                            title: 'ONE-TIME',
+                            subtotal: 'Rs ${_fmt(oneTimeRev)}',
+                            color: AdminColors.amber,
+                            icon: Icons.bolt_rounded,
+                          ),
+                          const SizedBox(height: 10),
+                          _SplitRow(
+                            title: '⚡ Founding Activation',
+                            amount: foundingActivationRev,
                             total: totalRev,
                             color: AdminColors.amber,
                           ),
-                          const Divider(height: 20),
+                          const Divider(height: 16),
                           _SplitRow(
-                            title: '💾 Storage Add-ons',
-                            amount: storageRev,
+                            title: '📦 Storage (Annual)',
+                            amount: storageAnnualRev,
                             total: totalRev,
                             color: AdminColors.emerald,
+                          ),
+                          const Divider(height: 16),
+                          _SplitRow(
+                            title: '📜 Legacy Registrations (history only)',
+                            amount: legacyRegRev,
+                            total: totalRev,
+                            color: AdminColors.text2,
+                          ),
+                          const Divider(height: 16),
+                          _SplitRow(
+                            title: '⭐ Legacy Upgrades (history only)',
+                            amount: legacyUpgRev,
+                            total: totalRev,
+                            color: AdminColors.rose,
                           ),
                         ],
                       ),
@@ -298,21 +365,33 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 AdminChip(
-                                  label: 'Registrations',
-                                  isSelected: _typeFilter == 'registration',
-                                  onSelected: () => setState(() => _typeFilter = 'registration'),
+                                  label: 'Recurring',
+                                  isSelected: _typeFilter == 'recurring',
+                                  onSelected: () => setState(() => _typeFilter = 'recurring'),
                                 ),
                                 const SizedBox(width: 8),
                                 AdminChip(
-                                  label: 'Upgrades',
-                                  isSelected: _typeFilter == 'upgrade',
-                                  onSelected: () => setState(() => _typeFilter = 'upgrade'),
+                                  label: 'One-Time',
+                                  isSelected: _typeFilter == 'onetime',
+                                  onSelected: () => setState(() => _typeFilter = 'onetime'),
+                                ),
+                                const SizedBox(width: 8),
+                                AdminChip(
+                                  label: 'Subscriptions',
+                                  isSelected: _typeFilter == 'subscription',
+                                  onSelected: () => setState(() => _typeFilter = 'subscription'),
                                 ),
                                 const SizedBox(width: 8),
                                 AdminChip(
                                   label: 'Storage Add-ons',
                                   isSelected: _typeFilter == 'storage',
                                   onSelected: () => setState(() => _typeFilter = 'storage'),
+                                ),
+                                const SizedBox(width: 8),
+                                AdminChip(
+                                  label: 'Legacy History',
+                                  isSelected: _typeFilter == 'legacy',
+                                  onSelected: () => setState(() => _typeFilter = 'legacy'),
                                 ),
                               ],
                             ),
@@ -488,3 +567,58 @@ class _SplitRow extends StatelessWidget {
 }
 
 String _fmt(int n) => NumberFormat('#,##0').format(n);
+
+class _GroupSectionHeader extends StatelessWidget {
+  final String title;
+  final String subtotal;
+  final Color color;
+  final IconData icon;
+
+  const _GroupSectionHeader({
+    required this.title,
+    required this.subtotal,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            subtotal,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

@@ -948,14 +948,8 @@ class AdminService {
     }
   }
 
-  Future<Map<String, dynamic>> getPlanConfig() async {
+  Future<Map<String, dynamic>> getStorageAddonConfig() async {
     final Map<String, dynamic> config = {
-      'basic_price': '12000',
-      'basic_active': true,
-      'pro_price': '35000',
-      'pro_active': true,
-      'enterprise_price': '70000',
-      'enterprise_active': true,
       'storage_monthly_price': '1200',
       'storage_monthly_active': true,
       'storage_annual_price': '10000',
@@ -964,7 +958,7 @@ class AdminService {
     };
     try {
       final res = await http.get(
-        _restUri('/app_settings?key=in.(plan_price_basic,plan_active_basic,plan_price_professional,plan_active_professional,plan_price_enterprise,plan_active_enterprise,storage_addon_price_monthly,storage_active_monthly,storage_addon_price_annual,storage_active_annual,storage_addon_commission_percent)'),
+        _restUri('/app_settings?key=in.(storage_addon_price_monthly,storage_active_monthly,storage_addon_price_annual,storage_active_annual,storage_addon_commission_percent)'),
         headers: _restHeaders,
       );
       if (res.statusCode == 200) {
@@ -973,12 +967,6 @@ class AdminService {
           final k = item['key'] as String?;
           final v = item['value'] as String?;
           if (v == null) continue;
-          if (k == 'plan_price_basic') config['basic_price'] = v;
-          if (k == 'plan_active_basic') config['basic_active'] = v == 'true';
-          if (k == 'plan_price_professional') config['pro_price'] = v;
-          if (k == 'plan_active_professional') config['pro_active'] = v == 'true';
-          if (k == 'plan_price_enterprise') config['enterprise_price'] = v;
-          if (k == 'plan_active_enterprise') config['enterprise_active'] = v == 'true';
           if (k == 'storage_addon_price_monthly') config['storage_monthly_price'] = v;
           if (k == 'storage_active_monthly') config['storage_monthly_active'] = v == 'true';
           if (k == 'storage_addon_price_annual') config['storage_annual_price'] = v;
@@ -986,20 +974,14 @@ class AdminService {
         }
       }
     } catch (e) {
-      debugPrint('Error loading plan config: $e');
+      debugPrint('Error loading storage add-on config: $e');
     }
     return config;
   }
 
-  Future<bool> setPlanConfig(Map<String, dynamic> config) async {
+  Future<bool> setStorageAddonConfig(Map<String, dynamic> config) async {
     try {
       final entries = [
-        {'key': 'plan_price_basic', 'value': config['basic_price']?.toString() ?? '12000'},
-        {'key': 'plan_active_basic', 'value': (config['basic_active'] ?? true).toString()},
-        {'key': 'plan_price_professional', 'value': config['pro_price']?.toString() ?? '35000'},
-        {'key': 'plan_active_professional', 'value': (config['pro_active'] ?? true).toString()},
-        {'key': 'plan_price_enterprise', 'value': config['enterprise_price']?.toString() ?? '70000'},
-        {'key': 'plan_active_enterprise', 'value': (config['enterprise_active'] ?? true).toString()},
         {'key': 'storage_addon_price_monthly', 'value': config['storage_monthly_price']?.toString() ?? '1200'},
         {'key': 'storage_active_monthly', 'value': (config['storage_monthly_active'] ?? true).toString()},
         {'key': 'storage_addon_price_annual', 'value': config['storage_annual_price']?.toString() ?? '10000'},
@@ -1022,10 +1004,14 @@ class AdminService {
       }
       return true;
     } catch (e) {
-      debugPrint('Error saving plan config: $e');
+      debugPrint('Error saving storage add-on config: $e');
       return false;
     }
   }
+
+  // Aliases for compatibility
+  Future<Map<String, dynamic>> getPlanConfig() => getStorageAddonConfig();
+  Future<bool> setPlanConfig(Map<String, dynamic> config) => setStorageAddonConfig(config);
 
   Future<Map<String, dynamic>> processPayout(String periodMonth) async {
     try {
@@ -1348,22 +1334,132 @@ class AdminService {
       final payoutsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['payouts'] as List? ?? []) : [];
       final earningsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['earnings'] as List? ?? []) : [];
 
+      // Fetch approved / confirmed subscription payments
+      List<Map<String, dynamic>> subPaymentsList = [];
+      try {
+        final subRes = await http.get(
+          _restUri('/subscription_payments?status=in.(approved,confirmed)&select=*,shops(name)&order=created_at.desc'),
+          headers: _adminHeaders,
+        );
+        if (subRes.statusCode == 200) {
+          subPaymentsList = List<Map<String, dynamic>>.from(jsonDecode(subRes.body));
+        }
+      } catch (e) {
+        debugPrint('Error fetching subscription payments for reports: $e');
+      }
+
       List<Map<String, dynamic>> allTransactions = [];
       int totalRevenue = 0;
       int totalPayouts = 0;
 
+      // Grouped by Category / Type: RECURRING vs ONE-TIME
       Map<String, Map<String, dynamic>> byType = {
-        'registrations': {'amount': 0, 'count': 0},
-        'upgrades': {'amount': 0, 'count': 0},
-        'storage_monthly': {'amount': 0, 'count': 0},
-        'storage_annual': {'amount': 0, 'count': 0},
+        // RECURRING:
+        'subscription_monthly': {'amount': 0, 'count': 0, 'group': 'recurring'},
+        'founding_monthly':     {'amount': 0, 'count': 0, 'group': 'recurring'},
+        'storage_monthly':      {'amount': 0, 'count': 0, 'group': 'recurring'},
+        // ONE-TIME:
+        'founding_activation':  {'amount': 0, 'count': 0, 'group': 'onetime'},
+        'storage_annual':       {'amount': 0, 'count': 0, 'group': 'onetime'},
+        'legacy_registrations': {'amount': 0, 'count': 0, 'group': 'onetime'},
+        'legacy_upgrades':      {'amount': 0, 'count': 0, 'group': 'onetime'},
+        // Compatibility mirrors for any existing references
+        'registrations':        {'amount': 0, 'count': 0, 'group': 'onetime'},
+        'upgrades':             {'amount': 0, 'count': 0, 'group': 'onetime'},
       };
 
+      // byTier uses the new subscription plan codes.
+      // Legacy codes (mobile_only / full_access / full_access_3yr) map to 'lifetime'.
       Map<String, Map<String, dynamic>> byTier = {
-        'mobile_only': {'amount': 0, 'count': 0},
-        'full_access': {'amount': 0, 'count': 0},
-        'full_access_3yr': {'amount': 0, 'count': 0},
+        'trial':     {'amount': 0, 'count': 0},
+        'basic':     {'amount': 0, 'count': 0},
+        'standard':  {'amount': 0, 'count': 0},
+        'unlimited': {'amount': 0, 'count': 0},
+        'founding':  {'amount': 0, 'count': 0},
+        'lifetime':  {'amount': 0, 'count': 0}, // grandfathered legacy shops
       };
+
+      // Helper: normalise old plan codes to subscription plan bucket keys
+      String normalisePlanTier(String plan) {
+        final p = plan.toLowerCase();
+        if (p == 'trial') return 'trial';
+        if (p == 'basic') return 'basic';
+        if (p == 'standard') return 'standard';
+        if (p == 'unlimited') return 'unlimited';
+        if (p == 'founding') return 'founding';
+        // Legacy one-time codes → lifetime bucket
+        return 'lifetime';
+      }
+
+      // Fetch dynamic founding activation fee from app_settings at runtime
+      int foundingActivationFeeSetting = 35000;
+      try {
+        final foundingSettings = await fetchAppSettings(prefix: 'founding');
+        final feeStr = foundingSettings['founding_activation_fee'];
+        if (feeStr != null && feeStr.trim().isNotEmpty) {
+          foundingActivationFeeSetting = int.tryParse(feeStr.trim()) ?? 35000;
+        }
+      } catch (e) {
+        debugPrint('Error fetching founding settings in reports: $e');
+      }
+
+      // ── Process Approved Subscription Payments (Core Model) ──
+      for (final sp in subPaymentsList) {
+        final spMap = Map<String, dynamic>.from(sp);
+        final dateStr = (spMap['reviewed_at'] ?? spMap['created_at']) as String?;
+        if (dateStr == null) continue;
+        final date = DateTime.tryParse(dateStr)?.toLocal();
+        if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
+
+        int amount = (spMap['amount_pkr'] as num?)?.toInt() ?? 0;
+        final planCode = (spMap['plan_code'] ?? '').toString().toLowerCase();
+        final paymentType = (spMap['payment_type'] ?? '').toString().toLowerCase();
+        final shopName = (spMap['shops'] as Map?)?['name']?.toString() ?? 'Shop';
+
+        final isFoundingActivation = paymentType == 'founding_activation' ||
+            (planCode == 'founding' && foundingActivationFeeSetting > 0 && amount >= (foundingActivationFeeSetting * 0.7));
+        final isFoundingMonthly = planCode == 'founding' && !isFoundingActivation;
+
+        // If amount was missing or 0 on a founding activation payment, use runtime setting
+        if (isFoundingActivation && amount == 0) {
+          amount = foundingActivationFeeSetting;
+        }
+
+        final String typeKey;
+        final String displayType;
+        if (isFoundingActivation) {
+          typeKey = 'founding_activation';
+          displayType = 'Founding Activation';
+        } else if (isFoundingMonthly) {
+          typeKey = 'founding_monthly';
+          displayType = 'Founding Monthly';
+        } else {
+          typeKey = 'subscription_monthly';
+          displayType = 'Subscription (Monthly)';
+        }
+
+        byType[typeKey]!['amount'] = (byType[typeKey]!['amount'] as int) + amount;
+        byType[typeKey]!['count'] = (byType[typeKey]!['count'] as int) + 1;
+
+        final tierKey = normalisePlanTier(planCode);
+        byTier[tierKey]!['amount'] = (byTier[tierKey]!['amount'] as int) + amount;
+        byTier[tierKey]!['count'] = (byTier[tierKey]!['count'] as int) + 1;
+
+        totalRevenue += amount;
+
+        allTransactions.add({
+          'id': spMap['id'] ?? '',
+          'shop_id': spMap['shop_id'] ?? '',
+          'date': date.toIso8601String(),
+          'type': displayType,
+          'shop_name': shopName,
+          'amount': amount,
+          'direction': 'In',
+          'status': spMap['status'] ?? 'approved',
+          'payment_method': spMap['payment_method'] ?? 'Easypaisa',
+          'transaction_id': spMap['transaction_id'] ?? spMap['id'] ?? '',
+        });
+      }
 
       // Process Approved Public Registrations
       for (final r in pubRegsList) {
@@ -1373,23 +1469,18 @@ class AdminService {
         final date = DateTime.tryParse(dateStr)?.toLocal();
         if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 
-        final plan = (rMap['plan_selected'] ?? rMap['plan'] ?? 'full_access').toString();
+        final plan = (rMap['plan_selected'] ?? rMap['plan'] ?? '').toString();
         final amount = _getPlanPrice(plan, rMap['amount_paid']);
         final shopName = (rMap['shop_name'] ?? 'Tailor Shop').toString();
 
+        byType['legacy_registrations']!['amount'] = (byType['legacy_registrations']!['amount'] as int) + amount;
+        byType['legacy_registrations']!['count'] = (byType['legacy_registrations']!['count'] as int) + 1;
         byType['registrations']!['amount'] = (byType['registrations']!['amount'] as int) + amount;
         byType['registrations']!['count'] = (byType['registrations']!['count'] as int) + 1;
 
-        if (amount == 12000 || plan.contains('mobile')) {
-          byTier['mobile_only']!['amount'] = (byTier['mobile_only']!['amount'] as int) + amount;
-          byTier['mobile_only']!['count'] = (byTier['mobile_only']!['count'] as int) + 1;
-        } else if (amount == 70000 || plan.contains('3yr')) {
-          byTier['full_access_3yr']!['amount'] = (byTier['full_access_3yr']!['amount'] as int) + amount;
-          byTier['full_access_3yr']!['count'] = (byTier['full_access_3yr']!['count'] as int) + 1;
-        } else {
-          byTier['full_access']!['amount'] = (byTier['full_access']!['amount'] as int) + amount;
-          byTier['full_access']!['count'] = (byTier['full_access']!['count'] as int) + 1;
-        }
+        final tierKey = normalisePlanTier(plan);
+        byTier[tierKey]!['amount'] = (byTier[tierKey]!['amount'] as int) + amount;
+        byTier[tierKey]!['count'] = (byTier[tierKey]!['count'] as int) + 1;
 
         totalRevenue += amount;
 
@@ -1397,7 +1488,7 @@ class AdminService {
           'id': rMap['id'] ?? '',
           'shop_id': rMap['created_shop_id'] ?? rMap['shop_id'] ?? '',
           'date': date.toIso8601String(),
-          'type': 'Registration',
+          'type': 'Legacy Registration',
           'shop_name': shopName,
           'amount': amount,
           'direction': 'In',
@@ -1419,19 +1510,14 @@ class AdminService {
         final shopName = (uMap['shop_name'] ?? 'Shop').toString();
         final upgradeType = (uMap['upgrade_type'] ?? uMap['plan_selected'] ?? '').toString().toLowerCase();
 
+        byType['legacy_upgrades']!['amount'] = (byType['legacy_upgrades']!['amount'] as int) + amount;
+        byType['legacy_upgrades']!['count'] = (byType['legacy_upgrades']!['count'] as int) + 1;
         byType['upgrades']!['amount'] = (byType['upgrades']!['amount'] as int) + amount;
         byType['upgrades']!['count'] = (byType['upgrades']!['count'] as int) + 1;
 
-        if (amount == 70000 || upgradeType.contains('3yr')) {
-          byTier['full_access_3yr']!['amount'] = (byTier['full_access_3yr']!['amount'] as int) + amount;
-          byTier['full_access_3yr']!['count'] = (byTier['full_access_3yr']!['count'] as int) + 1;
-        } else if (amount == 12000 || upgradeType.contains('mobile')) {
-          byTier['mobile_only']!['amount'] = (byTier['mobile_only']!['amount'] as int) + amount;
-          byTier['mobile_only']!['count'] = (byTier['mobile_only']!['count'] as int) + 1;
-        } else {
-          byTier['full_access']!['amount'] = (byTier['full_access']!['amount'] as int) + amount;
-          byTier['full_access']!['count'] = (byTier['full_access']!['count'] as int) + 1;
-        }
+        final upgTierKey = normalisePlanTier(upgradeType);
+        byTier[upgTierKey]!['amount'] = (byTier[upgTierKey]!['amount'] as int) + amount;
+        byTier[upgTierKey]!['count'] = (byTier[upgTierKey]!['count'] as int) + 1;
 
         totalRevenue += amount;
 
@@ -1439,7 +1525,7 @@ class AdminService {
           'id': uMap['id'] ?? '',
           'shop_id': uMap['shop_id'] ?? '',
           'date': date.toIso8601String(),
-          'type': 'Upgrade',
+          'type': 'Legacy Upgrade',
           'shop_name': shopName,
           'amount': amount,
           'direction': 'In',
@@ -1462,7 +1548,7 @@ class AdminService {
 
         final amount = (sMap['amount'] as num?)?.toInt() ?? 0;
         final isAnnual = sMap['addon_type'] == 'annual' || amount >= 10000;
-        final type = isAnnual ? 'Storage Add-on (Annual)' : 'Storage Add-on (Monthly)';
+        final type = isAnnual ? 'Storage (Annual)' : 'Storage (Monthly)';
         final shopName = (sMap['shops'] as Map?)?['name'] ?? 'Shop';
 
         if (isAnnual) {
@@ -1514,22 +1600,17 @@ class AdminService {
         final date = DateTime.tryParse(dateStr)?.toLocal();
         if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 
-        final plan = (lMap['plan'] ?? lMap['plan_type'] ?? 'full_access').toString();
+        final plan = (lMap['plan'] ?? lMap['plan_type'] ?? '').toString();
         final amount = _getPlanPrice(plan, lMap['amount_pkr']);
 
+        byType['legacy_registrations']!['amount'] = (byType['legacy_registrations']!['amount'] as int) + amount;
+        byType['legacy_registrations']!['count'] = (byType['legacy_registrations']!['count'] as int) + 1;
         byType['registrations']!['amount'] = (byType['registrations']!['amount'] as int) + amount;
         byType['registrations']!['count'] = (byType['registrations']!['count'] as int) + 1;
 
-        if (amount == 12000 || plan.contains('mobile')) {
-          byTier['mobile_only']!['amount'] = (byTier['mobile_only']!['amount'] as int) + amount;
-          byTier['mobile_only']!['count'] = (byTier['mobile_only']!['count'] as int) + 1;
-        } else if (amount == 70000 || plan.contains('3yr')) {
-          byTier['full_access_3yr']!['amount'] = (byTier['full_access_3yr']!['amount'] as int) + amount;
-          byTier['full_access_3yr']!['count'] = (byTier['full_access_3yr']!['count'] as int) + 1;
-        } else {
-          byTier['full_access']!['amount'] = (byTier['full_access']!['amount'] as int) + amount;
-          byTier['full_access']!['count'] = (byTier['full_access']!['count'] as int) + 1;
-        }
+        final licTierKey = normalisePlanTier(plan);
+        byTier[licTierKey]!['amount'] = (byTier[licTierKey]!['amount'] as int) + amount;
+        byTier[licTierKey]!['count'] = (byTier[licTierKey]!['count'] as int) + 1;
 
         totalRevenue += amount;
 
@@ -1537,7 +1618,7 @@ class AdminService {
           'id': lMap['id'] ?? '',
           'shop_id': lMap['shop_id'] ?? '',
           'date': date.toIso8601String(),
-          'type': 'Registration',
+          'type': 'Legacy Registration',
           'shop_name': shopName,
           'amount': amount,
           'direction': 'In',
@@ -1611,12 +1692,33 @@ class AdminService {
         return dB.compareTo(dA);
       });
 
+      final int recurringAmount = (byType['subscription_monthly']!['amount'] as int) +
+          (byType['founding_monthly']!['amount'] as int) +
+          (byType['storage_monthly']!['amount'] as int);
+      final int recurringCount = (byType['subscription_monthly']!['count'] as int) +
+          (byType['founding_monthly']!['count'] as int) +
+          (byType['storage_monthly']!['count'] as int);
+
+      final int onetimeAmount = (byType['founding_activation']!['amount'] as int) +
+          (byType['storage_annual']!['amount'] as int) +
+          (byType['legacy_registrations']!['amount'] as int) +
+          (byType['legacy_upgrades']!['amount'] as int);
+      final int onetimeCount = (byType['founding_activation']!['count'] as int) +
+          (byType['storage_annual']!['count'] as int) +
+          (byType['legacy_registrations']!['count'] as int) +
+          (byType['legacy_upgrades']!['count'] as int);
+
       return {
         'summary': {
           'total_revenue': totalRevenue,
           'total_payouts': totalPayouts,
           'net_revenue': totalRevenue - totalPayouts,
           'transaction_count': allTransactions.where((t) => t['direction'] == 'In').length,
+          'recurring_revenue': recurringAmount,
+          'recurring_count': recurringCount,
+          'onetime_revenue': onetimeAmount,
+          'onetime_count': onetimeCount,
+          'founding_activation_fee': foundingActivationFeeSetting,
         },
         'breakdown': {
           'by_type': byType,
@@ -1628,10 +1730,36 @@ class AdminService {
     } catch (e) {
       debugPrint('Error fetching reports data: $e');
       return {
-        'summary': {'total_revenue': 0, 'total_payouts': 0, 'net_revenue': 0, 'transaction_count': 0},
+        'summary': {
+          'total_revenue': 0,
+          'total_payouts': 0,
+          'net_revenue': 0,
+          'transaction_count': 0,
+          'recurring_revenue': 0,
+          'recurring_count': 0,
+          'onetime_revenue': 0,
+          'onetime_count': 0,
+        },
         'breakdown': {
-          'by_type': {'registrations': {'amount': 0, 'count': 0}, 'upgrades': {'amount': 0, 'count': 0}, 'storage_monthly': {'amount': 0, 'count': 0}, 'storage_annual': {'amount': 0, 'count': 0}},
-          'by_tier': {'mobile_only': {'amount': 0}, 'full_access': {'amount': 0}, 'full_access_3yr': {'amount': 0}},
+          'by_type': {
+            'subscription_monthly': {'amount': 0, 'count': 0, 'group': 'recurring'},
+            'founding_monthly':     {'amount': 0, 'count': 0, 'group': 'recurring'},
+            'storage_monthly':      {'amount': 0, 'count': 0, 'group': 'recurring'},
+            'founding_activation':  {'amount': 0, 'count': 0, 'group': 'onetime'},
+            'storage_annual':       {'amount': 0, 'count': 0, 'group': 'onetime'},
+            'legacy_registrations': {'amount': 0, 'count': 0, 'group': 'onetime'},
+            'legacy_upgrades':      {'amount': 0, 'count': 0, 'group': 'onetime'},
+            'registrations':        {'amount': 0, 'count': 0, 'group': 'onetime'},
+            'upgrades':             {'amount': 0, 'count': 0, 'group': 'onetime'},
+          },
+          'by_tier': {
+            'trial':     {'amount': 0, 'count': 0},
+            'basic':     {'amount': 0, 'count': 0},
+            'standard':  {'amount': 0, 'count': 0},
+            'unlimited': {'amount': 0, 'count': 0},
+            'founding':  {'amount': 0, 'count': 0},
+            'lifetime':  {'amount': 0, 'count': 0},
+          },
         },
         'top_earners': [],
         'transactions': [],
@@ -1640,15 +1768,13 @@ class AdminService {
   }
 
   int _getPlanPrice(String? plan, [dynamic fallbackAmount]) {
+    // Always prefer explicit amount_paid / amount_pkr from the record.
     if (fallbackAmount != null) {
       final num n = fallbackAmount is num ? fallbackAmount : (num.tryParse(fallbackAmount.toString()) ?? 0);
       if (n > 0) return n.toInt();
     }
-    final p = (plan ?? '').toLowerCase();
-    if (p.isEmpty) return 0;
-    if (p.contains('3yr') || p.contains('three_year') || p.contains('full_access_3yr')) return 70000;
-    if (p.contains('mobile')) return 12000;
-    return 35000; // Full Access
+    // No hardcoded plan prices — subscription prices live in the DB.
+    return 0;
   }
 
   Future<List<Map<String, dynamic>>> fetchPayoutRecipients() async {
@@ -2065,6 +2191,7 @@ class AdminService {
         'founding_activations':  foundingActivations,
         'founding_count':        foundingCount,
         'plan_counts':           planCounts,
+        'plan_prices':           planPriceMap, // for dynamic display in UI
         'grace_count':           graceCount,
         'read_only_count':       readOnlyCount,
         'lifetime_count':        lifetimeCount,

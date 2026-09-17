@@ -9,6 +9,7 @@ class CustomerModel {
   final String? notes;
   final DateTime createdAt;
   final int totalOrders;
+  final bool isArchived;
 
   const CustomerModel({
     required this.id,
@@ -19,6 +20,7 @@ class CustomerModel {
     this.notes,
     required this.createdAt,
     this.totalOrders = 0,
+    this.isArchived = false,
   });
 
   String get initials {
@@ -38,6 +40,7 @@ class CustomerModel {
     String? notes,
     DateTime? createdAt,
     int? totalOrders,
+    bool? isArchived,
   }) {
     return CustomerModel(
       id: id ?? this.id,
@@ -48,6 +51,7 @@ class CustomerModel {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       totalOrders: totalOrders ?? this.totalOrders,
+      isArchived: isArchived ?? this.isArchived,
     );
   }
 
@@ -64,6 +68,7 @@ class CustomerModel {
       notes: json['notes'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       totalOrders: totalOrders,
+      isArchived: json['is_archived'] as bool? ?? false,
     );
   }
 
@@ -77,6 +82,7 @@ class CustomerModel {
       'gender': gender.name,
       'notes': notes,
       'created_at': createdAt.toIso8601String(),
+      if (isArchived) 'is_archived': true,
     };
   }
 }
@@ -309,6 +315,46 @@ class OrderModel {
       'created_by': userId,
     };
   }
+}
+
+class OrderBalance {
+  final String orderId;
+  final String? shopId;
+  final double totalAmount;
+  final double discount;
+  final double paidAmount;
+  final double remainingAmount;
+
+  const OrderBalance({
+    required this.orderId,
+    this.shopId,
+    required this.totalAmount,
+    this.discount = 0.0,
+    required this.paidAmount,
+    required this.remainingAmount,
+  });
+
+  bool get isFullyPaid => remainingAmount <= 0;
+
+  factory OrderBalance.fromJson(Map<String, dynamic> json) {
+    return OrderBalance(
+      orderId: json['order_id'] as String? ?? '',
+      shopId: json['shop_id'] as String?,
+      totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
+      discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
+      paidAmount: (json['paid_amount'] as num?)?.toDouble() ?? 0.0,
+      remainingAmount: (json['remaining_amount'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'order_id': orderId,
+        'shop_id': shopId,
+        'total_amount': totalAmount,
+        'discount': discount,
+        'paid_amount': paidAmount,
+        'remaining_amount': remainingAmount,
+      };
 }
 
 class MeasurementFieldModel {

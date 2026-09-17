@@ -31,6 +31,79 @@ const List<MeasurementFieldConfig> k15MeasurementFields = [
   MeasurementFieldConfig(key: 'gareban', nameUrdu: 'گریبان', nameEng: 'Gareban'),
 ];
 
+// ── GARMENT-SPECIFIC RELEVANT FIELDS ─────────────────────────────────────────
+// Har garment ke liye sirf relevant fields — baaki hide rahenge.
+// Agar profile name kisi map mein nahi milta to saare 15 fields dikhaaye jaayenge.
+const Map<String, List<String>> kGarmentFieldKeys = {
+  // شلوار قمیض: Upper + Lower sab fields
+  'شلوار قمیض': [
+    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'kamar', 'daman', 'collar', 'shalwar', 'panche', 'kaf',
+  ],
+  // کرتا پاجامہ: Upper + Lower (collar optional)
+  'کرتا پاجامہ': [
+    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'kamar', 'daman', 'shalwar', 'panche', 'kaf',
+  ],
+  // واسکٹ: Sirf upper body, shalwar nahi
+  'واسکٹ': [
+    'lambai', 'chaati', 'kamar', 'baghal', 'daman',
+  ],
+  // شیروانی: Upper body + collar + asan
+  'شیروانی': [
+    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'kamar', 'daman', 'collar', 'kaf', 'asan', 'gareban',
+  ],
+  // پینٹ کوٹ: Coat (upper) + trouser (lower)
+  'پینٹ کوٹ': [
+    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'kamar', 'daman', 'collar', 'shalwar', 'panche',
+    'gol', 'asan', 'kaf',
+  ],
+};
+
+/// Profile name ke hisaab se relevant fields return karo.
+/// Custom ya unknown garment mein sab 15 fields dikhaaye jaate hain.
+List<MeasurementFieldConfig> getFieldsForProfile(String profileName) {
+  final keys = kGarmentFieldKeys[profileName.trim()];
+  if (keys == null) return k15MeasurementFields; // Custom / unknown — sab dikhaao
+  return k15MeasurementFields.where((f) => keys.contains(f.key)).toList();
+}
+
+// ── UPPER & LOWER BODY SPLIT (MATCHING HTML DESIGN) ──────────────────────────
+const List<String> kUpperBodyKeys = [
+  'lambai',
+  'teerwa',
+  'bazo',
+  'chaati',
+  'baghal',
+  'kamar',
+  'daman',
+  'collar',
+];
+
+const List<String> kLowerBodyKeys = [
+  'shalwar',
+  'panche',
+  'kaf',
+  'jeb',
+  'gol',
+  'asan',
+  'gareban',
+];
+
+/// Profile ke hisaab se Upper Body fields return karo
+List<MeasurementFieldConfig> getUpperFieldsForProfile(String profileName) {
+  final fields = getFieldsForProfile(profileName);
+  return fields.where((f) => kUpperBodyKeys.contains(f.key)).toList();
+}
+
+/// Profile ke hisaab se Lower Body fields return karo
+List<MeasurementFieldConfig> getLowerFieldsForProfile(String profileName) {
+  final fields = getFieldsForProfile(profileName);
+  return fields.where((f) => kLowerBodyKeys.contains(f.key)).toList();
+}
+
 // ── VECTOR SHAPE PAINTER FOR BODY PART ICONS ──────────────────────────────
 class MeasurementShapePainter extends CustomPainter {
   final String keyName;

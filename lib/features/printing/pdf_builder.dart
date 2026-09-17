@@ -45,27 +45,37 @@ class DarziPdfBuilder {
   static Future<pw.Font> _loadUrduFont() async {
     if (_cachedUrduFont != null) return _cachedUrduFont!;
 
+    // Try local bundled font first
     try {
       final fontData = await rootBundle.load('fonts/NotoNaskhArabic-Regular.ttf');
       if (fontData.lengthInBytes > 1000) {
-        _cachedUrduFont = pw.Font.ttf(fontData);
+        // Validate: check for 'head' table signature in TTF
+        // TTF starts with offset table (12 bytes), then table records (16 bytes each)
+        // If font is valid, pw.Font.ttf won't throw
+        final font = pw.Font.ttf(fontData);
+        _cachedUrduFont = font;
         return _cachedUrduFont!;
       }
     } catch (e) {
-      debugPrint('DarziPdfBuilder: Failed to load local font â€” $e');
+      debugPrint('DarziPdfBuilder: Local font load failed — $e');
     }
 
+    // Try network fallback (NotoNaskhArabic from Google Fonts CDN)
     try {
       final response = await http.get(Uri.parse(
-          'https://fonts.gstatic.com/s/notonaskharabic/v32/Ung24zO0MDRlhv6RZrACZ1W01I2206LDEsVnE8Bpt7nZ6w.ttf'));
+          'https://fonts.gstatic.com/s/notonaskharabic/v44/RrQ5bpV-9Dd1b1OAGA6M9PkyDuVBePeKNaxcsss0Y7bwvc5krA.ttf'));
       if (response.statusCode == 200 && response.bodyBytes.lengthInBytes > 5000) {
-        if (response.bodyBytes[0] != 0x3C) { // Ensure not HTML
-          _cachedUrduFont = pw.Font.ttf(ByteData.sublistView(response.bodyBytes));
-          return _cachedUrduFont!;
+        if (response.bodyBytes[0] != 0x3C) { // Ensure not HTML error page
+          try {
+            final font = pw.Font.ttf(ByteData.sublistView(response.bodyBytes));
+            _cachedUrduFont = font;
+            return _cachedUrduFont!;
+          } catch (_) {}
         }
       }
     } on Object catch (_) {}
 
+    // Final fallback — Helvetica (always works, no Urdu glyphs but no crash)
     _cachedUrduFont = pw.Font.helvetica();
     return _cachedUrduFont!;
   }
@@ -770,7 +780,7 @@ class DarziPdfBuilder {
   }
 
   static Future<List<int>> buildTraditionalNaapCard(
-      OrderModel order, CustomerModel? customer, MeasurementModel? measurement) async {
+      OrderModel? order, CustomerModel? customer, MeasurementModel? measurement) async {
     final urduFont = await _loadUrduFont();
 
     final Map<String, String> measurements = {};
@@ -811,7 +821,7 @@ class DarziPdfBuilder {
                   ),
                 ),
                 // 2. Info Bar
-                _buildNewInfoBar(order, urduFont),
+                _buildNewInfoBar(order, urduFont, measurement: measurement, customer: customer),
 
                 // 3. Customer Row
                 _buildNewCustomerRow(order, customer, urduFont),
@@ -883,7 +893,7 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildNewHeader(OrderModel order, CustomerModel? customer, pw.Font urduFont) {
+  static pw.Widget _buildNewHeader(OrderModel? order, CustomerModel? customer, pw.Font urduFont) {
     return pw.Container(
       height: 56,
       decoration: const pw.BoxDecoration(
@@ -897,7 +907,7 @@ class DarziPdfBuilder {
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // Col 1 â€” Token No.
+          // Col 1 — Token No.
           pw.Container(
             width: 100,
             padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -919,7 +929,11 @@ class DarziPdfBuilder {
                 ),
                 pw.SizedBox(height: 2),
                 pw.Text(
-                  order.tokenNumber,
+                  order?.tokenNumber.isNotEmpty == true
+                      ? order!.tokenNumber
+                      : (customer != null && customer.id.length >= 6
+                          ? '#${customer.id.substring(0, 6).toUpperCase()}'
+                          : 'NAAP'),
                   style: pw.TextStyle(
                     fontSize: 22,
                     fontWeight: pw.FontWeight.bold,
@@ -996,11 +1010,16 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildNewInfoBar(OrderModel order, pw.Font urduFont) {
-    final totalQty = order.items.fold<int>(0, (sum, item) => sum + item.quantity);
-    final shortId = order.customerId.isNotEmpty == true
-        ? (order.customerId.length >= 8 ? order.customerId.substring(0, 8).toUpperCase() : order.customerId.toUpperCase())
-        : '';
+  static pw.Widget _buildNewInfoBar(OrderModel? order, pw.Font urduFont, {MeasurementModel? measurement, CustomerModel? customer}) {
+    final totalQty = order != null ? order.items.fold<int>(0, (sum, item) => sum + item.quantity) : 1;
+    final shortId = customer != null && customer.id.isNotEmpty
+        ? (customer.id.length >= 8 ? customer.id.substring(0, 8).toUpperCase() : customer.id.toUpperCase())
+        : (order != null && order.customerId.isNotEmpty
+            ? (order.customerId.length >= 8 ? order.customerId.substring(0, 8).toUpperCase() : order.customerId.toUpperCase())
+            : '');
+    final bookingDate = order != null
+        ? formatDateShort(order.orderDate)
+        : (measurement != null ? formatDateShort(measurement.updatedAt) : formatDateShort(DateTime.now()));
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -1009,17 +1028,17 @@ class DarziPdfBuilder {
       ),
       child: pw.Row(
         children: [
-          _buildInfoBox('', 'ØªØ§Ø±ÛŒØ® Ø¯Ø±Ø¬ Ø¨Ú©Ù†Ú¯', formatDateShort(order.orderDate), urduFont),
+          _buildInfoBox('', 'تاریخ درج بکنگ', bookingDate, urduFont),
           _buildInfoDivider(),
           _buildInfoBox(
             '',
-            'ØªØ§Ø±ÛŒØ® ÚˆÛŒÙ„ÛŒÙˆØ±ÛŒ',
-            order.deliveryDate != null ? formatDateShort(order.deliveryDate!) : '-',
+            'تاریخ ڈیلیوری',
+            order?.deliveryDate != null ? formatDateShort(order!.deliveryDate!) : '-',
             urduFont,
             isRed: true,
           ),
           _buildInfoDivider(),
-          _buildInfoBox('', 'ØªØ¹Ø¯Ø§Ø¯', '$totalQty', urduFont),
+          _buildInfoBox('', 'تعداد', '$totalQty', urduFont),
           _buildInfoDivider(),
           _buildInfoBox('', 'Customer No.', '#$shortId', urduFont, isEngLabel: true),
         ],
@@ -1094,8 +1113,9 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildNewCustomerRow(OrderModel order, CustomerModel? customer, pw.Font urduFont) {
+  static pw.Widget _buildNewCustomerRow(OrderModel? order, CustomerModel? customer, pw.Font urduFont) {
     final phone = customer?.phone ?? '';
+    final name = customer?.name ?? order?.customerName ?? '';
 
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4),
@@ -1120,18 +1140,21 @@ class DarziPdfBuilder {
             pw.SizedBox(),
 
           // Right: Customer Name
-          pw.Directionality(
-            textDirection: pw.TextDirection.rtl,
-            child: pw.Text(
-              _ur(order.customerName),
-              style: pw.TextStyle(
-                font: urduFont,
-                fontSize: 15,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0xFF0F172A),
+          if (name.isNotEmpty)
+            pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Text(
+                _ur(name),
+                style: pw.TextStyle(
+                  font: urduFont,
+                  fontSize: 15,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0xFF0F172A),
+                ),
               ),
-            ),
-          ),
+            )
+          else
+            pw.SizedBox(),
         ],
       ),
     );
@@ -1624,12 +1647,512 @@ class DarziPdfBuilder {
               ),
             ),
             pw.Text(
-              'Saddar, Peshawar Â· 0300-1234567',
+              'Saddar, Peshawar · 0300-1234567',
               style: pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600),
             ),
           ],
         ),
       ],
+    );
+  }
+
+  /// Builds a comprehensive A4 Customer Statement document containing:
+  /// - Personal details & shop branding
+  /// - Total business, paid, and outstanding balances from order_balances
+  /// - All measurement profiles (Naap) summary with bilingual terms
+  /// - Complete order history with status & financial breakdown
+  /// - Full payment transactions log
+  static Future<List<int>> buildCustomerStatementA4({
+    required CustomerModel customer,
+    required List<OrderModel> orders,
+    required List<MeasurementModel> measurements,
+    required Map<String, OrderBalance> orderBalances,
+    required String shopName,
+    String? shopPhone,
+    String? shopAddress,
+  }) async {
+    final urduFont = await _loadUrduFont();
+    final pdf = pw.Document();
+
+    // Aggregate totals
+    double totalBusiness = 0;
+    double totalPaid = 0;
+    double totalOutstanding = 0;
+
+    for (final order in orders) {
+      final b = orderBalances[order.id];
+      if (b != null) {
+        totalBusiness += (b.totalAmount - b.discount);
+        totalPaid += b.paidAmount;
+        totalOutstanding += b.remainingAmount;
+      } else {
+        totalBusiness += (order.totalAmount - order.discount);
+        totalPaid += order.paidAmount;
+        totalOutstanding += order.remainingAmount;
+      }
+    }
+
+    // Collect all payment events
+    final List<Map<String, dynamic>> allPayments = [];
+    for (final order in orders) {
+      for (final p in order.payments) {
+        allPayments.add({
+          'payment': p,
+          'tokenNumber': order.tokenNumber,
+          'orderId': order.id,
+        });
+      }
+    }
+    allPayments.sort((a, b) {
+      final pA = a['payment'] as PaymentModel;
+      final pB = b['payment'] as PaymentModel;
+      return pB.paidAt.compareTo(pA.paidAt);
+    });
+
+    final goldColor = PdfColor.fromInt(0xFFE9A227);
+    final darkInk = PdfColor.fromInt(0xFF111827);
+    final muted = PdfColor.fromInt(0xFF64748B);
+    final borderColor = PdfColor.fromInt(0xFFE2E8F0);
+    final greenColor = PdfColor.fromInt(0xFF0E8F68);
+    final roseColor = PdfColor.fromInt(0xFFD63A49);
+    final paper = PdfColor.fromInt(0xFFF8FAFC);
+
+    pdf.addPage(
+      pw.MultiPage(
+        theme: pw.ThemeData.withFont(base: urduFont, bold: urduFont),
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        header: (context) {
+          return pw.Container(
+            padding: const pw.EdgeInsets.only(bottom: 12),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(
+                bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFE2E8F0), width: 1),
+              ),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Container(
+                      width: 38,
+                      height: 38,
+                      decoration: pw.BoxDecoration(
+                        color: goldColor,
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      alignment: pw.Alignment.center,
+                      child: pw.Text(
+                        'D',
+                        style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontSize: 22,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    pw.SizedBox(width: 10),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          shopName.isNotEmpty ? shopName : 'Darzi Pro',
+                          style: pw.TextStyle(
+                            fontSize: 15,
+                            fontWeight: pw.FontWeight.bold,
+                            color: darkInk,
+                          ),
+                        ),
+                        if (shopPhone != null && shopPhone.isNotEmpty)
+                          pw.Text(
+                            shopPhone,
+                            style: pw.TextStyle(fontSize: 8, color: muted),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      'CUSTOMER STATEMENT',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.2,
+                        color: goldColor,
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      'Date: ${DateFormat('dd MMM yyyy').format(DateTime.now())}',
+                      style: pw.TextStyle(fontSize: 8, color: muted),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+        footer: (context) {
+          return pw.Container(
+            padding: const pw.EdgeInsets.only(top: 10),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(
+                top: pw.BorderSide(color: PdfColor.fromInt(0xFFE2E8F0), width: 0.8),
+              ),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Darzi Pro Tailoring Management System',
+                  style: pw.TextStyle(fontSize: 7, color: muted),
+                ),
+                pw.Text(
+                  'Page ${context.pageNumber} of ${context.pagesCount}',
+                  style: pw.TextStyle(fontSize: 7, color: muted),
+                ),
+              ],
+            ),
+          );
+        },
+        build: (context) => [
+          pw.SizedBox(height: 12),
+
+          // 1. Customer Info & Summary Box
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              color: paper,
+              borderRadius: pw.BorderRadius.circular(10),
+              border: pw.Border.all(color: borderColor, width: 1),
+            ),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  flex: 3,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'CUSTOMER PROFILE',
+                        style: pw.TextStyle(
+                          fontSize: 7.5,
+                          fontWeight: pw.FontWeight.bold,
+                          color: muted,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        customer.name,
+                        style: pw.TextStyle(
+                          fontSize: 13,
+                          fontWeight: pw.FontWeight.bold,
+                          color: darkInk,
+                        ),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Phone: ${customer.phone.isNotEmpty ? customer.phone : '-'}',
+                        style: pw.TextStyle(fontSize: 8.5, color: darkInk),
+                      ),
+                      if (customer.address.isNotEmpty) ...[
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'Address: ${customer.address}',
+                          style: pw.TextStyle(fontSize: 8, color: muted),
+                        ),
+                      ],
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Gender: ${customer.gender.label}  ·  Member: ${DateFormat('dd MMM yyyy').format(customer.createdAt)}',
+                        style: pw.TextStyle(fontSize: 7.5, color: muted),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Container(width: 1, height: 60, color: borderColor),
+                pw.SizedBox(width: 14),
+                pw.Expanded(
+                  flex: 4,
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatementKpiBox('Total Business', 'Rs. ${totalBusiness.toInt()}', goldColor),
+                      _buildStatementKpiBox('Total Paid', 'Rs. ${totalPaid.toInt()}', greenColor),
+                      _buildStatementKpiBox(
+                        'Outstanding',
+                        'Rs. ${totalOutstanding.toInt()}',
+                        totalOutstanding > 0 ? roseColor : greenColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 16),
+
+          // 2. Naap Profiles Summary
+          if (measurements.isNotEmpty) ...[
+            pw.Text(
+              'MEASUREMENT PROFILES (NAAP)',
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+                letterSpacing: 0.8,
+                color: darkInk,
+              ),
+            ),
+            pw.SizedBox(height: 6),
+            ...measurements.map((m) {
+              final fields = m.sections
+                  .expand((s) => s.fields)
+                  .where((f) => f.value.trim().isNotEmpty)
+                  .toList();
+              return pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 8),
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.white,
+                  borderRadius: pw.BorderRadius.circular(6),
+                  border: pw.Border.all(color: borderColor, width: 0.8),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          '${m.profileName} (${m.category.label})',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                            color: goldColor,
+                          ),
+                        ),
+                        pw.Text(
+                          'Updated: ${DateFormat('dd MMM yyyy').format(m.updatedAt)}',
+                          style: pw.TextStyle(fontSize: 7.5, color: muted),
+                        ),
+                      ],
+                    ),
+                    if (fields.isNotEmpty) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: fields.map((f) {
+                          return pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: pw.BoxDecoration(
+                              color: paper,
+                              borderRadius: pw.BorderRadius.circular(4),
+                              border: pw.Border.all(color: borderColor, width: 0.5),
+                            ),
+                            child: pw.Text(
+                              '${f.label}: ${f.value}${f.unit.isNotEmpty ? ' ${f.unit}' : ''}',
+                              style: pw.TextStyle(fontSize: 7.5, color: darkInk),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+            pw.SizedBox(height: 12),
+          ],
+
+          // 3. Orders History Table
+          pw.Text(
+            'ORDERS HISTORY (${orders.length})',
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              letterSpacing: 0.8,
+              color: darkInk,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          if (orders.isEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(vertical: 8),
+              child: pw.Text('No orders recorded.', style: pw.TextStyle(fontSize: 8, color: muted)),
+            )
+          else
+            pw.Table(
+              border: pw.TableBorder.all(color: borderColor, width: 0.6),
+              columnWidths: const {
+                0: pw.FlexColumnWidth(1.2), // Token
+                1: pw.FlexColumnWidth(1.5), // Date
+                2: pw.FlexColumnWidth(3.0), // Items
+                3: pw.FlexColumnWidth(1.5), // Status
+                4: pw.FlexColumnWidth(1.4), // Total
+                5: pw.FlexColumnWidth(1.4), // Paid
+                6: pw.FlexColumnWidth(1.4), // Due
+              },
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(color: paper),
+                  children: [
+                    _stmtTableHeader('Token #'),
+                    _stmtTableHeader('Date'),
+                    _stmtTableHeader('Items / Garment'),
+                    _stmtTableHeader('Status'),
+                    _stmtTableHeader('Total (Rs)'),
+                    _stmtTableHeader('Paid (Rs)'),
+                    _stmtTableHeader('Due (Rs)'),
+                  ],
+                ),
+                ...orders.map((order) {
+                  final b = orderBalances[order.id];
+                  final total = b != null ? (b.totalAmount - b.discount) : (order.totalAmount - order.discount);
+                  final paid = b != null ? b.paidAmount : order.paidAmount;
+                  final due = b != null ? b.remainingAmount : order.remainingAmount;
+
+                  return pw.TableRow(
+                    children: [
+                      _stmtTableCell(order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}', isBold: true),
+                      _stmtTableCell(DateFormat('dd MMM yy').format(order.orderDate)),
+                      _stmtTableCell(order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Garment'),
+                      _stmtTableCell(order.status.label),
+                      _stmtTableCell(total.toInt().toString(), alignRight: true),
+                      _stmtTableCell(paid.toInt().toString(), alignRight: true, color: greenColor),
+                      _stmtTableCell(due.toInt().toString(), alignRight: true, color: due > 0 ? roseColor : greenColor),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          pw.SizedBox(height: 16),
+
+          // 4. Payment History Table
+          pw.Text(
+            'PAYMENT TRANSACTIONS (${allPayments.length})',
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              letterSpacing: 0.8,
+              color: darkInk,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          if (allPayments.isEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(vertical: 8),
+              child: pw.Text('No payments recorded.', style: pw.TextStyle(fontSize: 8, color: muted)),
+            )
+          else
+            pw.Table(
+              border: pw.TableBorder.all(color: borderColor, width: 0.6),
+              columnWidths: const {
+                0: pw.FlexColumnWidth(1.8), // Date
+                1: pw.FlexColumnWidth(1.4), // Order
+                2: pw.FlexColumnWidth(1.8), // Method
+                3: pw.FlexColumnWidth(1.6), // Amount
+                4: pw.FlexColumnWidth(3.0), // Note
+              },
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(color: paper),
+                  children: [
+                    _stmtTableHeader('Date & Time'),
+                    _stmtTableHeader('Order Token'),
+                    _stmtTableHeader('Method'),
+                    _stmtTableHeader('Amount (Rs)'),
+                    _stmtTableHeader('Note / Reference'),
+                  ],
+                ),
+                ...allPayments.map((item) {
+                  final p = item['payment'] as PaymentModel;
+                  final token = item['tokenNumber'] as String;
+                  return pw.TableRow(
+                    children: [
+                      _stmtTableCell(DateFormat('dd MMM yyyy, hh:mm a').format(p.paidAt)),
+                      _stmtTableCell(token, isBold: true),
+                      _stmtTableCell(p.method.name.toUpperCase()),
+                      _stmtTableCell('+Rs. ${p.amount.toInt()}', alignRight: true, color: greenColor, isBold: true),
+                      _stmtTableCell(p.note ?? '-'),
+                    ],
+                  );
+                }),
+              ],
+            ),
+        ],
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static pw.Widget _buildStatementKpiBox(String title, String value, PdfColor color) {
+    return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      children: [
+        pw.Text(
+          value,
+          style: pw.TextStyle(
+            fontSize: 11,
+            fontWeight: pw.FontWeight.bold,
+            color: color,
+          ),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          title.toUpperCase(),
+          style: pw.TextStyle(
+            fontSize: 6.5,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColor.fromInt(0xFF64748B),
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static pw.Widget _stmtTableHeader(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 7.5,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColor.fromInt(0xFF111827),
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _stmtTableCell(
+    String text, {
+    bool isBold = false,
+    bool alignRight = false,
+    PdfColor? color,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: pw.Text(
+        text,
+        textAlign: alignRight ? pw.TextAlign.right : pw.TextAlign.left,
+        style: pw.TextStyle(
+          fontSize: 7.5,
+          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: color ?? PdfColor.fromInt(0xFF111827),
+        ),
+      ),
     );
   }
 }

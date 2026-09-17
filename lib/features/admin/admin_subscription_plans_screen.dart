@@ -289,7 +289,8 @@ class _AdminSubscriptionPlansScreenState
       if (!allOk) {
         _foundingSaveError = 'Some settings failed to save. Please retry.';
       } else {
-        // settings saved to DB successfully
+        ref.invalidate(adminReportsDataProvider);
+        ref.invalidate(adminSubscriptionStatsProvider);
       }
     });
   }

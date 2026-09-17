@@ -38,6 +38,15 @@ class ReportsPdfBuilder {
     final byType = breakdown['by_type'] as Map<String, dynamic>? ?? {};
     final byTier = breakdown['by_tier'] as Map<String, dynamic>? ?? {};
 
+    final recTotal = ((byType['subscription_monthly']?['amount'] ?? 0) as num).toInt() +
+        ((byType['founding_monthly']?['amount'] ?? 0) as num).toInt() +
+        ((byType['storage_monthly']?['amount'] ?? 0) as num).toInt();
+
+    final oneTotal = ((byType['founding_activation']?['amount'] ?? 0) as num).toInt() +
+        ((byType['storage_annual']?['amount'] ?? 0) as num).toInt() +
+        (((byType['legacy_registrations']?['amount'] ?? byType['registrations']?['amount']) ?? 0) as num).toInt() +
+        (((byType['legacy_upgrades']?['amount'] ?? byType['upgrades']?['amount']) ?? 0) as num).toInt();
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -172,10 +181,15 @@ class ReportsPdfBuilder {
                               _cellHeader('Total Amount'),
                             ],
                           ),
-                          _buildTypeRow('Registrations', byType['registrations']),
-                          _buildTypeRow('Upgrades', byType['upgrades']),
+                          _buildTypeGroupHeader('RECURRING', _fmtRs(recTotal), PdfColor.fromHex('#2563EB')),
+                          _buildTypeRow('Subscription (Monthly)', byType['subscription_monthly']),
+                          _buildTypeRow('Founding Monthly', byType['founding_monthly']),
                           _buildTypeRow('Storage (Monthly)', byType['storage_monthly']),
+                          _buildTypeGroupHeader('ONE-TIME', _fmtRs(oneTotal), PdfColor.fromHex('#D97706')),
+                          _buildTypeRow('Founding Activation', byType['founding_activation']),
                           _buildTypeRow('Storage (Annual)', byType['storage_annual']),
+                          _buildTypeRow('Legacy Registrations (history only)', byType['legacy_registrations'] ?? byType['registrations']),
+                          _buildTypeRow('Legacy Upgrades (history only)', byType['legacy_upgrades'] ?? byType['upgrades']),
                         ],
                       ),
                     ],
@@ -199,9 +213,11 @@ class ReportsPdfBuilder {
                               _cellHeader('Total Revenue'),
                             ],
                           ),
-                          _buildTierRow('Mobile Only', byTier['mobile_only']),
-                          _buildTierRow('Full Access', byTier['full_access']),
-                          _buildTierRow('Full Access + 3yr', byTier['full_access_3yr']),
+                          _buildTierRow('Basic Plan', byTier['basic']),
+                          _buildTierRow('Standard Plan', byTier['standard']),
+                          _buildTierRow('Unlimited Plan', byTier['unlimited']),
+                          _buildTierRow('Founding Member', byTier['founding']),
+                          _buildTierRow('Lifetime (Legacy)', byTier['lifetime']),
                         ],
                       ),
                     ],
@@ -593,6 +609,40 @@ class ReportsPdfBuilder {
           color: color ?? PdfColor.fromHex('#1E293B'),
         ),
       ),
+    );
+  }
+
+  static pw.TableRow _buildTypeGroupHeader(String groupTitle, String subtotal, PdfColor color) {
+    return pw.TableRow(
+      decoration: pw.BoxDecoration(color: PdfColor.fromHex('#F8FAFC')),
+      children: [
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: pw.Text(
+            groupTitle,
+            style: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: pw.Text('', style: const pw.TextStyle(fontSize: 8)),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: pw.Text(
+            subtotal,
+            style: pw.TextStyle(
+              fontSize: 8.5,
+              fontWeight: pw.FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

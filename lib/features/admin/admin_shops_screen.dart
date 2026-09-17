@@ -268,12 +268,24 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
     );
   }
 
-  void _showCreateManualModal(BuildContext context) {
+  void _showCreateManualModal(BuildContext context) async {
+    final rawPlans = await AdminService.instance.fetchSubscriptionPlans();
+    final plans = rawPlans.isNotEmpty
+        ? rawPlans
+        : [
+            {'code': 'basic', 'name': 'Basic Plan', 'price_pkr': 1200},
+            {'code': 'standard', 'name': 'Standard Plan', 'price_pkr': 2500},
+            {'code': 'unlimited', 'name': 'Unlimited Plan', 'price_pkr': 5000},
+          ];
+
+    if (!context.mounted) return;
+
     final shopNameCtrl = TextEditingController();
     final ownerCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
-    String planSelected = 'full_access';
+    String planSelected = plans.first['code']?.toString() ?? 'basic';
+    int durationDays = 30;
 
     showDialog(
       context: context,
@@ -295,14 +307,33 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: planSelected,
-                  decoration: const InputDecoration(labelText: 'Select Plan Tier'),
-                  items: const [
-                    DropdownMenuItem(value: 'mobile_only', child: Text('📱 Basic Plan (Rs 12,000)')),
-                    DropdownMenuItem(value: 'full_access', child: Text('🚀 Professional Plan (Rs 35,000)')),
-                    DropdownMenuItem(value: 'full_access_3yr', child: Text('👑 Enterprise Plan (Rs 70,000)')),
-                  ],
+                  decoration: const InputDecoration(labelText: 'Select Plan'),
+                  items: plans.map((p) {
+                    final code = p['code']?.toString() ?? '';
+                    final name = p['name']?.toString() ?? code;
+                    final price = (p['price_pkr'] as num?)?.toInt() ?? 0;
+                    final priceStr = price > 0 ? 'Rs $price/mo' : 'Free';
+                    return DropdownMenuItem<String>(
+                      value: code,
+                      child: Text('$name ($priceStr)'),
+                    );
+                  }).toList(),
                   onChanged: (v) {
                     if (v != null) setModalState(() => planSelected = v);
+                  },
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  initialValue: durationDays,
+                  decoration: const InputDecoration(labelText: 'Duration'),
+                  items: const [
+                    DropdownMenuItem(value: 30, child: Text('1 Month (30 days)')),
+                    DropdownMenuItem(value: 90, child: Text('3 Months (90 days)')),
+                    DropdownMenuItem(value: 180, child: Text('6 Months (180 days)')),
+                    DropdownMenuItem(value: 365, child: Text('1 Year (365 days)')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setModalState(() => durationDays = v);
                   },
                 ),
               ],
@@ -317,12 +348,14 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter Shop Name & Phone.')));
                   return;
                 }
-                int amount = 12000;
-                if (planSelected == 'full_access_3yr') {
-                  amount = 70000;
-                } else if (planSelected == 'full_access') {
-                  amount = 35000;
-                }
+
+                final selectedPlan = plans.firstWhere(
+                  (p) => p['code'] == planSelected,
+                  orElse: () => plans.first,
+                );
+                final monthlyPrice = (selectedPlan['price_pkr'] as num?)?.toInt() ?? 0;
+                final months = (durationDays / 30).round().clamp(1, 12);
+                final amount = planSelected == 'founding' ? 35000 : (monthlyPrice * months);
 
                 final ok = await AdminService.instance.createLicense(
                   shopName: shopNameCtrl.text.trim(),
@@ -330,7 +363,7 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                   city: 'Manual Admin Entry',
                   whatsapp: phoneCtrl.text.trim(),
                   plan: planSelected,
-                  durationDays: planSelected == 'full_access_3yr' ? 1095 : 365,
+                  durationDays: durationDays,
                   key: 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
                   paymentMethod: 'Manual Cash / Transfer',
                   amount: amount,
@@ -436,6 +469,7 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                       DropdownMenuItem(value: 'basic', child: Text('⚡ Basic Plan')),
                       DropdownMenuItem(value: 'standard', child: Text('🚀 Standard Plan')),
                       DropdownMenuItem(value: 'unlimited', child: Text('💎 Unlimited Plan')),
+                      DropdownMenuItem(value: 'founding', child: Text('👑 Founding Member')),
                       DropdownMenuItem(value: 'lifetime', child: Text('👑 Lifetime Access')),
                       DropdownMenuItem(value: 'deleted', child: Text('🗑️ Deleted Accounts')),
                     ],
@@ -485,9 +519,10 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                     if (_selectedFilter == 'lifetime') return isLifetime;
                     final p = _str(s['plan_code'] ?? s['plan'] ?? s['plan_type'], 'trial').toLowerCase();
                     if (_selectedFilter == 'trial') return p == 'trial';
-                    if (_selectedFilter == 'basic') return p == 'basic' || p == 'mobile_only';
-                    if (_selectedFilter == 'standard') return p == 'standard' || p == 'full_access';
-                    if (_selectedFilter == 'unlimited') return p == 'unlimited' || p == 'full_access_3yr';
+                    if (_selectedFilter == 'basic') return p == 'basic';
+                    if (_selectedFilter == 'standard') return p == 'standard';
+                    if (_selectedFilter == 'unlimited') return p == 'unlimited';
+                    if (_selectedFilter == 'founding') return p == 'founding';
                     return p == _selectedFilter;
                   }).toList();
 
@@ -959,9 +994,8 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
       'basic' => ('⚡ Basic Plan', AdminColors.blue),
       'standard' => ('🚀 Standard Plan', AdminColors.violet),
       'unlimited' => ('💎 Unlimited Plan', AdminColors.emerald),
-      'mobile_only' => ('⚡ Basic Plan', AdminColors.blue),
-      'full_access' => ('🚀 Standard Plan', AdminColors.violet),
-      'full_access_3yr' => ('💎 Unlimited Plan', AdminColors.emerald),
+      'founding' => ('👑 Founding Member', AdminColors.amber),
+      'mobile_only' || 'full_access' || 'full_access_3yr' => ('👑 Lifetime (Legacy)', AdminColors.amber),
       _ => ('⚡ $plan Plan', AdminColors.blue),
     };
   }

@@ -46,7 +46,10 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
       cachedData = customersBox.get(shopId);
       if (cachedData != null) {
         final List<dynamic> listJson = List<dynamic>.from(cachedData as List);
-        final list = listJson.map((json) => CustomerModel.fromJson(Map<String, dynamic>.from(json as Map), 0)).toList();
+        final list = listJson
+            .map((json) => CustomerModel.fromJson(Map<String, dynamic>.from(json as Map), 0))
+            .where((c) => !c.isArchived)
+            .toList();
         state = AsyncValue.data(list);
       } else {
         state = const AsyncValue.loading();
@@ -94,7 +97,10 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
       final List<CustomerModel> list = [];
       for (final json in data) {
         final count = orderCounts[json['id']] ?? 0;
-        list.add(CustomerModel.fromJson(json, count));
+        final customer = CustomerModel.fromJson(json, count);
+        if (!customer.isArchived) {
+          list.add(customer);
+        }
       }
 
       // Save to cache (raw JSON data)
@@ -206,18 +212,33 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
     if (isCloudEnabled) {
       final supabase = _ref.read(supabaseClientProvider);
       try {
-        await supabase.from('customers').delete().eq('id', id);
+        // Soft archive customer: set is_archived = true and deleted_at = now()
+        await supabase.from('customers').update({
+          'is_archived': true,
+          'deleted_at': DateTime.now().toUtc().toIso8601String(),
+        }).eq('id', id);
         await _fetchCustomers();
       } catch (e) {
+        // If column doesn't exist yet, gracefully catch and fallback
+        if (e is PostgrestException && e.message.contains('is_archived')) {
+          debugPrint('is_archived column not yet in DB schema: $e');
+          await _fetchCustomers();
+          return;
+        }
+
         final errStr = e.toString().toLowerCase();
         final isNetwork = e is PostgrestException && (e.message.contains('Failed host lookup') || e.message.contains('network')) ||
             errStr.contains('socketexception') || errStr.contains('network') || errStr.contains('failed to connect') || errStr.contains('handshake_failed');
 
         if (isNetwork) {
           await _ref.read(syncManagerProvider.notifier).queueOperation(
-            type: 'delete',
+            type: 'update',
             table: 'customers',
-            payload: {'id': id},
+            payload: {
+              'id': id,
+              'is_archived': true,
+              'deleted_at': DateTime.now().toUtc().toIso8601String(),
+            },
           );
         } else {
           await _fetchCustomers();
@@ -227,6 +248,29 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
     }
   }
 }
+
+// ── Customer Order Balances Provider (from order_balances view) ───────────────
+final customerOrderBalancesProvider =
+    FutureProvider.family<Map<String, OrderBalance>, List<String>>((ref, orderIds) async {
+  if (orderIds.isEmpty) return {};
+  final supabase = ref.watch(supabaseClientProvider);
+  try {
+    final response = await supabase
+        .from('order_balances')
+        .select()
+        .filter('order_id', 'in', '(${orderIds.join(',')})');
+
+    final Map<String, OrderBalance> map = {};
+    for (final row in response as List) {
+      final b = OrderBalance.fromJson(Map<String, dynamic>.from(row as Map));
+      map[b.orderId] = b;
+    }
+    return map;
+  } catch (e) {
+    debugPrint('customerOrderBalancesProvider error: $e');
+    return {};
+  }
+});
 
 final customersProvider = StateNotifierProvider<CustomersNotifier, AsyncValue<List<CustomerModel>>>((ref) {
   final license = ref.watch(licenseProvider);

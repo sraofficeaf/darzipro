@@ -46,29 +46,44 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  // Section 1: Registration Tiers & Level Unlocks
+                  // Section 1: Subscription Plans & Level Unlocks
                   _buildCheatSection(
                     context,
                     sectionId: 1,
                     icon: Icons.workspace_premium_rounded,
                     iconColor: AdminColors.amber,
-                    title: '1. Registration Tiers & Invite Level Unlocks',
-                    subtitle: 'Base plan prices and how deep each plan unlocks earning levels',
+                    title: '1. Subscription Plans & Invite Level Unlocks',
+                    subtitle: 'Current subscription plans, pricing, and how deep each plan unlocks earning levels',
                     content: Column(
                       children: const [
                         _DetailRowItem(
-                          title: '📱 Mobile Only Plan (Rs 12,000)',
-                          detail: 'invite_level_unlocked = 1 · Earns Level 1 (15%) direct invites only.',
+                          title: '⏳ Free Trial (14 Days / 20 Orders)',
+                          detail: 'invite_level_unlocked = 1 · 10 MB storage. Full feature testing before choosing a plan.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: '⭐ Full Access Plan (Rs 35,000)',
-                          detail: 'invite_level_unlocked = 2 · Earns 2 levels deep: Level 1 (15%) & Level 2 (2.5%).',
+                          title: '⚡ Basic Plan (Rs 500/mo)',
+                          detail: 'invite_level_unlocked = 1 · Earns Level 1 (15%) direct invites. 20 MB storage.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: '💎 Full Access + 3yr Plan (Rs 70,000)',
-                          detail: 'invite_level_unlocked = 4 · Earns all 4 levels deep: L1 (15%), L2 (2.5%), L3 (1.5%), L4 (1.0%). Includes 3-year bundled storage.',
+                          title: '🚀 Standard Plan (Rs 1,500/mo)',
+                          detail: 'invite_level_unlocked = 2 · Earns 2 levels deep: L1 (15%) & L2 (2.5%). 50 MB storage.',
+                        ),
+                        SizedBox(height: 8),
+                        _DetailRowItem(
+                          title: '💎 Unlimited Plan (Rs 2,500/mo)',
+                          detail: 'invite_level_unlocked = 4 · Earns all 4 levels: L1 (15%), L2 (2.5%), L3 (1.5%), L4 (1.0%). 100 MB storage.',
+                        ),
+                        SizedBox(height: 8),
+                        _DetailRowItem(
+                          title: '👑 Founding Member Plan (Rs 35,000 one-time fee)',
+                          detail: 'First 6 months free, then locked monthly rate · Unlimited orders & customers · 5 GB storage · Earns all 4 levels deep.',
+                        ),
+                        SizedBox(height: 8),
+                        _DetailRowItem(
+                          title: '👑 Lifetime Access (Grandfathered Legacy)',
+                          detail: 'invite_level_unlocked = 4 · Grandfathered shops from legacy pricing with permanent unlimited access.',
                         ),
                       ],
                     ),
@@ -121,23 +136,23 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                     sectionId: 3,
                     icon: Icons.upgrade_rounded,
                     iconColor: AdminColors.blue,
-                    title: '3. Upgrade Request Paths & Differential Fees',
-                    subtitle: 'Exact payment differences when shops upgrade their active plan',
+                    title: '3. Subscription Upgrades & Billing Cycles',
+                    subtitle: 'How shops upgrade plans and transition between tiers',
                     content: Column(
                       children: const [
                         _DetailRowItem(
-                          title: 'Mobile Only ➔ Full Access',
-                          detail: 'Difference Fee: Rs 23,000 (Rs 35,000 - Rs 12,000). Updates invite_level_unlocked from 1 to 2.',
+                          title: 'Trial ➔ Any Paid Plan',
+                          detail: 'Shops can upgrade at any time during or after trial. Selecting Basic, Standard, Unlimited, or Founding activates the chosen subscription upon payment confirmation.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: 'Mobile Only ➔ Full Access + 3yr',
-                          detail: 'Difference Fee: Rs 58,000 (Rs 70,000 - Rs 12,000). Updates invite_level_unlocked from 1 to 4.',
+                          title: 'Basic ➔ Standard / Unlimited',
+                          detail: 'Month-to-month subscription upgrade. Higher plans immediately unlock higher order/customer limits and deeper multi-level invite profit depth.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: 'Full Access ➔ Full Access + 3yr',
-                          detail: 'Difference Fee: Rs 35,000 (Rs 70,000 - Rs 35,000). Updates invite_level_unlocked from 2 to 4.',
+                          title: 'Founding Member Activation',
+                          detail: 'Shops pay the one-time Rs 35,000 activation fee, receiving 6 months free subscription + 5 GB storage + VIP status badge.',
                         ),
                       ],
                     ),
@@ -170,8 +185,8 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: '💎 3-Year Bundled Storage',
-                          detail: 'Included bundled automatically with Full Access + 3yr tier for 1,095 days.',
+                          title: '💎 Legacy Bundled Storage',
+                          detail: 'Preserved for grandfathered legacy shops until expiration; all shops can add monthly or annual storage add-ons at any time.',
                         ),
                       ],
                     ),
@@ -238,24 +253,24 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Section 7: Platform Restriction Logic
+                  // Section 7: Platform Access Logic
                   _buildCheatSection(
                     context,
                     sectionId: 7,
                     icon: Icons.devices_rounded,
                     iconColor: AdminColors.indigo,
-                    title: '7. Platform Access Restriction Logic',
-                    subtitle: 'Which plans can log in to Mobile, Web, or Windows Desktop apps',
+                    title: '7. Platform Access & Cross-Device Sync',
+                    subtitle: 'Device support and multi-platform access rules across plans',
                     content: Column(
                       children: const [
                         _DetailRowItem(
-                          title: '📱 Mobile Only Plan Restrictions',
-                          detail: 'Restricted exclusively to Mobile Android/iOS apps. Attempting to log into Windows Desktop or Web app triggers the check-platform-access gate, blocking entry with an upgrade prompt.',
+                          title: '📱 Cross-Platform Access (All Plans)',
+                          detail: 'All active subscription plans (Trial, Basic, Standard, Unlimited, Founding, and Lifetime) enjoy full access across Windows Desktop, Web Browser, Android, and iOS applications.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: '💻 Full Access & Full Access + 3yr Plans',
-                          detail: 'Full cross-platform access. Can log in seamlessly across Windows Desktop, Web Browser, Android, and iOS apps.',
+                          title: '🔒 Subscription Status Enforcements',
+                          detail: 'Active & Grace Period: full read/write access. Read-Only mode: shops past grace period can view and search existing customer records and orders, but cannot create new data until renewing.',
                         ),
                       ],
                     ),

@@ -78,14 +78,16 @@ class AdminDashboardScreen extends ConsumerWidget {
     final breakdownData =
         reportsData['breakdown'] as Map<String, dynamic>? ?? {};
     final byTier = breakdownData['by_tier'] as Map<String, dynamic>? ?? {};
-    final mobileTier = byTier['mobile_only'] as Map<String, dynamic>? ?? {};
-    final fullTier = byTier['full_access'] as Map<String, dynamic>? ?? {};
-    final full3yrTier =
-        byTier['full_access_3yr'] as Map<String, dynamic>? ?? {};
+    final basicTier    = byTier['basic']     as Map<String, dynamic>? ?? {};
+    final standardTier = byTier['standard']  as Map<String, dynamic>? ?? {};
+    final unlimitedTier= byTier['unlimited'] as Map<String, dynamic>? ?? {};
+    final foundingTier = byTier['founding']  as Map<String, dynamic>? ?? {};
+    final lifetimeTier = byTier['lifetime']  as Map<String, dynamic>? ?? {};
 
-    final mobileCount = (mobileTier['count'] as num?)?.toInt() ?? 0;
-    final fullCount = (fullTier['count'] as num?)?.toInt() ?? 0;
-    final full3yrCount = (full3yrTier['count'] as num?)?.toInt() ?? 0;
+    final planCounts = (subStats['plan_counts'] as Map<String, dynamic>?) ?? {};
+    final basicCount     = (planCounts['basic']     as num?)?.toInt() ?? 0;
+    final standardCount  = (planCounts['standard']  as num?)?.toInt() ?? 0;
+    final unlimitedCount = (planCounts['unlimited'] as num?)?.toInt() ?? 0;
     final paidTxCount =
         (summaryData['transaction_count'] as num?)?.toInt() ?? 0;
     final totalShops = shops.length;
@@ -106,10 +108,10 @@ class AdminDashboardScreen extends ConsumerWidget {
 
     // Subscription helpers (used by purple hero + panel)
     final mrr = (subStats['mrr'] as num?)?.toInt() ?? 0;
-    final planCounts = (subStats['plan_counts'] as Map<String, dynamic>?) ?? {};
+    final planPrices = (subStats['plan_prices'] as Map<String, dynamic>?) ?? {};
     final activePayingCount =
-        ((planCounts['basic'] as num?)?.toInt() ?? 0) +
-        ((planCounts['standard'] as num?)?.toInt() ?? 0) +
+        ((planCounts['basic']     as num?)?.toInt() ?? 0) +
+        ((planCounts['standard']  as num?)?.toInt() ?? 0) +
         ((planCounts['unlimited'] as num?)?.toInt() ?? 0);
 
     // Storage attention
@@ -214,9 +216,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                           // ── KPI GRID ────────────────────────────────
                           _KpiGrid(
                             totalShops: totalShops,
-                            mobileCount: mobileCount,
-                            fullCount: fullCount,
-                            full3yrCount: full3yrCount,
+                            basicCount: basicCount,
+                            standardCount: standardCount,
+                            unlimitedCount: unlimitedCount,
                             pendingApprovalsCount: pendingApprovalsCount,
                             pendingRegs: pendingRegs.length,
                             pendingUpgs: pendingUpgs.length,
@@ -246,9 +248,12 @@ class AdminDashboardScreen extends ConsumerWidget {
                                     context.go('/admin/subscription-plans'),
                               );
                               final revPanel = _RevenuePanel(
-                                mobileTier: mobileTier,
-                                fullTier: fullTier,
-                                full3yrTier: full3yrTier,
+                                basicTier:     basicTier,
+                                standardTier:  standardTier,
+                                unlimitedTier: unlimitedTier,
+                                foundingTier:  foundingTier,
+                                lifetimeTier:  lifetimeTier,
+                                planPrices:    planPrices,
                               );
                               if (wide) {
                                 return IntrinsicHeight(
@@ -835,9 +840,9 @@ class _AlertRibbon extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════
 class _KpiGrid extends StatelessWidget {
   final int totalShops;
-  final int mobileCount;
-  final int fullCount;
-  final int full3yrCount;
+  final int basicCount;
+  final int standardCount;
+  final int unlimitedCount;
   final int pendingApprovalsCount;
   final int pendingRegs;
   final int pendingUpgs;
@@ -855,9 +860,9 @@ class _KpiGrid extends StatelessWidget {
 
   const _KpiGrid({
     required this.totalShops,
-    required this.mobileCount,
-    required this.fullCount,
-    required this.full3yrCount,
+    required this.basicCount,
+    required this.standardCount,
+    required this.unlimitedCount,
     required this.pendingApprovalsCount,
     required this.pendingRegs,
     required this.pendingUpgs,
@@ -887,9 +892,9 @@ class _KpiGrid extends StatelessWidget {
         accent: _C.blue,
         icon: Icons.storefront_rounded,
         chips: [
-          _ChipData(label: 'Mobile', value: '$mobileCount'),
-          _ChipData(label: 'Full', value: '$fullCount'),
-          _ChipData(label: '3Yr', value: '$full3yrCount'),
+          _ChipData(label: 'Basic', value: '$basicCount'),
+          _ChipData(label: 'Std', value: '$standardCount'),
+          _ChipData(label: 'Unlim', value: '$unlimitedCount'),
         ],
         spark: const [
           0.20,
@@ -1456,6 +1461,7 @@ class _SubscriptionsPanel extends StatelessWidget {
 
     final mrr = (subStats['mrr'] as num?)?.toInt() ?? 0;
     final planCounts = (subStats['plan_counts'] as Map<String, dynamic>?) ?? {};
+    final planPrices = (subStats['plan_prices'] as Map<String, dynamic>?) ?? {};
     final graceCount = (subStats['grace_count'] as num?)?.toInt() ?? 0;
     final readOnlyCount = (subStats['read_only_count'] as num?)?.toInt() ?? 0;
     final lifetimeCount = (subStats['lifetime_count'] as num?)?.toInt() ?? 0;
@@ -1465,7 +1471,14 @@ class _SubscriptionsPanel extends StatelessWidget {
     final standardCount = (planCounts['standard'] as num?)?.toInt() ?? 0;
     final unlimitedCount = (planCounts['unlimited'] as num?)?.toInt() ?? 0;
     final trialCount = (planCounts['trial'] as num?)?.toInt() ?? 0;
+    final foundingCount = (subStats['founding_count'] as num?)?.toInt() ?? 0;
     final activePaying = basicCount + standardCount + unlimitedCount;
+
+    // Format plan prices dynamically from DB
+    String formatPlanPrice(String code) {
+      final price = (planPrices[code] as num?)?.toInt() ?? 0;
+      return price > 0 ? 'Rs $price/mo' : '';
+    }
 
     return RepaintBoundary(
       child: Container(
@@ -1547,20 +1560,26 @@ class _SubscriptionsPanel extends StatelessWidget {
           _PlanRow(name: 'Free Trial', dotColor: _C.text3, count: trialCount),
           _PlanRow(
             name: 'Basic',
-            price: 'Rs 150/mo',
+            price: formatPlanPrice('basic'),
             dotColor: _C.blue,
             count: basicCount,
           ),
           _PlanRow(
             name: 'Standard',
-            price: 'Rs 500/mo',
+            price: formatPlanPrice('standard'),
             dotColor: _C.violet,
             count: standardCount,
           ),
           _PlanRow(
             name: 'Unlimited',
+            price: formatPlanPrice('unlimited'),
             dotColor: _C.emerald,
             count: unlimitedCount,
+          ),
+          _PlanRow(
+            name: '👑 Founding',
+            dotColor: const Color(0xFFE8A020),
+            count: foundingCount,
           ),
           _PlanRow(
             name: '👑 Lifetime',
@@ -1896,14 +1915,20 @@ class _PlanRow extends StatelessWidget {
 // REVENUE PANEL
 // ══════════════════════════════════════════════════════════════════════════
 class _RevenuePanel extends StatelessWidget {
-  final Map<String, dynamic> mobileTier;
-  final Map<String, dynamic> fullTier;
-  final Map<String, dynamic> full3yrTier;
+  final Map<String, dynamic> basicTier;
+  final Map<String, dynamic> standardTier;
+  final Map<String, dynamic> unlimitedTier;
+  final Map<String, dynamic> foundingTier;
+  final Map<String, dynamic> lifetimeTier;
+  final Map<String, dynamic> planPrices;
 
   const _RevenuePanel({
-    required this.mobileTier,
-    required this.fullTier,
-    required this.full3yrTier,
+    required this.basicTier,
+    required this.standardTier,
+    required this.unlimitedTier,
+    required this.foundingTier,
+    required this.lifetimeTier,
+    required this.planPrices,
   });
 
   @override
@@ -1913,11 +1938,12 @@ class _RevenuePanel extends StatelessWidget {
     final text1 = context.text1;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final mobileAmt = (mobileTier['amount'] as num?)?.toInt() ?? 0;
-    final fullAmt = (fullTier['amount'] as num?)?.toInt() ?? 0;
-    final full3yrAmt = (full3yrTier['amount'] as num?)?.toInt() ?? 0;
-    final total = mobileAmt + fullAmt + full3yrAmt;
-    final lifetimeRevenue = total;
+    final basicAmt     = (basicTier['amount']     as num?)?.toInt() ?? 0;
+    final standardAmt  = (standardTier['amount']  as num?)?.toInt() ?? 0;
+    final unlimitedAmt = (unlimitedTier['amount'] as num?)?.toInt() ?? 0;
+    final foundingAmt  = (foundingTier['amount']  as num?)?.toInt() ?? 0;
+    final lifetimeAmt  = (lifetimeTier['amount']  as num?)?.toInt() ?? 0;
+    final total = basicAmt + standardAmt + unlimitedAmt + foundingAmt + lifetimeAmt;
 
     double pct(int v) => total == 0 ? 0 : v / total;
 
@@ -1967,24 +1993,38 @@ class _RevenuePanel extends StatelessWidget {
             const SizedBox(height: 16),
 
             _RevenueRow(
-              label: 'Mobile Only',
+              label: 'Basic Plan',
               dotColor: _C.blue,
-              amount: mobileAmt,
-              pct: pct(mobileAmt),
+              amount: basicAmt,
+              pct: pct(basicAmt),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             _RevenueRow(
-              label: 'Full Access',
-              dotColor: _C.amber,
-              amount: fullAmt,
-              pct: pct(fullAmt),
+              label: 'Standard Plan',
+              dotColor: _C.violet,
+              amount: standardAmt,
+              pct: pct(standardAmt),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             _RevenueRow(
-              label: 'Full + 3Yr Storage',
+              label: 'Unlimited Plan',
               dotColor: _C.emerald,
-              amount: full3yrAmt,
-              pct: pct(full3yrAmt),
+              amount: unlimitedAmt,
+              pct: pct(unlimitedAmt),
+            ),
+            const SizedBox(height: 10),
+            _RevenueRow(
+              label: '👑 Founding',
+              dotColor: const Color(0xFFD97706),
+              amount: foundingAmt,
+              pct: pct(foundingAmt),
+            ),
+            const SizedBox(height: 10),
+            _RevenueRow(
+              label: 'Lifetime (Legacy)',
+              dotColor: _C.text3,
+              amount: lifetimeAmt,
+              pct: pct(lifetimeAmt),
             ),
             const SizedBox(height: 18),
 
@@ -2012,7 +2052,7 @@ class _RevenuePanel extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Across paid transactions',
+                          'Across all paid transactions',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
@@ -2023,7 +2063,7 @@ class _RevenuePanel extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Rs ${_fmtCompact(lifetimeRevenue)}',
+                    'Rs ${_fmtCompact(total)}',
                     style: GoogleFonts.outfit(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,

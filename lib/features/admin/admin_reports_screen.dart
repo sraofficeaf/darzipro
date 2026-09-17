@@ -264,9 +264,9 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
     if (_txFilterType == 'All') return _allTransactions;
     return _allTransactions.where((t) {
       final type = t['type'].toString().toLowerCase();
-      if (_txFilterType == 'Registration') return type.contains('registration');
-      if (_txFilterType == 'Upgrade') return type.contains('upgrade');
+      if (_txFilterType == 'Subscription') return type.contains('subscription') || type.contains('founding');
       if (_txFilterType == 'Storage') return type.contains('storage');
+      if (_txFilterType == 'Legacy') return type.contains('legacy') || type.contains('registration') || type.contains('upgrade');
       if (_txFilterType == 'Payout') return type.contains('payout') || t['direction'] == 'Out';
       return true;
     }).toList();
@@ -361,7 +361,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                     value: _fmt(_summaryData['total_revenue'] ?? 0),
                                     icon: Icons.account_balance_wallet_rounded,
                                     color: AdminColors.amber,
-                                    subtitle: 'Registrations + Upgrades + Add-ons',
+                                    subtitle: 'Subscriptions + Add-ons + Legacy History',
                                   ),
                                   AdminStatCard(
                                     title: 'Invite Payouts',
@@ -401,14 +401,36 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                               final byType = _breakdownData['by_type'] as Map<String, dynamic>? ?? {};
                               final byTier = _breakdownData['by_tier'] as Map<String, dynamic>? ?? {};
 
+                              final recTotal = (byType['subscription_monthly']?['amount'] ?? 0) +
+                                  (byType['founding_monthly']?['amount'] ?? 0) +
+                                  (byType['storage_monthly']?['amount'] ?? 0);
+                              final oneTotal = (byType['founding_activation']?['amount'] ?? 0) +
+                                  (byType['storage_annual']?['amount'] ?? 0) +
+                                  ((byType['legacy_registrations']?['amount'] ?? byType['registrations']?['amount']) ?? 0) +
+                                  ((byType['legacy_upgrades']?['amount'] ?? byType['upgrades']?['amount']) ?? 0);
+
                               final typeWidget = _buildBreakdownCard(
                                 title: 'By Category / Type',
                                 icon: Icons.category_rounded,
                                 children: [
-                                  _BreakdownRow('Registrations', _fmt(byType['registrations']?['amount'] ?? 0), '${byType['registrations']?['count'] ?? 0} txs'),
-                                  _BreakdownRow('Upgrades', _fmt(byType['upgrades']?['amount'] ?? 0), '${byType['upgrades']?['count'] ?? 0} txs'),
+                                  _BreakdownGroupHeader(
+                                    title: 'RECURRING',
+                                    subtotal: _fmt(recTotal),
+                                    color: AdminColors.blue,
+                                  ),
+                                  _BreakdownRow('Subscription (Monthly)', _fmt(byType['subscription_monthly']?['amount'] ?? 0), '${byType['subscription_monthly']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Founding Monthly', _fmt(byType['founding_monthly']?['amount'] ?? 0), '${byType['founding_monthly']?['count'] ?? 0} txs'),
                                   _BreakdownRow('Storage (Monthly)', _fmt(byType['storage_monthly']?['amount'] ?? 0), '${byType['storage_monthly']?['count'] ?? 0} txs'),
+                                  const SizedBox(height: 10),
+                                  _BreakdownGroupHeader(
+                                    title: 'ONE-TIME',
+                                    subtotal: _fmt(oneTotal),
+                                    color: AdminColors.amber,
+                                  ),
+                                  _BreakdownRow('Founding Activation', _fmt(byType['founding_activation']?['amount'] ?? 0), '${byType['founding_activation']?['count'] ?? 0} txs'),
                                   _BreakdownRow('Storage (Annual)', _fmt(byType['storage_annual']?['amount'] ?? 0), '${byType['storage_annual']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Legacy Registrations (history only)', _fmt(byType['legacy_registrations']?['amount'] ?? byType['registrations']?['amount'] ?? 0), '${byType['legacy_registrations']?['count'] ?? byType['registrations']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Legacy Upgrades (history only)', _fmt(byType['legacy_upgrades']?['amount'] ?? byType['upgrades']?['amount'] ?? 0), '${byType['legacy_upgrades']?['count'] ?? byType['upgrades']?['count'] ?? 0} txs'),
                                 ],
                               );
 
@@ -416,9 +438,11 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                 title: 'By Plan Tier',
                                 icon: Icons.layers_rounded,
                                 children: [
-                                  _BreakdownRow('Mobile Only', _fmt(byTier['mobile_only']?['amount'] ?? 0), 'Tier Revenue'),
-                                  _BreakdownRow('Full Access', _fmt(byTier['full_access']?['amount'] ?? 0), 'Tier Revenue'),
-                                  _BreakdownRow('Full Access + 3yr', _fmt(byTier['full_access_3yr']?['amount'] ?? 0), 'Tier Revenue'),
+                                  _BreakdownRow('Basic Plan', _fmt(byTier['basic']?['amount'] ?? 0), '${byTier['basic']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Standard Plan', _fmt(byTier['standard']?['amount'] ?? 0), '${byTier['standard']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Unlimited Plan', _fmt(byTier['unlimited']?['amount'] ?? 0), '${byTier['unlimited']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Founding Member', _fmt(byTier['founding']?['amount'] ?? 0), '${byTier['founding']?['count'] ?? 0} txs'),
+                                  _BreakdownRow('Lifetime (Legacy)', _fmt(byTier['lifetime']?['amount'] ?? 0), '${byTier['lifetime']?['count'] ?? 0} txs'),
                                 ],
                               );
 
@@ -634,7 +658,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
-                            children: ['All', 'Registration', 'Upgrade', 'Storage', 'Payout'].map((filter) {
+                            children: ['All', 'Subscription', 'Storage', 'Legacy', 'Payout'].map((filter) {
                               final isSelected = _txFilterType == filter;
                               return Padding(
                                 padding: const EdgeInsets.only(right: 6),
@@ -784,3 +808,64 @@ class _BreakdownRow extends StatelessWidget {
     );
   }
 }
+
+class _BreakdownGroupHeader extends StatelessWidget {
+  final String title;
+  final String subtotal;
+  final Color color;
+
+  const _BreakdownGroupHeader({
+    required this.title,
+    required this.subtotal,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  title.contains('RECURRING') ? Icons.autorenew_rounded : Icons.bolt_rounded,
+                  size: 13,
+                  color: color,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            subtotal,
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
