@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../core/widgets/shared_widgets.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/providers/supabase_providers.dart';
@@ -56,6 +55,34 @@ class NaapCardWidget extends ConsumerWidget {
       return '$raw"';
     }
     return raw;
+  }
+
+  // ── Fast synchronous local typography (Zero HTTP/CDN latency) ───────────
+  static TextStyle _ur({
+    double fontSize = 11,
+    FontWeight fontWeight = FontWeight.normal,
+    Color color = Colors.black87,
+  }) {
+    return TextStyle(
+      fontFamily: 'NotoNaskhArabic',
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+    );
+  }
+
+  static TextStyle _en({
+    double fontSize = 11,
+    FontWeight fontWeight = FontWeight.normal,
+    Color color = Colors.black87,
+    double? letterSpacing,
+  }) {
+    return TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      letterSpacing: letterSpacing,
+    );
   }
 
   // ── Helper to get value matching multiple keys ───────────────────────────
@@ -223,7 +250,7 @@ class NaapCardWidget extends ConsumerWidget {
               children: [
                 Text(
                   'TOKEN NO.',
-                  style: GoogleFonts.inter(
+                  style: _en(
                     fontSize: 8.5,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFFB8860B),
@@ -233,7 +260,7 @@ class NaapCardWidget extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text(
                   order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}',
-                  style: GoogleFonts.playfairDisplay(
+                  style: _en(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: const Color(0xFFB8860B),
@@ -252,7 +279,7 @@ class NaapCardWidget extends ConsumerWidget {
                 children: [
                   Text(
                     shopName,
-                    style: GoogleFonts.playfairDisplay(
+                    style: _en(
                       fontSize: 23,
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF12213A),
@@ -266,7 +293,7 @@ class NaapCardWidget extends ConsumerWidget {
                       if (shopAddress.isNotEmpty) '📍 $shopAddress',
                       if (shopPhone.isNotEmpty) '📞 $shopPhone',
                     ].join('   |   '),
-                    style: GoogleFonts.inter(
+                    style: _en(
                       fontSize: 10,
                       color: const Color(0xFF6B7280),
                     ),
@@ -372,13 +399,13 @@ class NaapCardWidget extends ConsumerWidget {
             Text(
               label,
               style: isEngLabel
-                  ? GoogleFonts.inter(fontSize: 9.5, color: const Color(0xFF8B7355), fontWeight: FontWeight.w600)
-                  : GoogleFonts.notoNaskhArabic(fontSize: 9.5, color: const Color(0xFF8B7355), fontWeight: FontWeight.bold),
+                  ? _en(fontSize: 9.5, color: const Color(0xFF8B7355), fontWeight: FontWeight.w600)
+                  : _ur(fontSize: 9.5, color: const Color(0xFF8B7355), fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 2),
             Text(
               value,
-              style: GoogleFonts.inter(
+              style: _en(
                 fontSize: 11.5,
                 fontWeight: FontWeight.bold,
                 color: isRed ? const Color(0xFFDC2626) : const Color(0xFF12213A),
@@ -412,7 +439,7 @@ class NaapCardWidget extends ConsumerWidget {
               const SizedBox(width: 4),
               Text(
                 phone.isNotEmpty ? phone : '0312-3456789',
-                style: GoogleFonts.inter(
+                style: _en(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
                   color: const Color(0xFF6B7280),
@@ -426,7 +453,7 @@ class NaapCardWidget extends ConsumerWidget {
             textDirection: TextDirection.rtl,
             child: Text(
               order.customerName,
-              style: GoogleFonts.notoNaskhArabic(
+              style: _ur(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
                 color: const Color(0xFF12213A),
@@ -456,7 +483,7 @@ class NaapCardWidget extends ConsumerWidget {
             alignment: Alignment.center,
             child: Text(
               'ناپ / سائز',
-              style: GoogleFonts.notoNaskhArabic(
+              style: _ur(
                 color: const Color(0xFFF5C842),
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -470,7 +497,7 @@ class NaapCardWidget extends ConsumerWidget {
                 ? Center(
                     child: Text(
                       'کوئی ناپ درج نہیں',
-                      style: GoogleFonts.notoNaskhArabic(color: const Color(0xFF9CA3AF), fontSize: 11),
+                      style: _ur(color: const Color(0xFF9CA3AF), fontSize: 11),
                     ),
                   )
                 : SingleChildScrollView(
@@ -493,7 +520,7 @@ class NaapCardWidget extends ConsumerWidget {
                                 children: [
                                   Text(
                                     item['ur']!,
-                                    style: GoogleFonts.notoNaskhArabic(
+                                    style: _ur(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                       color: const Color(0xFF12213A),
@@ -501,7 +528,7 @@ class NaapCardWidget extends ConsumerWidget {
                                   ),
                                   Text(
                                     item['val']!,
-                                    style: GoogleFonts.jetBrainsMono(
+                                    style: _en(
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                       color: const Color(0xFFB8860B),
@@ -511,7 +538,7 @@ class NaapCardWidget extends ConsumerWidget {
                               ),
                               Text(
                                 item['eng']!,
-                                style: GoogleFonts.inter(
+                                style: _en(
                                   fontSize: 8,
                                   color: const Color(0xFF9CA3AF),
                                 ),
@@ -566,7 +593,7 @@ class NaapCardWidget extends ConsumerWidget {
       return Center(
         child: Text(
           'کوئی شیپ منتخب نہیں',
-          style: GoogleFonts.notoNaskhArabic(fontSize: 12, color: const Color(0xFF9CA3AF)),
+          style: _ur(fontSize: 12, color: const Color(0xFF9CA3AF)),
         ),
       );
     }
@@ -594,7 +621,7 @@ class NaapCardWidget extends ConsumerWidget {
                           children: [
                             Text(
                               _fmtVal(collarVal),
-                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                              style: _en(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
                             ),
                             const SizedBox(height: 2),
                             CustomPaint(
@@ -606,7 +633,7 @@ class NaapCardWidget extends ConsumerWidget {
                         const SizedBox(width: 10),
                         Text(
                           'ہاف گول',
-                          style: GoogleFonts.notoNaskhArabic(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                          style: _ur(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
                         ),
                       ],
                     ),
@@ -631,7 +658,7 @@ class NaapCardWidget extends ConsumerWidget {
                                 left: 6,
                                 child: Text(
                                   _fmtVal(cuffVal),
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  style: _en(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
                                 ),
                               ),
                             // Number next to vertical placket
@@ -641,7 +668,7 @@ class NaapCardWidget extends ConsumerWidget {
                                 left: 28,
                                 child: Text(
                                   _fmtVal(bazoVal),
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  style: _en(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
                                 ),
                               ),
                           ],
@@ -651,7 +678,7 @@ class NaapCardWidget extends ConsumerWidget {
                           padding: const EdgeInsets.only(top: 36),
                           child: Text(
                             'گول',
-                            style: GoogleFonts.notoNaskhArabic(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: _ur(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
                         ),
                       ],
@@ -672,7 +699,7 @@ class NaapCardWidget extends ConsumerWidget {
                           top: 14,
                           child: Text(
                             _fmtVal(garebanVal),
-                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: _en(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
                         ),
                       ],
@@ -698,7 +725,7 @@ class NaapCardWidget extends ConsumerWidget {
                                 left: 14,
                                 child: Text(
                                   _fmtVal(shalwarVal),
-                                  style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  style: _en(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87),
                                 ),
                               ),
                             // Value along curved inseam
@@ -708,7 +735,7 @@ class NaapCardWidget extends ConsumerWidget {
                                 right: 2,
                                 child: Text(
                                   asanVal.isNotEmpty ? _fmtVal(asanVal) : _fmtVal(pancheVal),
-                                  style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  style: _en(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87),
                                 ),
                               ),
                           ],
@@ -716,7 +743,7 @@ class NaapCardWidget extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Text(
                           'سنگل پیس شلوار',
-                          style: GoogleFonts.notoNaskhArabic(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                          style: _ur(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.black87),
                         ),
                       ],
                     ),
@@ -746,7 +773,7 @@ class NaapCardWidget extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(vertical: 2.5),
                             child: Text(
                               item,
-                              style: GoogleFonts.notoNaskhArabic(
+                              style: _ur(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.black87,
@@ -769,7 +796,7 @@ class NaapCardWidget extends ConsumerWidget {
                         ),
                         Text(
                           _fmtVal(kamarVal),
-                          style: GoogleFonts.inter(
+                          style: _en(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                             color: Colors.black87,
@@ -796,12 +823,12 @@ class NaapCardWidget extends ConsumerWidget {
                           children: [
                             Text(
                               '3.4',
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                              style: _en(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
                             ),
                             const SizedBox(height: 14),
                             Text(
                               '13',
-                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                              style: _en(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
                             ),
                           ],
                         ),
@@ -847,11 +874,11 @@ class NaapCardWidget extends ConsumerWidget {
             RichText(
               text: TextSpan(
                 text: 'Powered by ',
-                style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF9CA3AF)),
+                style: _en(fontSize: 9, color: const Color(0xFF9CA3AF)),
                 children: [
                   TextSpan(
                     text: 'Darzi Pro',
-                    style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFB8860B)),
+                    style: _en(fontSize: 9, fontWeight: FontWeight.bold, color: const Color(0xFFB8860B)),
                   ),
                 ],
               ),
@@ -859,7 +886,7 @@ class NaapCardWidget extends ConsumerWidget {
             const SizedBox(width: 40),
             Text(
               'شکریہ! دوبارہ تشریف لائیں',
-              style: GoogleFonts.notoNaskhArabic(
+              style: _ur(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: const Color(0xFFB8860B),
@@ -871,7 +898,7 @@ class NaapCardWidget extends ConsumerWidget {
                 if (shopAddress.isNotEmpty) shopAddress,
                 if (shopPhone.isNotEmpty) '📞 $shopPhone',
               ].join('  '),
-              style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF9CA3AF)),
+              style: _en(fontSize: 9, color: const Color(0xFF9CA3AF)),
             ),
           ],
         ),

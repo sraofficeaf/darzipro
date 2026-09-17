@@ -652,7 +652,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
           customer: customer,
           measurement: currentMeasurement,
         ),
-        pixelRatio: 1.25,
+        pixelRatio: 1.0,
       );
 
       final pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(

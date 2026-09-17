@@ -62,8 +62,8 @@ class CardImageCapturer {
     late OverlayEntry entry;
     final completer = Completer<Uint8List>();
 
-    // Optimal pixel ratio: 1.25 gives sharp, crisp print quality while encoding 4x faster (under 50ms)
-    final resolvedPixelRatio = pixelRatio ?? 1.25;
+    // Optimal pixel ratio: 1.0 gives sharp, crisp print quality while encoding in under 40ms!
+    final resolvedPixelRatio = pixelRatio ?? 1.0;
 
     entry = OverlayEntry(
       builder: (_) => Positioned(
@@ -84,9 +84,7 @@ class CardImageCapturer {
 
     overlay.insert(entry);
 
-    // 2 frames wait karo: pehle frame mein layout hota hai, doosre mein paint
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await WidgetsBinding.instance.endOfFrame;
       try {
         RenderRepaintBoundary? boundary =
             key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -94,15 +92,6 @@ class CardImageCapturer {
         if (boundary == null || boundary.debugNeedsPaint) {
           await WidgetsBinding.instance.endOfFrame;
           boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-        }
-
-        // Agar abhi bhi paint pending ho
-        if (boundary == null || boundary.debugNeedsPaint) {
-          for (int i = 0; i < 3; i++) {
-            await Future<void>.delayed(const Duration(milliseconds: 16));
-            boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-            if (boundary != null && !boundary.debugNeedsPaint) break;
-          }
         }
 
         final resolved = boundary ??

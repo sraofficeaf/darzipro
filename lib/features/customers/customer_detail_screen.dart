@@ -2193,7 +2193,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
           customer: customer,
           measurement: m,
         ),
-        pixelRatio: 1.25,
+        pixelRatio: 1.0,
       );
 
       final pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(

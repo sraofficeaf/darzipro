@@ -110,6 +110,7 @@ flutter:
 
   assets:
     - assets/logo/
+    - fonts/
 
   fonts:
     - family: NotoNaskhArabic
