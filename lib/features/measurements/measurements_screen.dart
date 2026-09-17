@@ -839,11 +839,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         : '1045';
 
     return Container(
-      margin: EdgeInsets.fromLTRB(16, isDesktop ? 16 : 8, 16, 12),
-      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 22 : 14, vertical: isDesktop ? 16 : 12),
+      margin: EdgeInsets.fromLTRB(isDesktop ? 16 : 10, isDesktop ? 16 : 6, isDesktop ? 16 : 10, isDesktop ? 12 : 8),
+      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 22 : 10, vertical: isDesktop ? 16 : 10),
       decoration: BoxDecoration(
         color: _NaapColors.dark,
-        borderRadius: BorderRadius.circular(isDesktop ? 24 : 18),
+        borderRadius: BorderRadius.circular(isDesktop ? 24 : 16),
         boxShadow: const [
           BoxShadow(
             color: Color(0x28151922),
@@ -868,9 +868,9 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
               },
               borderRadius: BorderRadius.circular(isDesktop ? 12 : 10),
               child: Container(
-                width: isDesktop ? 40 : 36,
-                height: isDesktop ? 40 : 36,
-                margin: const EdgeInsets.only(right: 12),
+                width: isDesktop ? 40 : 34,
+                height: isDesktop ? 40 : 34,
+                margin: EdgeInsets.only(right: isDesktop ? 12 : 8),
                 decoration: BoxDecoration(
                   color: _NaapColors.darkSurface,
                   border: Border.all(color: _NaapColors.darkLine),
@@ -880,38 +880,40 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                   child: Icon(
                     Icons.arrow_back_rounded,
                     color: Color(0xFFE9ECF2),
-                    size: 19,
+                    size: 18,
                   ),
                 ),
               ),
             ),
           ),
 
-          // Brand Mark: Gold Gradient 'D'
-          Container(
-            width: isDesktop ? 42 : 36,
-            height: isDesktop ? 42 : 36,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [_NaapColors.gold2, _NaapColors.gold],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          // Brand Mark: Gold Gradient 'D' (Only on desktop to save mobile width)
+          if (isDesktop) ...[
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_NaapColors.gold2, _NaapColors.gold],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(13),
               ),
-              borderRadius: BorderRadius.circular(isDesktop ? 13 : 11),
-            ),
-            child: const Center(
-              child: Text(
-                'D',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF241605),
+              child: const Center(
+                child: Text(
+                  'D',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF241605),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ],
 
           // Title & Subtitle + Customer Chip
           Expanded(
@@ -920,38 +922,45 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Naap Studio', style: _NaapStyles.heroTitle.copyWith(fontSize: isDesktop ? 20 : 16)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '#$customerIdShort · $customerName',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _NaapColors.gold2,
+                    Text('Naap Studio', style: _NaapStyles.heroTitle.copyWith(fontSize: isDesktop ? 20 : 14)),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(5),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          '#$customerIdShort · $customerName',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: _NaapColors.gold2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Record measurements in 3 simple steps · ناپ ریکارڈ کریں',
-                  style: _NaapStyles.heroSubtitle.copyWith(fontSize: isDesktop ? 11.5 : 10),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                if (isDesktop) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Record measurements in 3 simple steps · ناپ ریکارڈ کریں',
+                    style: _NaapStyles.heroSubtitle.copyWith(fontSize: 11.5),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),
+
+          const SizedBox(width: 6),
 
           // Hero Action Buttons (Print, Reset, Save)
           Row(
@@ -964,7 +973,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                 isDesktop: isDesktop,
                 onTap: _isPrinting ? null : () => _printNaapCard(customerId, customer),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isDesktop ? 8 : 5),
               _buildHeroButton(
                 icon: Icons.refresh_rounded,
                 label: 'Reset',
@@ -972,7 +981,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                 isDesktop: isDesktop,
                 onTap: _resetAll,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isDesktop ? 8 : 5),
               _buildHeroButton(
                 icon: Icons.check_rounded,
                 label: 'Save Naap',
@@ -998,37 +1007,41 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
-          height: 38,
-          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 13 : 9),
+          height: isDesktop ? 38 : 34,
+          width: isDesktop ? null : 34,
+          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 13 : 0),
           decoration: BoxDecoration(
             color: isPrimary ? _NaapColors.gold : _NaapColors.darkSurface,
             border: Border.all(
               color: isPrimary ? _NaapColors.gold : _NaapColors.darkLine,
             ),
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: isPrimary ? const Color(0xFF211500) : const Color(0xFFE9ECF2),
-              ),
-              if (isDesktop) ...[
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: GoogleFonts.manrope(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isPrimary ? const Color(0xFF211500) : const Color(0xFFE9ECF2),
-                  ),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: isDesktop ? 15 : 16,
+                  color: isPrimary ? const Color(0xFF211500) : const Color(0xFFE9ECF2),
                 ),
+                if (isDesktop) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: GoogleFonts.manrope(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isPrimary ? const Color(0xFF211500) : const Color(0xFFE9ECF2),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1067,7 +1080,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                   child: SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 90),
-                    child: _buildActiveStepContent(),
+                    child: _buildActiveStepContent(true),
                   ),
                 ),
               ],
@@ -1738,21 +1751,126 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
   }
 
   // ── ACTIVE STEP CONTENT SWITCHER ──────────────────────────────────────────
-  Widget _buildActiveStepContent() {
+  Widget _buildActiveStepContent(bool isDesktop) {
     switch (_currentStep) {
       case 0:
-        return _buildStep1Setup();
+        return _buildStep1Setup(isDesktop);
       case 1:
-        return _buildStep2Naap();
+        return _buildStep2Naap(isDesktop);
       case 2:
-        return _buildStep3Silai();
+        return _buildStep3Silai(isDesktop);
       default:
         return const SizedBox();
     }
   }
 
   // ── STEP 1: SETUP (MATCHING HTML BENTO GRID) ──────────────────────────────
-  Widget _buildStep1Setup() {
+  Widget _buildStep1Setup(bool isDesktop) {
+    final metricRow = Row(
+      children: [
+        Expanded(
+          child: ValueListenableBuilder<String>(
+            valueListenable: _profileNameNotifier,
+            builder: (context, name, child) {
+              return _buildMetricCard(
+                icon: Icons.edit_note_rounded,
+                iconColor: _NaapColors.gold,
+                iconBg: _NaapColors.goldBg,
+                bigText: name,
+                isUrdu: true,
+                smallLabel: 'Profile name',
+                trendLabel: 'Auto-generated',
+                trendColor: _NaapColors.gold,
+                isDesktop: isDesktop,
+              );
+            },
+          ),
+        ),
+        SizedBox(width: isDesktop ? 10 : 8),
+        Expanded(
+          child: _buildMetricCard(
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: _NaapColors.blue,
+            iconBg: _NaapColors.blueBg,
+            bigText: _selectedProfileType == 'custom' ? 'Custom' : _selectedProfileType,
+            isUrdu: _selectedProfileType != 'custom',
+            smallLabel: 'Garment',
+            trendLabel: 'Selected',
+            trendColor: _NaapColors.blue,
+            isDesktop: isDesktop,
+          ),
+        ),
+      ],
+    );
+
+    final profileNameCard = Container(
+      padding: EdgeInsets.all(isDesktop ? 18 : 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _NaapColors.line),
+        borderRadius: BorderRadius.circular(isDesktop ? 20 : 16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08111827),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('PROFILE NAME · عنوان', style: _NaapStyles.cardTag),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _profileNameCtrl,
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.right,
+            style: GoogleFonts.notoNastaliqUrdu(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _NaapColors.ink,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFFAFAFB),
+              hintText: 'پروفائل کا نام درج کریں...',
+              hintStyle: GoogleFonts.notoNastaliqUrdu(
+                fontSize: 13,
+                color: _NaapColors.faint,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: const BorderSide(color: _NaapColors.line),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: const BorderSide(color: _NaapColors.line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: const BorderSide(color: _NaapColors.gold, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFBF8F1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFEED59E)),
+            ),
+            child: Text(
+              'This name will appear in order booking and naap history. Leave it as the preset name or type a custom one.',
+              style: GoogleFonts.dmSans(fontSize: 11.5, color: const Color(0xFF78633A)),
+            ),
+          ),
+        ],
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1763,135 +1881,78 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         ),
         const SizedBox(height: 14),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 4,
-              child: _buildGenderCategoryBentoCard(),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 8,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ValueListenableBuilder<String>(
-                          valueListenable: _profileNameNotifier,
-                          builder: (context, name, child) {
-                            return _buildMetricCard(
-                              icon: Icons.edit_note_rounded,
-                              iconColor: _NaapColors.gold,
-                              iconBg: _NaapColors.goldBg,
-                              bigText: name,
-                              isUrdu: true,
-                              smallLabel: 'Profile name',
-                              trendLabel: 'Auto-generated',
-                              trendColor: _NaapColors.gold,
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildMetricCard(
-                          icon: Icons.check_circle_outline_rounded,
-                          iconColor: _NaapColors.blue,
-                          iconBg: _NaapColors.blueBg,
-                          bigText: _selectedProfileType == 'custom' ? 'Custom' : _selectedProfileType,
-                          isUrdu: _selectedProfileType != 'custom',
-                          smallLabel: 'Garment',
-                          trendLabel: 'Selected',
-                          trendColor: _NaapColors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildGarmentTypeGridCard(),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: _NaapColors.line),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x08111827),
-                blurRadius: 20,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
+        if (isDesktop) ...[
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('PROFILE NAME · عنوان', style: _NaapStyles.cardTag),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _profileNameCtrl,
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.right,
-                style: GoogleFonts.notoNastaliqUrdu(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _NaapColors.ink,
-                ),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: const Color(0xFFFAFAFB),
-                  hintText: 'پروفائل کا نام درج کریں...',
-                  hintStyle: GoogleFonts.notoNastaliqUrdu(
-                    fontSize: 13,
-                    color: _NaapColors.faint,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(13),
-                    borderSide: const BorderSide(color: _NaapColors.line),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(13),
-                    borderSide: const BorderSide(color: _NaapColors.line),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(13),
-                    borderSide: const BorderSide(color: _NaapColors.gold, width: 2),
-                  ),
-                ),
+              Expanded(
+                flex: 4,
+                child: _buildGenderCategoryBentoCard(isDesktop),
               ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBF8F1),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFEED59E)),
-                ),
-                child: Text(
-                  'This name will appear in order booking and naap history. Leave it as the preset name or type a custom one.',
-                  style: GoogleFonts.dmSans(fontSize: 11.5, color: const Color(0xFF78633A)),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    metricRow,
+                    const SizedBox(height: 12),
+                    _buildGarmentTypeGridCard(isDesktop),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 12),
+          profileNameCard,
+        ] else ...[
+          _buildGenderCategoryBentoCard(isDesktop),
+          const SizedBox(height: 12),
+          metricRow,
+          const SizedBox(height: 12),
+          _buildGarmentTypeGridCard(isDesktop),
+          const SizedBox(height: 12),
+          profileNameCard,
+        ],
       ],
     );
   }
 
-  Widget _buildGenderCategoryBentoCard() {
+  Widget _buildGenderCategoryBentoCard(bool isDesktop) {
+    if (!isDesktop) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: _NaapColors.line),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06111827),
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('GENDER CATEGORY · صنف', style: _NaapStyles.cardTag),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildGenderOptionMobile('👔', 'مرد', 'Men', MeasurementCategory.men)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildGenderOptionMobile('👗', 'عورت', 'Women', MeasurementCategory.women)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildGenderOptionMobile('🧒', 'بچے', 'Kids', MeasurementCategory.children)),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1917,6 +1978,69 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
           const SizedBox(height: 9),
           _buildGenderOption('🧒', 'بچے', 'Kids', MeasurementCategory.children),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGenderOptionMobile(String emoji, String urdu, String eng, MeasurementCategory cat) {
+    final isSelected = _selectedCategory == cat;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          setState(() => _selectedCategory = cat);
+          _onFieldChanged();
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? _NaapColors.dark : const Color(0xFFFAFAFB),
+            border: Border.all(
+              color: isSelected ? _NaapColors.dark : _NaapColors.line,
+              width: isSelected ? 1.5 : 1.0,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: _NaapColors.dark.withValues(alpha: 0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(height: 3),
+              Text(
+                urdu,
+                maxLines: 1,
+                style: GoogleFonts.notoNastaliqUrdu(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : _NaapColors.ink,
+                ),
+              ),
+              Text(
+                eng,
+                maxLines: 1,
+                style: GoogleFonts.dmSans(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                  color: isSelected ? _NaapColors.gold2 : _NaapColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2010,13 +2134,14 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     required String smallLabel,
     required String trendLabel,
     required Color trendColor,
+    bool isDesktop = true,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isDesktop ? 16 : 12),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: _NaapColors.line),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(isDesktop ? 18 : 15),
         boxShadow: const [
           BoxShadow(
             color: Color(0x06111827),
@@ -2029,42 +2154,49 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: isDesktop ? 34 : 28,
+            height: isDesktop ? 34 : 28,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(isDesktop ? 10 : 8),
             ),
-            child: Icon(icon, color: iconColor, size: 18),
+            child: Icon(icon, color: iconColor, size: isDesktop ? 18 : 15),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isDesktop ? 12 : 8),
           Text(
             bigText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: isUrdu
                 ? GoogleFonts.notoNastaliqUrdu(
-                    fontSize: 16,
+                    fontSize: isDesktop ? 16 : 14,
                     fontWeight: FontWeight.w800,
                     color: _NaapColors.ink,
                   )
-                : _NaapStyles.monoMetric.copyWith(fontSize: 18, color: _NaapColors.ink),
+                : _NaapStyles.monoMetric.copyWith(
+                    fontSize: isDesktop ? 18 : 15,
+                    color: _NaapColors.ink,
+                  ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             smallLabel.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.dmSans(
-              fontSize: 9.5,
+              fontSize: isDesktop ? 9.5 : 8.5,
               fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
+              letterSpacing: 0.5,
               color: _NaapColors.muted,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             trendLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.dmSans(
-              fontSize: 9,
+              fontSize: isDesktop ? 9 : 8.5,
               fontWeight: FontWeight.w800,
               color: trendColor,
             ),
@@ -2074,13 +2206,13 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     );
   }
 
-  Widget _buildGarmentTypeGridCard() {
+  Widget _buildGarmentTypeGridCard(bool isDesktop) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(isDesktop ? 18 : 14),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: _NaapColors.line),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(isDesktop ? 20 : 18),
         boxShadow: const [
           BoxShadow(
             color: Color(0x08111827),
@@ -2098,12 +2230,12 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
             crossAxisCount: 3,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 9,
-            crossAxisSpacing: 9,
-            childAspectRatio: 1.7,
+            mainAxisSpacing: isDesktop ? 9 : 8,
+            crossAxisSpacing: isDesktop ? 9 : 8,
+            childAspectRatio: isDesktop ? 1.7 : 1.15,
             children: [
-              ..._profilePresetTypes.map((type) => _buildGarmentOption(type, false)),
-              _buildGarmentOption('اپنا نام', true),
+              ..._profilePresetTypes.map((type) => _buildGarmentOption(type, false, isDesktop)),
+              _buildGarmentOption('اپنا نام', true, isDesktop),
             ],
           ),
         ],
@@ -2111,7 +2243,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     );
   }
 
-  Widget _buildGarmentOption(String type, bool isCustom) {
+  Widget _buildGarmentOption(String type, bool isCustom, bool isDesktop) {
     final isSelected = isCustom
         ? _selectedProfileType == 'custom'
         : _selectedProfileType == type;
@@ -2135,7 +2267,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 10 : 4, vertical: isDesktop ? 8 : 6),
           decoration: BoxDecoration(
             color: isSelected ? _NaapColors.dark : const Color(0xFFFAFAFB),
             border: Border.all(
@@ -2147,8 +2279,8 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: isDesktop ? 28 : 24,
+                height: isDesktop ? 28 : 24,
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.white.withValues(alpha: 0.1) : Colors.white,
                   border: Border.all(
@@ -2160,7 +2292,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                   child: Text(
                     isCustom ? '＋' : '◈',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: isDesktop ? 13 : 11,
                       fontWeight: FontWeight.w800,
                       color: isSelected
                           ? Colors.white
@@ -2169,13 +2301,13 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 type,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.notoNastaliqUrdu(
-                  fontSize: 11,
+                  fontSize: isDesktop ? 11 : 10.5,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                   color: isSelected ? Colors.white : _NaapColors.ink,
                 ),
@@ -2188,10 +2320,30 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
   }
 
   // ── STEP 2: NAAP (2 CARDS: UPPER BODY & LOWER BODY) ───────────────────────
-  Widget _buildStep2Naap() {
+  Widget _buildStep2Naap(bool isDesktop) {
     final profileName = _profileNameCtrl.text;
     final upperFields = getUpperFieldsForProfile(profileName);
     final lowerFields = getLowerFieldsForProfile(profileName);
+
+    final upperCard = _buildMeasurementCard(
+      badgeSymbol: '◈',
+      badgeColor: _NaapColors.gold,
+      badgeBg: _NaapColors.goldBg,
+      titleEng: 'Upper body',
+      titleUrdu: 'اُوپری حصہ',
+      fields: upperFields,
+      isDesktop: isDesktop,
+    );
+
+    final lowerCard = _buildMeasurementCard(
+      badgeSymbol: '◐',
+      badgeColor: _NaapColors.green,
+      badgeBg: _NaapColors.greenBg,
+      titleEng: 'Lower body',
+      titleUrdu: 'نِچلا حصہ',
+      fields: lowerFields,
+      isDesktop: isDesktop,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2203,32 +2355,24 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         ),
         const SizedBox(height: 14),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _buildMeasurementCard(
-                badgeSymbol: '◈',
-                badgeColor: _NaapColors.gold,
-                badgeBg: _NaapColors.goldBg,
-                titleEng: 'Upper body',
-                titleUrdu: 'اُوپری حصہ',
-                fields: upperFields,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _buildMeasurementCard(
-                badgeSymbol: '◐',
-                badgeColor: _NaapColors.green,
-                badgeBg: _NaapColors.greenBg,
-                titleEng: 'Lower body',
-                titleUrdu: 'نِچلا حصہ',
-                fields: lowerFields,
-              ),
-            ),
-          ],
-        ),
+        if (isDesktop)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: upperCard),
+              const SizedBox(width: 14),
+              Expanded(child: lowerCard),
+            ],
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              upperCard,
+              const SizedBox(height: 14),
+              lowerCard,
+            ],
+          ),
       ],
     );
   }
@@ -2240,13 +2384,14 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     required String titleEng,
     required String titleUrdu,
     required List<MeasurementFieldConfig> fields,
+    bool isDesktop = true,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(isDesktop ? 18 : 14),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: _NaapColors.line),
-        borderRadius: BorderRadius.circular(21),
+        borderRadius: BorderRadius.circular(isDesktop ? 21 : 18),
         boxShadow: const [
           BoxShadow(
             color: Color(0x06111827),
@@ -2261,37 +2406,44 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Center(
-                      child: Text(
-                        badgeSymbol,
-                        style: TextStyle(
-                          color: badgeColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Center(
+                        child: Text(
+                          badgeSymbol,
+                          style: TextStyle(
+                            color: badgeColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$titleEng · $titleUrdu',
-                    style: GoogleFonts.manrope(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: _NaapColors.ink,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$titleEng · $titleUrdu',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.manrope(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: _NaapColors.ink,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               ValueListenableBuilder<int>(
                 valueListenable: _filledCountNotifier,
                 builder: (context, filled, child) {
@@ -2348,7 +2500,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
   }
 
   // ── STEP 3: SILAI & DESIGN (MATCHING HTML DESIGN) ─────────────────────────
-  Widget _buildStep3Silai() {
+  Widget _buildStep3Silai(bool isDesktop) {
+    final stitchingCard = _buildStitchingOptionsCard(isDesktop);
+    final designCard = _buildDesignOptionsCard(isDesktop);
+    final notesCard = _buildSpecialInstructionsCard(isDesktop);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2359,259 +2515,282 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         ),
         const SizedBox(height: 14),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 5,
-              child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: _NaapColors.line),
-                  borderRadius: BorderRadius.circular(21),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x06111827),
-                      blurRadius: 20,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
+        if (isDesktop)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 5,
+                child: stitchingCard,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 6,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('STITCHING OPTIONS · سلائی', style: _NaapStyles.cardTag),
+                    designCard,
                     const SizedBox(height: 12),
-                    GridView.builder(
-                      itemCount: _silaiOptions.length,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        childAspectRatio: 2.7,
-                      ),
-                      itemBuilder: (ctx, i) {
-                        final item = _silaiOptions[i];
-                        final label = item['label'] as String;
-                        final isChecked = item['checked'] as bool;
-
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              setState(() {
-                                _silaiOptions[i] = {'label': label, 'checked': !isChecked};
-                              });
-                              _onFieldChanged();
-                            },
-                            borderRadius: BorderRadius.circular(13),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isChecked ? Colors.white : const Color(0xFFFAFAFB),
-                                border: Border.all(
-                                  color: isChecked ? _NaapColors.gold : _NaapColors.line,
-                                ),
-                                borderRadius: BorderRadius.circular(13),
-                                boxShadow: isChecked
-                                    ? [
-                                        BoxShadow(
-                                          color: _NaapColors.gold.withValues(alpha: 0.12),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: isChecked ? _NaapColors.gold : Colors.white,
-                                      border: Border.all(
-                                        color: isChecked ? _NaapColors.gold : const Color(0xFFCBD5E1),
-                                        width: 1.8,
-                                      ),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: isChecked
-                                        ? const Center(
-                                            child: Icon(Icons.check, size: 13, color: Colors.white),
-                                          )
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      label,
-                                      style: GoogleFonts.notoNastaliqUrdu(
-                                        fontSize: 11.5,
-                                        fontWeight: isChecked ? FontWeight.w800 : FontWeight.w600,
-                                        color: isChecked ? _NaapColors.ink : const Color(0xFF475569),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    notesCard,
                   ],
                 ),
               ),
+            ],
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              stitchingCard,
+              const SizedBox(height: 14),
+              designCard,
+              const SizedBox(height: 14),
+              notesCard,
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStitchingOptionsCard(bool isDesktop) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 18 : 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _NaapColors.line),
+        borderRadius: BorderRadius.circular(isDesktop ? 21 : 18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06111827),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('STITCHING OPTIONS · سلائی', style: _NaapStyles.cardTag),
+          const SizedBox(height: 12),
+          GridView.builder(
+            itemCount: _silaiOptions.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: isDesktop ? 2.7 : 2.2,
             ),
-            const SizedBox(width: 14),
+            itemBuilder: (ctx, i) {
+              final item = _silaiOptions[i];
+              final label = item['label'] as String;
+              final isChecked = item['checked'] as bool;
 
-            Expanded(
-              flex: 6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _silaiOptions[i] = {'label': label, 'checked': !isChecked};
+                    });
+                    _onFieldChanged();
+                  },
+                  borderRadius: BorderRadius.circular(13),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: _NaapColors.line),
-                      borderRadius: BorderRadius.circular(21),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x06111827),
-                          blurRadius: 20,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
+                      color: isChecked ? Colors.white : const Color(0xFFFAFAFB),
+                      border: Border.all(
+                        color: isChecked ? _NaapColors.gold : _NaapColors.line,
+                      ),
+                      borderRadius: BorderRadius.circular(13),
+                      boxShadow: isChecked
+                          ? [
+                              BoxShadow(
+                                color: _NaapColors.gold.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text('DESIGN OPTIONS · ڈیزائن', style: _NaapStyles.cardTag),
-                        const SizedBox(height: 10),
-                        _buildDesignRow(
-                          urdu: 'کالر',
-                          eng: 'Collar Type',
-                          current: _collarType,
-                          options: ['Standard', 'Mandarin', 'Peshawari', 'Spread'],
-                          onSelect: (v) => setState(() => _collarType = v),
-                        ),
-                        _buildDesignRow(
-                          urdu: 'گلہ',
-                          eng: 'Neck Style',
-                          current: _neckStyle,
-                          options: ['Round', 'Open', 'Closed'],
-                          onSelect: (v) => setState(() => _neckStyle = v),
-                        ),
-                        _buildDesignRow(
-                          urdu: 'کف',
-                          eng: 'Kaf Style',
-                          current: _kafStyle,
-                          options: ['Standard', 'Embroidery', 'Button', 'Double'],
-                          onSelect: (v) => setState(() => _kafStyle = v),
-                        ),
-                        _buildDesignRow(
-                          urdu: 'فرنٹ',
-                          eng: 'Front Style',
-                          current: _frontStyle,
-                          options: ['Standard', 'Embroidery', 'Covered', 'None'],
-                          onSelect: (v) => setState(() => _frontStyle = v),
-                        ),
-                        _buildDesignRow(
-                          urdu: 'جیب',
-                          eng: 'Pocket Type',
-                          current: _pocketType,
-                          options: ['Chest', 'Side', 'None'],
-                          onSelect: (v) => setState(() => _pocketType = v),
-                        ),
-                        _buildDesignRow(
-                          urdu: 'فٹنگ',
-                          eng: 'Shape',
-                          current: _shape,
-                          options: ['Straight', 'Fitting', 'Loose'],
-                          onSelect: (v) => setState(() => _shape = v),
-                        ),
-                        _buildDesignRow(
-                          urdu: 'شلوار',
-                          eng: 'Shalwar Style',
-                          current: _shalwarStyle,
-                          options: ['Straight', 'Churidar', 'Patiala', 'Peshawari'],
-                          onSelect: (v) => setState(() => _shalwarStyle = v),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: _NaapColors.line),
-                      borderRadius: BorderRadius.circular(21),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x06111827),
-                          blurRadius: 20,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('SPECIAL INSTRUCTIONS · ہدایات', style: _NaapStyles.cardTag),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _notesCtrl,
-                          maxLines: 3,
-                          textDirection: TextDirection.rtl,
-                          onChanged: (_) => _onFieldChanged(),
-                          style: GoogleFonts.notoNastaliqUrdu(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: _NaapColors.ink,
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: isChecked ? _NaapColors.gold : Colors.white,
+                            border: Border.all(
+                              color: isChecked ? _NaapColors.gold : const Color(0xFFCBD5E1),
+                              width: 1.8,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFFFAFAFB),
-                            hintText: 'کوئی خاص ہدایت لکھیں... (مثلاً: بازو باریک رکھنا ہے)',
-                            hintStyle: GoogleFonts.notoNastaliqUrdu(
-                              fontSize: 11,
-                              color: _NaapColors.faint,
-                            ),
-                            hintTextDirection: TextDirection.rtl,
-                            contentPadding: const EdgeInsets.all(12),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(13),
-                              borderSide: const BorderSide(color: _NaapColors.line),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(13),
-                              borderSide: const BorderSide(color: _NaapColors.line),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(13),
-                              borderSide: const BorderSide(color: _NaapColors.gold, width: 2),
+                          child: isChecked
+                              ? const Center(
+                                  child: Icon(Icons.check, size: 13, color: Colors.white),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.notoNastaliqUrdu(
+                              fontSize: 11.5,
+                              fontWeight: isChecked ? FontWeight.w800 : FontWeight.w600,
+                              color: isChecked ? _NaapColors.ink : const Color(0xFF475569),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesignOptionsCard(bool isDesktop) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 18 : 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _NaapColors.line),
+        borderRadius: BorderRadius.circular(isDesktop ? 21 : 18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06111827),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('DESIGN OPTIONS · ڈیزائن', style: _NaapStyles.cardTag),
+          const SizedBox(height: 10),
+          _buildDesignRow(
+            urdu: 'کالر',
+            eng: 'Collar Type',
+            current: _collarType,
+            options: ['Standard', 'Mandarin', 'Peshawari', 'Spread'],
+            onSelect: (v) => setState(() => _collarType = v),
+          ),
+          _buildDesignRow(
+            urdu: 'گلہ',
+            eng: 'Neck Style',
+            current: _neckStyle,
+            options: ['Round', 'Open', 'Closed'],
+            onSelect: (v) => setState(() => _neckStyle = v),
+          ),
+          _buildDesignRow(
+            urdu: 'کف',
+            eng: 'Kaf Style',
+            current: _kafStyle,
+            options: ['Standard', 'Embroidery', 'Button', 'Double'],
+            onSelect: (v) => setState(() => _kafStyle = v),
+          ),
+          _buildDesignRow(
+            urdu: 'فرنٹ',
+            eng: 'Front Style',
+            current: _frontStyle,
+            options: ['Standard', 'Embroidery', 'Covered', 'None'],
+            onSelect: (v) => setState(() => _frontStyle = v),
+          ),
+          _buildDesignRow(
+            urdu: 'جیب',
+            eng: 'Pocket Type',
+            current: _pocketType,
+            options: ['Chest', 'Side', 'None'],
+            onSelect: (v) => setState(() => _pocketType = v),
+          ),
+          _buildDesignRow(
+            urdu: 'فٹنگ',
+            eng: 'Shape',
+            current: _shape,
+            options: ['Straight', 'Fitting', 'Loose'],
+            onSelect: (v) => setState(() => _shape = v),
+          ),
+          _buildDesignRow(
+            urdu: 'شلوار',
+            eng: 'Shalwar Style',
+            current: _shalwarStyle,
+            options: ['Straight', 'Churidar', 'Patiala', 'Peshawari'],
+            onSelect: (v) => setState(() => _shalwarStyle = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecialInstructionsCard(bool isDesktop) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 18 : 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _NaapColors.line),
+        borderRadius: BorderRadius.circular(isDesktop ? 21 : 18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06111827),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('SPECIAL INSTRUCTIONS · ہدایات', style: _NaapStyles.cardTag),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _notesCtrl,
+            maxLines: 3,
+            textDirection: TextDirection.rtl,
+            onChanged: (_) => _onFieldChanged(),
+            style: GoogleFonts.notoNastaliqUrdu(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: _NaapColors.ink,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFFAFAFB),
+              hintText: 'کوئی خاص ہدایت لکھیں... (مثلاً: بازو باریک رکھنا ہے)',
+              hintStyle: GoogleFonts.notoNastaliqUrdu(
+                fontSize: 11,
+                color: _NaapColors.faint,
+              ),
+              hintTextDirection: TextDirection.rtl,
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: const BorderSide(color: _NaapColors.line),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: const BorderSide(color: _NaapColors.line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: const BorderSide(color: _NaapColors.gold, width: 2),
               ),
             ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -2633,24 +2812,31 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                urdu,
-                style: GoogleFonts.notoNastaliqUrdu(fontSize: 11.5, fontWeight: FontWeight.w700),
-              ),
-              Text(
-                eng.toUpperCase(),
-                style: GoogleFonts.dmSans(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                  color: _NaapColors.muted,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  urdu,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.notoNastaliqUrdu(fontSize: 11.5, fontWeight: FontWeight.w700),
                 ),
-              ),
-            ],
+                Text(
+                  eng.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: _NaapColors.muted,
+                  ),
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -2699,19 +2885,32 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: _NaapStyles.sectionTitle),
-            const SizedBox(height: 2),
-            Text(subtitle, style: _NaapStyles.sectionSubtitle),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: _NaapStyles.sectionTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: _NaapStyles.sectionSubtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
+        const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: _NaapColors.greenBg,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -2724,11 +2923,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Text(
                 stepBadge,
                 style: GoogleFonts.dmSans(
-                  fontSize: 10.5,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: _NaapColors.green,
                 ),
@@ -2746,219 +2945,30 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
     return SingleChildScrollView(
       physics: const ClampingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 90),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Mobile Naap Header Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _NaapColors.dark,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [_NaapColors.gold2, _NaapColors.gold],
-                    ),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.straighten_rounded, color: Color(0xFF241505), size: 24),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ValueListenableBuilder<String>(
-                        valueListenable: _profileNameNotifier,
-                        builder: (context, name, child) => Text(
-                          name,
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${_selectedCategory.label} · Naap profile',
-                        style: GoogleFonts.ibmPlexMono(fontSize: 10, color: const Color(0xFFAEB5C2)),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'STEP ${_currentStep + 1}/3',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w800,
-                            color: _NaapColors.gold2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Mobile Stepper Chips
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: _NaapColors.line),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                _buildMobileStepChip(0, 'Setup'),
-                _buildMobileStepBar(0),
-                _buildMobileStepChip(1, 'Naap'),
-                _buildMobileStepBar(1),
-                _buildMobileStepChip(2, 'Silai'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Mobile Progress Bar
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: _NaapColors.line),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('PROGRESS', style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w900, color: _NaapColors.muted)),
-                    Text('${((_currentStep + 1) * 33.33).round()}%', style: GoogleFonts.ibmPlexMono(fontSize: 11, fontWeight: FontWeight.w800, color: _NaapColors.gold)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: Container(
-                    height: 5,
-                    color: _NaapColors.paper,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: (_currentStep + 1) / 3,
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(colors: [_NaapColors.gold, _NaapColors.gold2]),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-
           // Mobile Section Tabs
           Container(
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: const Color(0xFFE9EBEF),
+              color: const Color(0xFFE2E5EA),
               borderRadius: BorderRadius.circular(13),
             ),
             child: Row(
               children: [
-                _buildMobileTab(0, 'Setup'),
-                _buildMobileTab(1, 'Naap', countText: '${_filledCountNotifier.value}/${activeFields.length}'),
-                _buildMobileTab(2, 'Silai'),
+                _buildMobileTab(0, 'Setup · سیٹ اپ'),
+                _buildMobileTab(1, 'Naap · ناپ', countText: '(${_filledCountNotifier.value}/${activeFields.length})'),
+                _buildMobileTab(2, 'Silai · سلائی'),
               ],
             ),
           ),
           const SizedBox(height: 12),
 
           // Active Mobile Content
-          _buildActiveStepContent(),
+          _buildActiveStepContent(false),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMobileStepChip(int idx, String title) {
-    final isActive = _currentStep == idx;
-    final isDone = _currentStep > idx;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _jumpToStep(idx),
-        borderRadius: BorderRadius.circular(8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                color: isDone ? _NaapColors.green : (isActive ? _NaapColors.dark : const Color(0xFFF4F5F7)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: isDone
-                    ? const Icon(Icons.check, size: 12, color: Colors.white)
-                    : Text(
-                        '${idx + 1}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: isActive ? Colors.white : _NaapColors.muted,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              title,
-              style: GoogleFonts.manrope(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: isActive ? _NaapColors.dark : _NaapColors.muted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMobileStepBar(int leftIdx) {
-    final isDone = _currentStep > leftIdx;
-    return Expanded(
-      child: Container(
-        height: 2,
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        decoration: BoxDecoration(
-          color: isDone ? _NaapColors.green : _NaapColors.line,
-          borderRadius: BorderRadius.circular(1),
-        ),
       ),
     );
   }
@@ -2991,8 +3001,10 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
             child: Center(
               child: Text(
                 countText != null ? '$title $countText' : title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.manrope(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w800,
                   color: isActive ? _NaapColors.ink : _NaapColors.muted,
                 ),
@@ -3009,12 +3021,12 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     final activeFields = getFieldsForProfile(_profileNameCtrl.text);
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, isDesktop ? 16 : 10),
+      padding: EdgeInsets.fromLTRB(isDesktop ? 16 : 8, 4, isDesktop ? 16 : 8, isDesktop ? 16 : 8),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1480),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: EdgeInsets.symmetric(horizontal: isDesktop ? 18 : 10, vertical: isDesktop ? 12 : 8),
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: _NaapColors.line),
@@ -3037,9 +3049,9 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
-                      width: isActive ? 34 : 22,
-                      height: 6,
-                      margin: const EdgeInsets.only(right: 5),
+                      width: isActive ? (isDesktop ? 34 : 14) : (isDesktop ? 22 : 8),
+                      height: isDesktop ? 6 : 5,
+                      margin: EdgeInsets.only(right: isDesktop ? 5 : 3),
                       decoration: BoxDecoration(
                         color: isDone
                             ? _NaapColors.green
@@ -3056,10 +3068,14 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                     valueListenable: _filledCountNotifier,
                     builder: (context, filled, child) {
                       return Text(
-                        'Step ${_currentStep + 1} of 3 · $filled / ${activeFields.length} filled',
+                        isDesktop
+                            ? 'Step ${_currentStep + 1} of 3 · $filled / ${activeFields.length} filled'
+                            : '${_currentStep + 1}/3 · $filled/${activeFields.length}',
                         textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.dmSans(
-                          fontSize: 11.5,
+                          fontSize: isDesktop ? 11.5 : 10.5,
                           fontWeight: FontWeight.w700,
                           color: _NaapColors.muted,
                         ),
@@ -3079,17 +3095,19 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                           foregroundColor: _NaapColors.ink,
                           side: const BorderSide(color: _NaapColors.line),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16 : 9, vertical: isDesktop ? 12 : 8),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.arrow_back_rounded, size: 15),
-                            const SizedBox(width: 5),
-                            Text('Back', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 12)),
+                            const Icon(Icons.arrow_back_rounded, size: 14),
+                            if (isDesktop) ...[
+                              const SizedBox(width: 5),
+                              Text('Back', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 12)),
+                            ],
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: isDesktop ? 8 : 5),
                     ],
 
                     if (_currentStep < 2)
@@ -3099,14 +3117,14 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                           backgroundColor: _NaapColors.dark,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 20 : 12, vertical: isDesktop ? 12 : 8),
                           elevation: 0,
                         ),
                         child: Row(
                           children: [
                             Text('Next', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 12)),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.arrow_forward_rounded, size: 15),
+                            const SizedBox(width: 5),
+                            const Icon(Icons.arrow_forward_rounded, size: 14),
                           ],
                         ),
                       )
@@ -3117,7 +3135,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                           backgroundColor: _NaapColors.gold,
                           foregroundColor: const Color(0xFF211500),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 22 : 12, vertical: isDesktop ? 12 : 8),
                           elevation: 0,
                         ),
                         child: Row(
@@ -3129,9 +3147,9 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF211500)),
                               )
                             else ...[
-                              const Icon(Icons.check_rounded, size: 16),
-                              const SizedBox(width: 6),
-                              Text('Save Naap', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                              const Icon(Icons.check_rounded, size: 15),
+                              const SizedBox(width: 5),
+                              Text('Save Naap', style: GoogleFonts.manrope(fontWeight: FontWeight.w900, fontSize: 12)),
                             ],
                           ],
                         ),
@@ -3355,6 +3373,8 @@ class _MeasurementInputRowState extends State<MeasurementInputRow> {
               children: [
                 Text(
                   widget.field.nameUrdu,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.notoNastaliqUrdu(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
@@ -3363,6 +3383,8 @@ class _MeasurementInputRowState extends State<MeasurementInputRow> {
                 ),
                 Text(
                   widget.field.nameEng.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSans(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
