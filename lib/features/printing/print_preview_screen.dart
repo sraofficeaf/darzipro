@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_enums.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../core/utils/share_helper.dart';
 import '../../shared/models/models.dart';
@@ -16,9 +17,18 @@ import 'widgets/naap_card_widget.dart';
 import 'widgets/token_card_widget.dart';
 
 class PrintPreviewScreen extends ConsumerStatefulWidget {
-  final String orderId;
+  final String? orderId;
+  final String? customerId;
+  final String? measurementId;
+  final PrintLayout? initialLayout;
 
-  const PrintPreviewScreen({super.key, required this.orderId});
+  const PrintPreviewScreen({
+    super.key,
+    this.orderId,
+    this.customerId,
+    this.measurementId,
+    this.initialLayout,
+  });
 
   @override
   ConsumerState<PrintPreviewScreen> createState() => _PrintPreviewScreenState();
@@ -53,6 +63,11 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialLayout != null) {
+      _layout = widget.initialLayout!;
+    } else if (widget.measurementId != null || (widget.orderId == null && widget.customerId != null)) {
+      _layout = PrintLayout.traditional;
+    }
     // 2 frames wait karo taake widget tree fully build ho jaye, phir capture karo
     WidgetsBinding.instance.addPostFrameCallback((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _captureActiveLayout());
@@ -67,11 +82,22 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
 
   Future<void> _captureActiveLayout() async {
     if (_currentImage != null || _isCapturing) return;
-    final order = _getOrder();
+    final customer = _getCustomer(widget.customerId ?? '');
+    final order = _getOrder() ?? (customer != null ? OrderModel(
+      id: 'naap_${customer.id}',
+      customerId: customer.id,
+      customerName: customer.name,
+      tokenNumber: 'NAAP',
+      orderNumber: 1,
+      orderDate: DateTime.now(),
+      status: OrderStatus.pending,
+      totalAmount: 0,
+      items: const [],
+      payments: const [],
+    ) : null);
     if (order == null) return;
-    final customer = _getCustomer(order.customerId);
-    final customerMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
-    final measurement = customerMeasurements.where((m) => m.customerId == order.customerId).firstOrNull;
+    final effectiveCustomer = customer ?? _getCustomer(order.customerId);
+    final measurement = _getMeasurement(effectiveCustomer?.id ?? order.customerId);
 
     final targetLayout = _layout;
     setState(() => _isCapturing = true);
@@ -83,7 +109,7 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
           context,
           cardWidget: NaapCardWidget(
             order: order,
-            customer: customer,
+            customer: effectiveCustomer,
             measurement: measurement,
           ),
         );
@@ -92,7 +118,7 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
           context,
           cardWidget: TokenCardWidget(
             order: order,
-            customer: customer,
+            customer: effectiveCustomer,
             isThermal: true,
           ),
         );
@@ -101,7 +127,7 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
           context,
           cardWidget: TokenCardWidget(
             order: order,
-            customer: customer,
+            customer: effectiveCustomer,
             isThermal: false,
           ),
         );
@@ -122,25 +148,41 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
     }
   }
 
+  MeasurementModel? _getMeasurement(String customerId) {
+    final customerMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
+    if (widget.measurementId != null && widget.measurementId!.isNotEmpty) {
+      final found = customerMeasurements.where((m) => m.id == widget.measurementId).firstOrNull;
+      if (found != null) return found;
+    }
+    return customerMeasurements.where((m) => m.customerId == customerId).firstOrNull;
+  }
+
   OrderModel? _getOrder() {
     final ordersAsync = ref.watch(ordersProvider);
     return ordersAsync.whenOrNull(
       data: (orders) {
-        try {
-          return orders.firstWhere((o) => o.id == widget.orderId);
-        } catch (_) {
-          return null;
+        if (widget.orderId != null && widget.orderId!.isNotEmpty) {
+          try {
+            return orders.firstWhere((o) => o.id == widget.orderId);
+          } catch (_) {}
         }
+        if (widget.customerId != null && widget.customerId!.isNotEmpty) {
+          try {
+            return orders.where((o) => o.customerId == widget.customerId).firstOrNull;
+          } catch (_) {}
+        }
+        return null;
       },
     );
   }
 
   CustomerModel? _getCustomer(String customerId) {
+    final targetId = customerId.isNotEmpty ? customerId : (widget.customerId ?? '');
     final customersAsync = ref.watch(customersProvider);
     return customersAsync.whenOrNull(
       data: (customers) {
         try {
-          return customers.firstWhere((c) => c.id == customerId);
+          return customers.firstWhere((c) => c.id == targetId);
         } catch (_) {
           return null;
         }
@@ -233,15 +275,29 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final order = _getOrder();
+    final customer = _getCustomer(widget.customerId ?? '');
+    final order = _getOrder() ?? (customer != null ? OrderModel(
+      id: 'naap_${customer.id}',
+      customerId: customer.id,
+      customerName: customer.name,
+      tokenNumber: 'NAAP',
+      orderNumber: 1,
+      orderDate: DateTime.now(),
+      status: OrderStatus.pending,
+      totalAmount: 0,
+      items: const [],
+      payments: const [],
+    ) : null);
+
     if (order == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Print Preview')),
-        body: const EmptyState(emoji: '🔍', title: 'Order Not Found'),
+        body: const EmptyState(emoji: '🔍', title: 'Order or Client Not Found'),
       );
     }
 
-    final customer = _getCustomer(order.customerId);
+    final effectiveCustomer = customer ?? _getCustomer(order.customerId);
+    final measurement = _getMeasurement(effectiveCustomer?.id ?? order.customerId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final surf = isDark ? AppColors.surfDark : AppColors.surfLight;
@@ -249,6 +305,10 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
     final t2 = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final isUrdu = ref.watch(localeProvider) == 'ur';
     final bool isAnyBusy = _isPrinting || _isSharing || _isWhatsApping;
+
+    final subTitleText = _layout == PrintLayout.traditional
+        ? '${measurement?.profileName ?? "Naap Card"} · ${order.customerName}'
+        : '${order.tokenNumber} · ${order.customerName}';
 
     return PopScope(
       canPop: false,
@@ -270,7 +330,7 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(isUrdu ? 'پرنٹ اور شیئر' : 'Print & Share', style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w900, color: t1)),
-              Text('${order.tokenNumber} · ${order.customerName}', style: GoogleFonts.inter(fontSize: 12, color: t2)),
+              Text(subTitleText, style: GoogleFonts.inter(fontSize: 12, color: t2)),
             ],
           ),
         ),

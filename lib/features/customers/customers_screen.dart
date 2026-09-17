@@ -1632,15 +1632,12 @@ class _ClientCard extends StatelessWidget {
                     Consumer(
                       builder: (context, ref, child) => _buildIconAction(
                         icon: Icons.straighten_rounded,
-                        tooltip: 'Naap Studio',
+                        tooltip: 'Naap / Measurements',
                         bg: const Color(0x1A8764E8),
                         border: const Color(0x338764E8),
                         color: _ClientColors.violet,
                         isMobile: isMobile,
-                        onTap: () {
-                          ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customer.id;
-                          context.go('/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}');
-                        },
+                        onTap: () => _showNaapPicker(context, ref, customer),
                       ),
                     ),
                     const SizedBox(width: 5),
@@ -1727,6 +1724,294 @@ class _ClientCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showNaapPicker(BuildContext context, WidgetRef ref, CustomerModel customer) {
+    HapticFeedback.lightImpact();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final allMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
+    final customerMeasurements = allMeasurements
+        .where((m) => m.customerId == customer.id)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? _ClientColors.darkCard : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(
+              color: isDark ? _ClientColors.darkLine : _ClientColors.line,
+              width: 1,
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(ctx).padding.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Header Row
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_ClientColors.gold2, _ClientColors.gold],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text('📐', style: TextStyle(fontSize: 18)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${customer.name} · ناپ لسٹ',
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : _ClientColors.ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Select a profile to view, print & share',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11.5,
+                            color: _ClientColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : _ClientColors.muted),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              if (customerMeasurements.isEmpty) ...[
+                // Empty state
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? _ClientColors.dark : _ClientColors.paper,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? _ClientColors.darkLine : _ClientColors.line,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('📏', style: TextStyle(fontSize: 36)),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No measurement profiles found',
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : _ClientColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Is customer ka abhi tak koi naap record nahi hai.',
+                        style: GoogleFonts.dmSans(fontSize: 11.5, color: _ClientColors.muted),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customer.id;
+                          ctx.push('/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}');
+                        },
+                        icon: const Icon(Icons.add_rounded, size: 16),
+                        label: Text('＋ Add Naap (نیا ناپ لیں)', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _ClientColors.gold,
+                          foregroundColor: const Color(0xFF211500),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // List of measurement profiles
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.45,
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: customerMeasurements.length,
+                    separatorBuilder: (_, index) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final m = customerMeasurements[i];
+                      final catEmoji = m.category == MeasurementCategory.women
+                          ? '👗'
+                          : (m.category == MeasurementCategory.children ? '👕' : '👔');
+
+                      // Key measurements summary from sections
+                      final List<String> previewChips = [];
+                      for (final sec in m.sections) {
+                        for (final f in sec.fields) {
+                          if (f.value.trim().isNotEmpty && previewChips.length < 3) {
+                            previewChips.add('${f.label}: ${f.value}');
+                          }
+                        }
+                      }
+
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            context.push(
+                              '/print?customerId=${customer.id}&measurementId=${m.id}',
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1D222D) : Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isDark ? _ClientColors.darkLine : _ClientColors.line,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0x268764E8) : const Color(0xFFF3F0FF),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: Text(catEmoji, style: const TextStyle(fontSize: 16)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        m.profileName.isNotEmpty ? m.profileName : m.title,
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: isDark ? Colors.white : _ClientColors.ink,
+                                        ),
+                                      ),
+                                      if (previewChips.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          previewChips.join(' · '),
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: _ClientColors.muted,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [_ClientColors.gold2, _ClientColors.gold],
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text('🖨️', style: TextStyle(fontSize: 11)),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'View & Print',
+                                        style: GoogleFonts.manrope(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF211500),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Footer button to manage/add naap in studio
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customer.id;
+                    ctx.push('/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}');
+                  },
+                  icon: const Icon(Icons.edit_note_rounded, size: 16),
+                  label: Text('Open Naap Studio (ناپ سٹوڈیو کھولیں)', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? Colors.white70 : _ClientColors.ink,
+                    side: BorderSide(color: isDark ? _ClientColors.darkLine : _ClientColors.line),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

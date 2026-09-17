@@ -194,10 +194,29 @@ final appRouter = GoRouter(
           },
         ),
         GoRoute(
+          path: '/print',
+          builder: (context, state) {
+            final orderId = state.uri.queryParameters['orderId'];
+            final customerId = state.uri.queryParameters['customerId'];
+            final measurementId = state.uri.queryParameters['measurementId'];
+            return PrintPreviewScreen(
+              orderId: orderId,
+              customerId: customerId,
+              measurementId: measurementId,
+            );
+          },
+        ),
+        GoRoute(
           path: '/print/:orderId',
           builder: (context, state) {
-            final orderId = state.pathParameters['orderId']!;
-            return PrintPreviewScreen(orderId: orderId);
+            final orderId = state.pathParameters['orderId'];
+            final customerId = state.uri.queryParameters['customerId'];
+            final measurementId = state.uri.queryParameters['measurementId'];
+            return PrintPreviewScreen(
+              orderId: orderId,
+              customerId: customerId,
+              measurementId: measurementId,
+            );
           },
         ),
 

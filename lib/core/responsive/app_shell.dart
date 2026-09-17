@@ -166,10 +166,10 @@ class _MobileShell extends ConsumerWidget {
                       badgeCount: activeOrdersCount,
                     ),
                     _BottomNavItem(
-                      icon: Icons.straighten_rounded,
-                      label: 'Naap',
-                      isActive: currentSection == NavSection.measurements,
-                      onTap: () => _navigate(context, ref, NavSection.measurements),
+                      icon: Icons.bar_chart_rounded,
+                      label: 'Reports',
+                      isActive: currentSection == NavSection.reports,
+                      onTap: () => _navigate(context, ref, NavSection.reports),
                     ),
                     _BottomNavItem(
                       icon: Icons.person_rounded,
@@ -278,9 +278,6 @@ class _Sidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final routeState = GoRouterState.of(context);
-    final isTokenCardActive = routeState.uri.path.startsWith('/token-card');
-
     final customers = ref.watch(customersProvider).valueOrNull ?? [];
     final orders = ref.watch(ordersProvider).valueOrNull ?? [];
     final activeOrdersCount = orders.where((o) => o.status != OrderStatus.delivered && o.status != OrderStatus.cancelled).length;
@@ -346,13 +343,13 @@ class _Sidebar extends ConsumerWidget {
                   _NavItem(
                     icon: Icons.dashboard_rounded,
                     label: context.translate('dashboard'),
-                    isActive: currentSection == NavSection.dashboard && !isTokenCardActive,
+                    isActive: currentSection == NavSection.dashboard,
                     onTap: () => _navigate(context, ref, NavSection.dashboard),
                   ),
                   _NavItem(
                     icon: Icons.people_rounded,
                     label: context.translate('clients'),
-                    isActive: currentSection == NavSection.clients && !isTokenCardActive,
+                    isActive: currentSection == NavSection.clients,
                     badgeText: customers.length.toString(),
                     badgeType: 'gold',
                     onTap: () => _navigate(context, ref, NavSection.clients),
@@ -360,29 +357,15 @@ class _Sidebar extends ConsumerWidget {
                   _NavItem(
                     icon: Icons.receipt_long_rounded,
                     label: context.translate('orders'),
-                    isActive: currentSection == NavSection.orders && !isTokenCardActive,
+                    isActive: currentSection == NavSection.orders,
                     badgeText: activeOrdersCount.toString(),
                     badgeType: 'red',
                     onTap: () => _navigate(context, ref, NavSection.orders),
                   ),
                   _NavItem(
-                    icon: Icons.straighten_rounded,
-                    label: context.translate('measurements'),
-                    isActive: currentSection == NavSection.measurements && !isTokenCardActive,
-                    onTap: () => _navigate(context, ref, NavSection.measurements),
-                  ),
-                  _NavItem(
-                    icon: Icons.badge_rounded,
-                    label: 'Token Card',
-                    isActive: isTokenCardActive,
-                    onTap: () {
-                      context.go('/token-card');
-                    },
-                  ),
-                  _NavItem(
                     icon: Icons.bar_chart_rounded,
                     label: context.translate('reports'),
-                    isActive: currentSection == NavSection.reports && !isTokenCardActive,
+                    isActive: currentSection == NavSection.reports,
                     onTap: () => _navigate(context, ref, NavSection.reports),
                   ),
 

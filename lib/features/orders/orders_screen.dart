@@ -747,12 +747,12 @@ class _OrderCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Top Row: Token & Customer Name & Status
+                          // Top Row: Token & Customer Name & Status & Token Card Action
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _buildTokenBadge(),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -775,6 +775,8 @@ class _OrderCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              _buildTokenCardAction(context, isDark: isDark),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -893,6 +895,9 @@ class _OrderCard extends StatelessWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(width: 14),
+                        // Token Card Action
+                        _buildTokenCardAction(context, isDark: isDark),
                       ],
                     ),
                   );
@@ -916,6 +921,45 @@ class _OrderCard extends StatelessWidget {
       child: Text(
         order.tokenNumber,
         style: _OrdersStyles.tokenText,
+      ),
+    );
+  }
+
+  Widget _buildTokenCardAction(BuildContext context, {required bool isDark}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/token-card/${order.id}');
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF241C0F) : _OrdersColors.goldBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isDark ? const Color(0x66E9A227) : _OrdersColors.goldLine,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🪪', style: TextStyle(fontSize: 13)),
+              const SizedBox(width: 5),
+              Text(
+                'Token Card',
+                style: GoogleFonts.manrope(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFD97706),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
