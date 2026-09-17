@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class PrintProgressState {
@@ -70,7 +71,7 @@ Future<PrintProgressController> showPrintProgressModal(
   return controller;
 }
 
-class _PrintProgressDialogWidget extends StatelessWidget {
+class _PrintProgressDialogWidget extends StatefulWidget {
   final String title;
   final PrintProgressController controller;
 
@@ -78,6 +79,29 @@ class _PrintProgressDialogWidget extends StatelessWidget {
     required this.title,
     required this.controller,
   });
+
+  @override
+  State<_PrintProgressDialogWidget> createState() => _PrintProgressDialogWidgetState();
+}
+
+class _PrintProgressDialogWidgetState extends State<_PrintProgressDialogWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +132,7 @@ class _PrintProgressDialogWidget extends StatelessWidget {
               ],
             ),
             child: ValueListenableBuilder<PrintProgressState>(
-              valueListenable: controller.state,
+              valueListenable: widget.controller.state,
               builder: (context, state, _) {
                 final percent = (state.progress * 100).toInt();
 
@@ -139,7 +163,7 @@ class _PrintProgressDialogWidget extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                title,
+                                widget.title,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
@@ -180,18 +204,18 @@ class _PrintProgressDialogWidget extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // Step description label
+                    // Step description label with active pulsing indicator
                     Row(
                       children: [
                         const SizedBox(
-                          width: 12,
-                          height: 12,
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2,
+                            strokeWidth: 2.2,
                             valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE9A227)),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             state.step,
@@ -204,39 +228,69 @@ class _PrintProgressDialogWidget extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        AnimatedBuilder(
+                          animation: _shimmerController,
+                          builder: (context, _) {
+                            final pulse = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(_shimmerController.value * 2 * math.pi));
+                            return Opacity(
+                              opacity: pulse,
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFE9A227),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
 
                     const SizedBox(height: 12),
 
-                    // Smooth animated progress bar
+                    // Active animated shimmer progress bar
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: 0.0, end: state.progress),
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeInOut,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
                         builder: (context, value, _) {
                           return Stack(
                             children: [
+                              // Background Track
                               Container(
-                                height: 8,
+                                height: 9,
                                 width: double.infinity,
                                 color: const Color(0xFFF3F4F6),
                               ),
+                              // Active animated shimmer progress fill
                               FractionallySizedBox(
-                                widthFactor: value.clamp(0.01, 1.0),
-                                child: Container(
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFFE9A227),
-                                        Color(0xFFFFC65A),
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
+                                widthFactor: value.clamp(0.02, 1.0),
+                                child: AnimatedBuilder(
+                                  animation: _shimmerController,
+                                  builder: (context, _) {
+                                    final shift = _shimmerController.value;
+                                    return Container(
+                                      height: 9,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        gradient: LinearGradient(
+                                          begin: Alignment(-2.0 + 4.0 * shift, 0),
+                                          end: Alignment(-0.5 + 4.0 * shift, 0),
+                                          colors: const [
+                                            Color(0xFFE9A227),
+                                            Color(0xFFFFF2D0),
+                                            Color(0xFFFFC65A),
+                                            Color(0xFFE9A227),
+                                          ],
+                                          stops: const [0.0, 0.4, 0.6, 1.0],
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ],

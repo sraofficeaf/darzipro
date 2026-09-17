@@ -112,6 +112,32 @@ final appRouter = GoRouter(
       path: '/register',
       redirect: (context, state) => '/join',
     ),
+    GoRoute(
+      path: '/print',
+      builder: (context, state) {
+        final orderId = state.uri.queryParameters['orderId'];
+        final customerId = state.uri.queryParameters['customerId'];
+        final measurementId = state.uri.queryParameters['measurementId'];
+        return PrintPreviewScreen(
+          orderId: orderId,
+          customerId: customerId,
+          measurementId: measurementId,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/print/:orderId',
+      builder: (context, state) {
+        final orderId = state.pathParameters['orderId'];
+        final customerId = state.uri.queryParameters['customerId'];
+        final measurementId = state.uri.queryParameters['measurementId'];
+        return PrintPreviewScreen(
+          orderId: orderId,
+          customerId: customerId,
+          measurementId: measurementId,
+        );
+      },
+    ),
     ShellRoute(
       builder: (context, state, child) => AppShell(child: child),
       routes: [
@@ -191,32 +217,6 @@ final appRouter = GoRouter(
           builder: (context, state) {
             final orderId = state.pathParameters['orderId'] ?? '';
             return TokenCardScreen(orderId: orderId);
-          },
-        ),
-        GoRoute(
-          path: '/print',
-          builder: (context, state) {
-            final orderId = state.uri.queryParameters['orderId'];
-            final customerId = state.uri.queryParameters['customerId'];
-            final measurementId = state.uri.queryParameters['measurementId'];
-            return PrintPreviewScreen(
-              orderId: orderId,
-              customerId: customerId,
-              measurementId: measurementId,
-            );
-          },
-        ),
-        GoRoute(
-          path: '/print/:orderId',
-          builder: (context, state) {
-            final orderId = state.pathParameters['orderId'];
-            final customerId = state.uri.queryParameters['customerId'];
-            final measurementId = state.uri.queryParameters['measurementId'];
-            return PrintPreviewScreen(
-              orderId: orderId,
-              customerId: customerId,
-              measurementId: measurementId,
-            );
           },
         ),
 

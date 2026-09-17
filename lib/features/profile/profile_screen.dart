@@ -982,17 +982,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 // MOBILE COMPACT VIEW (< 1000px)
                 Column(
                   children: [
-                    // Compact Mobile Hero Card (.m-hero)
-                    _buildMobileHeroCard(
-                      isDark: isDark,
-                      shopName: shopName,
-                      ownerName: ownerName,
-                      logoUrl: logoUrl,
-                      clientsCount: clientsCount,
-                      activeOrdersCount: activeOrdersCount,
-                      isPro: isPro,
-                    ),
-                    const SizedBox(height: 12),
+                    // Compact Mobile Hero Card (.m-hero) — on tabs other than Overview
+                    if (_activeTab != 'overview') ...[
+                      _buildMobileHeroCard(
+                        isDark: isDark,
+                        shopName: shopName,
+                        ownerName: ownerName,
+                        logoUrl: logoUrl,
+                        clientsCount: clientsCount,
+                        activeOrdersCount: activeOrdersCount,
+                        isPro: isPro,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     // Mobile Tabs
                     _buildNavbar(isDark),
                     const SizedBox(height: 14),
@@ -1616,105 +1618,169 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 BoxShadow(color: Color(0x1AE9A227), blurRadius: 24, offset: Offset(0, 10)),
               ],
             ),
-            child: Row(
-              children: [
-                // 96px Avatar with Online Dot
-                Stack(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 680;
+
+                final avatarWidget = Stack(
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 90,
-                      height: 90,
+                      width: isCompact ? 72 : 90,
+                      height: isCompact ? 72 : 90,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(colors: [_ProfColors.gold2, Color(0xFFD97706)]),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(isCompact ? 20 : 24),
                         border: Border.all(color: const Color(0x80FFC65A), width: 2),
                       ),
                       child: Center(
                         child: Text(
                           _getInitials(shopName),
-                          style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
+                          style: GoogleFonts.manrope(
+                            fontSize: isCompact ? 26 : 32,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
                     Positioned(
-                      bottom: 3,
-                      right: 3,
+                      bottom: 2,
+                      right: 2,
                       child: Container(
-                        width: 16,
-                        height: 16,
+                        width: isCompact ? 14 : 16,
+                        height: isCompact ? 14 : 16,
                         decoration: BoxDecoration(
                           color: const Color(0xFF10CBA0),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
+                          border: Border.all(color: Colors.white, width: 2.5),
                         ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(width: 22),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(shopName, style: _ProfStyles.shopNameBig.copyWith(color: isDark ? Colors.white : _ProfColors.ink)),
-                      const SizedBox(height: 4),
-                      Text('$ownerName · $addressVal', style: GoogleFonts.dmSans(fontSize: 12.5, color: _ProfColors.muted)),
-                      const SizedBox(height: 14),
-                      // Stats Strip
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.6),
-                          border: Border.all(color: _ProfColors.goldLine),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(child: _buildStatItem('$clientsCount', 'CLIENTS')),
-                            Container(width: 1, height: 26, color: _ProfColors.goldLine),
-                            Expanded(child: _buildStatItem('$activeOrdersCount', 'ACTIVE')),
-                            Container(width: 1, height: 26, color: _ProfColors.goldLine),
-                            Expanded(child: _buildStatItem(isPro ? 'PRO' : 'FREE', 'PLAN')),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Action Buttons on right
-                Column(
+                );
+
+                final infoWidget = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ElevatedButton(
-                      onPressed: () => _openEditProfileModal(shopName, ownerName, phoneNum, addressVal),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _ProfColors.gold,
-                        foregroundColor: const Color(0xFF211500),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text('✏ Edit Profile', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
+                    Text(
+                      shopName,
+                      style: (isCompact
+                              ? GoogleFonts.manrope(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5)
+                              : _ProfStyles.shopNameBig)
+                          .copyWith(color: isDark ? Colors.white : _ProfColors.ink),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: _isUploadingLogo ? null : _pickAndUploadLogo,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-                        backgroundColor: isDark ? _ProfColors.dark : Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$ownerName · $addressVal',
+                      style: GoogleFonts.dmSans(
+                        fontSize: isCompact ? 11.5 : 12.5,
+                        color: _ProfColors.muted,
                       ),
-                      child: _isUploadingLogo
-                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text('🖼 Change Logo', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
-              ],
+                );
+
+                final statsWidget = Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.6),
+                    border: Border.all(color: _ProfColors.goldLine),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildStatItem('$clientsCount', 'CLIENTS')),
+                      Container(width: 1, height: 26, color: _ProfColors.goldLine),
+                      Expanded(child: _buildStatItem('$activeOrdersCount', 'ACTIVE')),
+                      Container(width: 1, height: 26, color: _ProfColors.goldLine),
+                      Expanded(child: _buildStatItem(isPro ? 'PRO' : 'FREE', 'PLAN')),
+                    ],
+                  ),
+                );
+
+                final editBtn = ElevatedButton(
+                  onPressed: () => _openEditProfileModal(shopName, ownerName, phoneNum, addressVal),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _ProfColors.gold,
+                    foregroundColor: const Color(0xFF211500),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('✏ Edit Profile', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
+                );
+
+                final logoBtn = OutlinedButton(
+                  onPressed: _isUploadingLogo ? null : _pickAndUploadLogo,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                    side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
+                    backgroundColor: isDark ? _ProfColors.dark : Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isUploadingLogo
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text('🖼 Change Logo', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
+                );
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          avatarWidget,
+                          const SizedBox(width: 14),
+                          Expanded(child: infoWidget),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(child: editBtn),
+                          const SizedBox(width: 10),
+                          Expanded(child: logoBtn),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      statsWidget,
+                    ],
+                  );
+                }
+
+                // Desktop spacious row
+                return Row(
+                  children: [
+                    avatarWidget,
+                    const SizedBox(width: 22),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          infoWidget,
+                          const SizedBox(height: 14),
+                          statsWidget,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        editBtn,
+                        const SizedBox(height: 8),
+                        logoBtn,
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

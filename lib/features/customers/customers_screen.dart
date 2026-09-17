@@ -1729,11 +1729,30 @@ class _ClientCard extends StatelessWidget {
 
   void _showNaapPicker(BuildContext context, WidgetRef ref, CustomerModel customer) {
     HapticFeedback.lightImpact();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final allMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
     final customerMeasurements = allMeasurements
         .where((m) => m.customerId == customer.id)
         .toList();
+
+    // Deduplicate profiles by name
+    final Map<String, MeasurementModel> latestByName = {};
+    for (final m in customerMeasurements) {
+      final key = m.profileName.trim().toLowerCase();
+      if (!latestByName.containsKey(key) || m.updatedAt.isAfter(latestByName[key]!.updatedAt)) {
+        latestByName[key] = m;
+      }
+    }
+    final uniqueProfiles = latestByName.values.toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    if (uniqueProfiles.length == 1) {
+      context.push(
+        '/print?customerId=${customer.id}&measurementId=${uniqueProfiles.first.id}',
+      );
+      return;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
@@ -1794,7 +1813,7 @@ class _ClientCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${customer.name} · ناپ لسٹ',
+                          'کونسا ناپ پروفائل پرنٹ کرنا ہے؟',
                           style: GoogleFonts.manrope(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -1805,7 +1824,7 @@ class _ClientCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Select a profile to view, print & share',
+                          '${customer.name} · Select a profile to view & print',
                           style: GoogleFonts.dmSans(
                             fontSize: 11.5,
                             color: _ClientColors.muted,
@@ -1822,7 +1841,7 @@ class _ClientCard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              if (customerMeasurements.isEmpty) ...[
+              if (uniqueProfiles.isEmpty) ...[
                 // Empty state
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -1878,10 +1897,10 @@ class _ClientCard extends StatelessWidget {
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
-                    itemCount: customerMeasurements.length,
+                    itemCount: uniqueProfiles.length,
                     separatorBuilder: (_, index) => const SizedBox(height: 8),
                     itemBuilder: (context, i) {
-                      final m = customerMeasurements[i];
+                      final m = uniqueProfiles[i];
                       final catEmoji = m.category == MeasurementCategory.women
                           ? '👗'
                           : (m.category == MeasurementCategory.children ? '👕' : '👔');

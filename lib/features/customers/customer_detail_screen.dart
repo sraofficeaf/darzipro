@@ -505,6 +505,29 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
               ),
               const SizedBox(width: 10),
 
+              // Print Naap button
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _Tokens.ink,
+                  side: const BorderSide(color: _Tokens.line),
+                  backgroundColor: _Tokens.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                ),
+                onPressed: () => _handlePrintFromHeader(customer),
+                icon: const Icon(Icons.print_outlined, size: 16, color: _Tokens.muted),
+                label: Text(
+                  'Print Naap',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+
               // New Order button
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -1883,16 +1906,32 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
                     style: GoogleFonts.inter(fontSize: 11, color: _Tokens.muted)),
               ],
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _Tokens.gold,
-                foregroundColor: const Color(0xFF211500),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () => _showAddProfileModal(customer),
-              icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFF211500)),
-              label: Text('Add Naap', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800)),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _Tokens.ink,
+                    side: const BorderSide(color: _Tokens.line),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => _handlePrintFromHeader(customer),
+                  icon: const Icon(Icons.print_outlined, size: 15, color: _Tokens.muted),
+                  label: Text('Print Naap', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _Tokens.gold,
+                    foregroundColor: const Color(0xFF211500),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => _showAddProfileModal(customer),
+                  icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFF211500)),
+                  label: Text('Add Naap', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800)),
+                ),
+              ],
             ),
           ],
         ),
@@ -2238,6 +2277,202 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
         );
       }
     }
+  }
+
+  void _handlePrintFromHeader(CustomerModel customer) {
+    HapticFeedback.lightImpact();
+    final allMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
+    final customerMeasurements = allMeasurements
+        .where((m) => m.customerId == customer.id)
+        .toList();
+
+    // Deduplicate profiles by name
+    final Map<String, MeasurementModel> latestByName = {};
+    for (final m in customerMeasurements) {
+      final key = m.profileName.trim().toLowerCase();
+      if (!latestByName.containsKey(key) || m.updatedAt.isAfter(latestByName[key]!.updatedAt)) {
+        latestByName[key] = m;
+      }
+    }
+    final uniqueProfiles = latestByName.values.toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    if (uniqueProfiles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Is customer ka koi naap profile record nahi hai.'),
+          backgroundColor: _Tokens.rose,
+        ),
+      );
+      return;
+    }
+
+    if (uniqueProfiles.length == 1) {
+      _printNaapCardPdf(customer, uniqueProfiles.first);
+      return;
+    }
+
+    _showPrintProfileSelector(customer, uniqueProfiles);
+  }
+
+  void _showPrintProfileSelector(CustomerModel customer, List<MeasurementModel> profiles) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF181D27) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: isDark ? const Color(0xFF333946) : _Tokens.line),
+          ),
+          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(ctx).padding.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _Tokens.goldBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _Tokens.goldLine),
+                    ),
+                    child: const Center(child: Icon(Icons.print_rounded, color: _Tokens.gold, size: 20)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'کونسا ناپ پروفائل پرنٹ کرنا ہے؟',
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : _Tokens.ink,
+                          ),
+                        ),
+                        Text(
+                          'Select naap profile to print for ${customer.name}',
+                          style: GoogleFonts.dmSans(fontSize: 11.5, color: _Tokens.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : _Tokens.muted),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: profiles.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, i) {
+                  final m = profiles[i];
+                  final catEmoji = m.category == MeasurementCategory.women
+                      ? '👗'
+                      : (m.category == MeasurementCategory.children ? '👕' : '👔');
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _printNaapCardPdf(customer, m);
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1D222D) : _Tokens.paper,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: isDark ? const Color(0xFF333946) : _Tokens.line),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _Tokens.goldBg,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(child: Text(catEmoji, style: const TextStyle(fontSize: 18))),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    m.profileName,
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark ? Colors.white : _Tokens.ink,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${m.category.name.toUpperCase()} · ${m.sections.expand((s) => s.fields).where((f) => f.value.trim().isNotEmpty).length} fields filled',
+                                    style: GoogleFonts.dmSans(fontSize: 11, color: _Tokens.muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [_Tokens.gold2, _Tokens.gold]),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.print_outlined, size: 12, color: Color(0xFF211500)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Print',
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF211500),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _showAddProfileModal(CustomerModel customer) async {

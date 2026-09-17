@@ -179,6 +179,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
       _selectedCategory = widget.category!;
     }
 
+    if (widget.measurementId != null) {
+      _currentMeasurementId = widget.measurementId;
+      _currentStep = 1;
+    }
+
     _profileNameCtrl.addListener(() {
       final name = _profileNameCtrl.text.trim();
       _profileNameNotifier.value = name.isNotEmpty ? name : 'شلوار قمیض';
@@ -232,18 +237,36 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     }
     _notesCtrl.clear();
 
-    if (specificMeasurement != null) {
-      _currentMeasurementId = specificMeasurement.id;
-      _selectedCategory = specificMeasurement.category;
-      _profileNameCtrl.text = specificMeasurement.profileName;
-      _profileNameNotifier.value = specificMeasurement.profileName;
-      if (_profilePresetTypes.contains(specificMeasurement.profileName)) {
-        _selectedProfileType = specificMeasurement.profileName;
+    MeasurementModel? target = specificMeasurement;
+    if (target == null && widget.measurementId != null) {
+      final allCustM = ref.read(customerMeasurementsProvider).valueOrNull ?? [];
+      target = allCustM.where((m) => m.id == widget.measurementId).firstOrNull;
+      if (target == null) {
+        final allM = ref.read(measurementsProvider).valueOrNull ?? [];
+        target = allM.where((m) => m.id == widget.measurementId).firstOrNull;
+      }
+    }
+    if (target == null && widget.profileName != null) {
+      final allCustM = ref.read(customerMeasurementsProvider).valueOrNull ?? [];
+      target = allCustM.where((m) => m.profileName.trim() == widget.profileName!.trim()).firstOrNull;
+      if (target == null) {
+        final allM = ref.read(measurementsProvider).valueOrNull ?? [];
+        target = allM.where((m) => m.customerId == customerId && m.profileName.trim() == widget.profileName!.trim()).firstOrNull;
+      }
+    }
+
+    if (target != null) {
+      _currentMeasurementId = target.id;
+      _selectedCategory = target.category;
+      _profileNameCtrl.text = target.profileName;
+      _profileNameNotifier.value = target.profileName;
+      if (_profilePresetTypes.contains(target.profileName)) {
+        _selectedProfileType = target.profileName;
       } else {
         _selectedProfileType = 'custom';
       }
 
-      for (final section in specificMeasurement.sections) {
+      for (final section in target.sections) {
         if (section.title == 'Design Options') {
           for (final f in section.fields) {
             if (f.key == 'collar_type') _collarType = f.value;
@@ -263,12 +286,13 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         }
       }
 
-      if (specificMeasurement.silaiOptions != null && specificMeasurement.silaiOptions!.isNotEmpty) {
-        _silaiOptions = specificMeasurement.silaiOptions!.map((o) => Map<String, dynamic>.from(o)).toList();
+      if (target.silaiOptions != null && target.silaiOptions!.isNotEmpty) {
+        _silaiOptions = target.silaiOptions!.map((o) => Map<String, dynamic>.from(o)).toList();
       }
-      _notesCtrl.text = specificMeasurement.silaiNotes ?? '';
+      _notesCtrl.text = target.silaiNotes ?? '';
       _recalcFilledCount();
       _initialized = true;
+      _currentStep = 1;
       if (mounted) setState(() {});
       return;
     }
@@ -277,10 +301,11 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     final Box draftBox = Hive.box('naap_drafts_box');
     dynamic draft;
     try {
-      final draftKey = widget.measurementId != null
-          ? 'draft_${customerId}_${widget.measurementId}'
-          : 'draft_$customerId';
-      draft = draftBox.get(draftKey) ?? draftBox.get('draft_$customerId');
+      if (widget.measurementId != null) {
+        draft = draftBox.get('draft_${customerId}_${widget.measurementId}');
+      } else {
+        draft = draftBox.get('draft_$customerId');
+      }
     } catch (e) {
       debugPrint('Error reading draft: $e');
     }
@@ -782,7 +807,19 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     final customerMeasurementsAsync = ref.watch(customerMeasurementsProvider);
 
     if (customerId != null && !_initialized && customerMeasurementsAsync.hasValue) {
-      _loadCustomerData(customerId);
+      MeasurementModel? target;
+      final allCustM = customerMeasurementsAsync.value ?? [];
+      if (widget.measurementId != null) {
+        target = allCustM.where((m) => m.id == widget.measurementId).firstOrNull;
+      }
+      if (target == null && widget.profileName != null) {
+        target = allCustM.where((m) => m.profileName.trim() == widget.profileName!.trim()).firstOrNull;
+      }
+      if (target == null && widget.measurementId != null) {
+        final allM = ref.read(measurementsProvider).valueOrNull ?? [];
+        target = allM.where((m) => m.id == widget.measurementId).firstOrNull;
+      }
+      _loadCustomerData(customerId, target);
     }
 
     if (customerId == null) {
