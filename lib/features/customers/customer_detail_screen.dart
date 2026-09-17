@@ -12,9 +12,12 @@ import '../../core/widgets/shared_widgets.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/providers/license_provider.dart';
+import 'package:pdf/pdf.dart';
 import '../orders/new_order_modal.dart';
 import '../orders/widgets/add_payment_modal.dart';
 import '../printing/pdf_builder.dart';
+import '../printing/widgets/card_image_capturer.dart';
+import '../printing/widgets/naap_card_widget.dart';
 import 'edit_customer_modal.dart';
 
 // ── DESIGN SYSTEM TOKENS (Match HTML Concept exactly) ────────────────────────
@@ -2159,12 +2162,48 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
   Future<void> _printNaapCardPdf(CustomerModel customer, MeasurementModel m) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rendering A5 Naap Card PDF…'), duration: Duration(seconds: 1)),
+        const SnackBar(content: Text('Rendering A5 Naap Card…'), duration: Duration(seconds: 1)),
       );
-      final bytes = await DarziPdfBuilder.buildTraditionalNaapCard(null, customer, m);
+
+      final customerOrders = ref.read(ordersProvider).valueOrNull
+          ?.where((o) => o.customerId == customer.id)
+          .toList() ?? [];
+      if (customerOrders.isNotEmpty) {
+        customerOrders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
+      }
+      final latestOrder = customerOrders.firstOrNull;
+
+      final effectiveOrder = latestOrder ?? OrderModel(
+        id: 'naap_${DateTime.now().millisecondsSinceEpoch}',
+        customerId: customer.id,
+        customerName: customer.name,
+        tokenNumber: 'NAAP',
+        orderNumber: 1,
+        orderDate: DateTime.now(),
+        status: OrderStatus.pending,
+        totalAmount: 0,
+        items: const [],
+        payments: const [],
+      );
+
+      final pngBytes = await CardImageCapturer.captureOnDemand(
+        context,
+        cardWidget: NaapCardWidget(
+          order: effectiveOrder,
+          customer: customer,
+          measurement: m,
+        ),
+        pixelRatio: 1.25,
+      );
+
+      final pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(
+        pngBytes,
+        pageFormat: PdfPageFormat.a5,
+      );
+
       await Printing.layoutPdf(
         name: 'Naap_${customer.name}_${m.profileName}.pdf',
-        onLayout: (_) async => Uint8List.fromList(bytes),
+        onLayout: (_) async => Uint8List.fromList(pdfBytes),
       );
     } catch (e) {
       if (mounted) {

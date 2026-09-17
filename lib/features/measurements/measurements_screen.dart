@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:pdf/pdf.dart';
 import '../../core/constants/app_enums.dart';
 import '../../core/router/app_router.dart';
 import '../../core/widgets/shared_widgets.dart';
@@ -15,6 +16,8 @@ import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
 import '../customers/add_customer_modal.dart';
 import '../printing/pdf_builder.dart';
+import '../printing/widgets/card_image_capturer.dart';
+import '../printing/widgets/naap_card_widget.dart';
 
 export 'measurement_field_config.dart';
 import 'measurement_field_config.dart';
@@ -642,10 +645,19 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
       final currentMeasurement = _buildCurrentMeasurementModel(customerId);
 
-      final pdfBytes = await DarziPdfBuilder.buildTraditionalNaapCard(
-        effectiveOrder,
-        customer,
-        currentMeasurement,
+      final pngBytes = await CardImageCapturer.captureOnDemand(
+        context,
+        cardWidget: NaapCardWidget(
+          order: effectiveOrder,
+          customer: customer,
+          measurement: currentMeasurement,
+        ),
+        pixelRatio: 1.25,
+      );
+
+      final pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(
+        pngBytes,
+        pageFormat: PdfPageFormat.a5,
       );
 
       await Printing.layoutPdf(

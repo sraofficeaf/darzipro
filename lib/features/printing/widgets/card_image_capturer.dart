@@ -73,18 +73,9 @@ class CardImageCapturer {
           type: MaterialType.transparency,
           child: Directionality(
             textDirection: TextDirection.ltr,
-            child: MediaQuery(
-              data: const MediaQueryData(
-                size: Size(794, 1123),
-                devicePixelRatio: 1.0,
-              ),
-              child: RepaintBoundary(
-                key: key,
-                child: SizedBox(
-                  width: 794,
-                  child: cardWidget,
-                ),
-              ),
+            child: RepaintBoundary(
+              key: key,
+              child: cardWidget,
             ),
           ),
         ),
