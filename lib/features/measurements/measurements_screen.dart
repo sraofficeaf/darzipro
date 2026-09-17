@@ -18,6 +18,7 @@ import '../customers/add_customer_modal.dart';
 import '../printing/pdf_builder.dart';
 import '../printing/widgets/card_image_capturer.dart';
 import '../printing/widgets/naap_card_widget.dart';
+import '../printing/widgets/print_progress_dialog.dart';
 
 export 'measurement_field_config.dart';
 import 'measurement_field_config.dart';
@@ -621,7 +622,14 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
     if (_isPrinting) return;
     setState(() => _isPrinting = true);
 
+    PrintProgressController? progressDialog;
     try {
+      progressDialog = await showPrintProgressModal(
+        context,
+        title: 'Printing Naap Card',
+        initialStep: 'Step 1/4: Preparing measurements & order info...',
+      );
+
       final customerOrders = ref.read(ordersProvider).valueOrNull
           ?.where((o) => o.customerId == customerId)
           .toList() ?? [];
@@ -645,6 +653,13 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
 
       final currentMeasurement = _buildCurrentMeasurementModel(customerId);
 
+      progressDialog.update(
+        step: 'Step 2/4: Rendering tailor pattern shapes...',
+        progress: 0.55,
+      );
+
+      if (!mounted) return;
+
       final pngBytes = await CardImageCapturer.captureOnDemand(
         context,
         cardWidget: NaapCardWidget(
@@ -655,16 +670,31 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         pixelRatio: 1.0,
       );
 
+      progressDialog.update(
+        step: 'Step 3/4: Compiling A5 print PDF document...',
+        progress: 0.85,
+      );
+
       final pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(
         pngBytes,
         pageFormat: PdfPageFormat.a5,
       );
+
+      progressDialog.update(
+        step: 'Step 4/4: Opening system print preview...',
+        progress: 1.0,
+      );
+
+      await Future.delayed(const Duration(milliseconds: 150));
+      progressDialog.dismiss();
+      progressDialog = null;
 
       await Printing.layoutPdf(
         name: 'Naap_${customer?.name ?? "Client"}.pdf',
         onLayout: (_) async => Uint8List.fromList(pdfBytes),
       );
     } catch (e) {
+      progressDialog?.dismiss();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -675,6 +705,7 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
         );
       }
     } finally {
+      progressDialog?.dismiss();
       if (mounted) setState(() => _isPrinting = false);
     }
   }

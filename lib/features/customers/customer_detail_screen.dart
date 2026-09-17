@@ -18,6 +18,7 @@ import '../orders/widgets/add_payment_modal.dart';
 import '../printing/pdf_builder.dart';
 import '../printing/widgets/card_image_capturer.dart';
 import '../printing/widgets/naap_card_widget.dart';
+import '../printing/widgets/print_progress_dialog.dart';
 import 'edit_customer_modal.dart';
 
 // ── DESIGN SYSTEM TOKENS (Match HTML Concept exactly) ────────────────────────
@@ -2160,9 +2161,12 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
   }
 
   Future<void> _printNaapCardPdf(CustomerModel customer, MeasurementModel m) async {
+    PrintProgressController? progressDialog;
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rendering A5 Naap Card…'), duration: Duration(seconds: 1)),
+      progressDialog = await showPrintProgressModal(
+        context,
+        title: 'Printing Naap Card',
+        initialStep: 'Step 1/4: Preparing customer profile...',
       );
 
       final customerOrders = ref.read(ordersProvider).valueOrNull
@@ -2186,6 +2190,13 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
         payments: const [],
       );
 
+      progressDialog.update(
+        step: 'Step 2/4: Rendering tailor pattern shapes...',
+        progress: 0.55,
+      );
+
+      if (!mounted) return;
+
       final pngBytes = await CardImageCapturer.captureOnDemand(
         context,
         cardWidget: NaapCardWidget(
@@ -2196,16 +2207,31 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
         pixelRatio: 1.0,
       );
 
+      progressDialog.update(
+        step: 'Step 3/4: Compiling A5 print PDF document...',
+        progress: 0.85,
+      );
+
       final pdfBytes = await DarziPdfBuilder.buildPdfFromImageBytes(
         pngBytes,
         pageFormat: PdfPageFormat.a5,
       );
+
+      progressDialog.update(
+        step: 'Step 4/4: Opening system print preview...',
+        progress: 1.0,
+      );
+
+      await Future.delayed(const Duration(milliseconds: 150));
+      progressDialog.dismiss();
+      progressDialog = null;
 
       await Printing.layoutPdf(
         name: 'Naap_${customer.name}_${m.profileName}.pdf',
         onLayout: (_) async => Uint8List.fromList(pdfBytes),
       );
     } catch (e) {
+      progressDialog?.dismiss();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to print naap card: $e'), backgroundColor: _Tokens.rose),
