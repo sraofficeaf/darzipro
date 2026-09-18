@@ -130,6 +130,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return clean.toUpperCase();
   }
 
+  // ──── Helper: Field Hint Text ────
+  String _getFieldHint(String label) {
+    switch (label.toLowerCase()) {
+      case 'shop name':
+        return 'e.g. Ahmed Tailors';
+      case 'owner name':
+        return 'e.g. Muhammad Ahmed';
+      case 'phone':
+        return 'e.g. 0300-1234567';
+      case 'address':
+        return 'e.g. Main Bazaar, Lahore';
+      case 'card footer':
+        return 'e.g. Thank you for your business!';
+      default:
+        return 'Enter $label';
+    }
+  }
+
   // ──── Resilient Shop & User ID Resolver ────
   Future<({String? shopId, String? userId})> _getResolvedShopAndUserId() async {
     String? userId = ref.read(currentUserIdProvider) ?? Supabase.instance.client.auth.currentUser?.id;
@@ -323,10 +341,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ──── Edit Single Field Modal (Matches HTML #modalField) ────
-  void _openFieldEdit(String label, String initialValue, Future<void> Function(String) onSave, {int maxLines = 1}) {
+  void _openFieldEdit(String label, String initialValue, Future<void> Function(String) onSave, {int maxLines = 1, String? hintText}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final controller = TextEditingController(text: initialValue);
     bool saving = false;
+
+    // Map label to hint if not provided
+    final resolvedHint = hintText ?? _getFieldHint(label);
 
     showDialog(
       context: context,
@@ -396,6 +417,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: isDark ? _ProfColors.dark : _ProfColors.paper,
+                        hintText: resolvedHint,
+                        hintStyle: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          color: _ProfColors.faint,
+                          fontStyle: FontStyle.italic,
+                        ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -796,14 +823,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isUrdu = ref.watch(localeProvider) == 'ur';
 
     final shop = shopAsync.valueOrNull;
-    final shopName = shop?['name'] as String? ?? 'SaifurRahman Tailors';
-    final ownerName = profileAsync.valueOrNull?['full_name'] as String? ?? (shop?['owner_name'] as String? ?? 'SaifurRahman');
-    final phoneNum = shop?['phone'] as String? ?? '0300-1234567';
-    final addressVal = shop?['address'] as String? ?? 'Saddar Bazaar, Peshawar';
+    final shopName = shop?['name'] as String? ?? '';
+    final ownerName = profileAsync.valueOrNull?['full_name'] as String? ?? (shop?['owner_name'] as String? ?? '');
+    final phoneNum = shop?['phone'] as String? ?? '';
+    final addressVal = shop?['address'] as String? ?? '';
     final logoUrl = shop?['logo_url'] as String?;
 
     final Box settingsBox = Hive.box('settings_box');
-    final cardFooter = settingsBox.get('card_footer', defaultValue: 'Thank you for your business!') as String;
+    final cardFooter = settingsBox.get('card_footer', defaultValue: '') as String;
 
     final clientsCount = customersAsync.valueOrNull?.length ?? 0;
     final activeOrdersCount = ordersAsync.valueOrNull?.where((o) =>
@@ -941,6 +968,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         context,
                         shopName: shopName,
                         ownerName: ownerName,
+                        addressVal: addressVal,
                         logoUrl: logoUrl,
                         isDark: isDark,
                         isPro: isPro,
@@ -988,6 +1016,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         isDark: isDark,
                         shopName: shopName,
                         ownerName: ownerName,
+                        addressVal: addressVal,
                         logoUrl: logoUrl,
                         clientsCount: clientsCount,
                         activeOrdersCount: activeOrdersCount,
@@ -1057,6 +1086,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     BuildContext context, {
     required String shopName,
     required String ownerName,
+    required String addressVal,
     required String? logoUrl,
     required bool isDark,
     required bool isPro,
@@ -1130,7 +1160,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(shopName, style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('$ownerName · Peshawar', style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFFAEB5C2))),
+                  Text(
+                    addressVal.isNotEmpty ? '$ownerName · $addressVal' : ownerName.isNotEmpty ? ownerName : 'Owner Name',
+                    style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFFAEB5C2)),
+                  ),
                 ],
               ),
             ),
@@ -1420,6 +1453,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required bool isDark,
     required String shopName,
     required String ownerName,
+    required String addressVal,
     required String? logoUrl,
     required int clientsCount,
     required int activeOrdersCount,
@@ -1461,7 +1495,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: [
                     Text(shopName, style: GoogleFonts.manrope(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white)),
                     const SizedBox(height: 2),
-                    Text('$ownerName · Peshawar', style: GoogleFonts.dmSans(fontSize: 11, color: const Color(0xFFAEB5C2))),
+                    Text(
+                      addressVal.isNotEmpty ? '$ownerName · $addressVal' : ownerName.isNotEmpty ? ownerName : 'Owner Name',
+                      style: GoogleFonts.dmSans(fontSize: 11, color: const Color(0xFFAEB5C2)),
+                    ),
                   ],
                 ),
               ),
@@ -1890,19 +1927,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _buildCardWrapper(
           isDark,
           children: [
-            _buildProfileRow('🏪', 'Shop Name', shopName, isDark, onTap: () {
+            _buildProfileRow('🏪', 'Shop Name', shopName, isDark, hint: 'e.g. Ahmed Tailors', onTap: () {
               _openFieldEdit('Shop Name', shopName, (val) => _updateShopField('name', val));
             }),
-            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, onTap: () {
+            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, hint: 'e.g. Muhammad Ahmed', onTap: () {
               _openFieldEdit('Owner Name', ownerName, (val) => _updateProfileField('full_name', val));
             }),
-            _buildProfileRow('📞', 'Phone', phoneNum, isDark, onTap: () {
+            _buildProfileRow('📞', 'Phone', phoneNum, isDark, hint: 'e.g. 0300-1234567', onTap: () {
               _openFieldEdit('Phone', phoneNum, (val) => _updateShopField('phone', val));
             }),
-            _buildProfileRow('📍', 'Address', addressVal, isDark, onTap: () {
+            _buildProfileRow('📍', 'Address', addressVal, isDark, hint: 'e.g. Main Bazaar, Lahore', onTap: () {
               _openFieldEdit('Address', addressVal, (val) => _updateShopField('address', val), maxLines: 2);
             }),
-            _buildProfileRow('🪪', 'Card Footer', cardFooter, isDark, isLast: true, onTap: () {
+            _buildProfileRow('🪪', 'Card Footer', cardFooter, isDark, isLast: true, hint: 'e.g. Thank you for your business!', onTap: () {
               _openFieldEdit('Card Footer', cardFooter, (val) async {
                 await settingsBox.put('card_footer', val);
                 if (mounted) setState(() {});
@@ -2004,10 +2041,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _buildCardWrapper(
           isDark,
           children: [
-            _buildProfileRow('🏪', 'Shop Name', shopName, isDark, onTap: () {
+            _buildProfileRow('🏪', 'Shop Name', shopName, isDark, hint: 'e.g. Ahmed Tailors', onTap: () {
               _openFieldEdit('Shop Name', shopName, (val) => _updateShopField('name', val));
             }),
-            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, isLast: true, onTap: () {
+            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, isLast: true, hint: 'e.g. Muhammad Ahmed', onTap: () {
               _openFieldEdit('Owner Name', ownerName, (val) => _updateProfileField('full_name', val));
             }),
           ],
@@ -2018,13 +2055,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _buildCardWrapper(
           isDark,
           children: [
-            _buildProfileRow('📞', 'Phone', phoneNum, isDark, onTap: () {
+            _buildProfileRow('📞', 'Phone', phoneNum, isDark, hint: 'e.g. 0300-1234567', onTap: () {
               _openFieldEdit('Phone', phoneNum, (val) => _updateShopField('phone', val));
             }),
-            _buildProfileRow('📍', 'Address', addressVal, isDark, onTap: () {
+            _buildProfileRow('📍', 'Address', addressVal, isDark, hint: 'e.g. Main Bazaar, Lahore', onTap: () {
               _openFieldEdit('Address', addressVal, (val) => _updateShopField('address', val), maxLines: 2);
             }),
-            _buildProfileRow('🪪', 'Card Footer', cardFooter, isDark, isLast: true, onTap: () {
+            _buildProfileRow('🪪', 'Card Footer', cardFooter, isDark, isLast: true, hint: 'e.g. Thank you for your business!', onTap: () {
               _openFieldEdit('Card Footer', cardFooter, (val) async {
                 await settingsBox.put('card_footer', val);
                 if (mounted) setState(() {});
@@ -2294,7 +2331,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Widget? trailing,
     bool isDanger = false,
     bool isLast = false,
+    String? hint,
   }) {
+    final bool isEmpty = subtitle.trim().isEmpty;
+    final String displayText = isEmpty ? (hint ?? 'Tap to add...') : subtitle;
+
     return GestureDetector(
       onTap: () {
         if (onTap != null) {
@@ -2333,7 +2374,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(subtitle, style: _ProfStyles.rowSub),
+                      Text(
+                        displayText,
+                        style: _ProfStyles.rowSub.copyWith(
+                          color: isEmpty ? _ProfColors.faint : _ProfColors.muted,
+                          fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                        ),
+                      ),
                     ],
                   ),
                 ),

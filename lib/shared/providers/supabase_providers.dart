@@ -97,7 +97,7 @@ final currentShopProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
     final data = await supabase
         .from('shops')
         .select(
-            'id, name, phone, currency, plan_code, subscription_status, billing_cycle_start, billing_cycle_end, trial_started_at, lifetime_access, lifetime_storage_limit_bytes')
+            'id, name, phone, address, owner_name, logo_url, currency, plan_code, subscription_status, billing_cycle_start, billing_cycle_end, trial_started_at, lifetime_access, lifetime_storage_limit_bytes, storage_used_bytes, storage_addon_active')
         .eq('id', shopId)
         .maybeSingle();
     return data;
