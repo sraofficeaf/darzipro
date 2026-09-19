@@ -1,14 +1,14 @@
 -- ============================================================
--- DARZI PRO — Fix Shops Table RLS Update Policy
+-- DARZI PRO — Fix Shops Table RLS Update Policy (CORRECTED)
 -- Date: 2026-09-19
--- Problem: Users cannot update their own shop fields (phone, name, address, logo)
---          because shops table was missing an UPDATE policy.
+-- Fix: removed owner_id (column does not exist in shops table)
+-- shops table is linked via profiles.shop_id = shops.id
 -- ============================================================
 
--- Enable RLS on shops (safe if already enabled)
+-- Enable RLS on shops
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 
--- ── READ: shop owner can select their own shop ───────────────
+-- ── SELECT: shop owner can read their own shop ───────────────
 DROP POLICY IF EXISTS "shops_select_own" ON shops;
 CREATE POLICY "shops_select_own"
   ON shops FOR SELECT
@@ -16,7 +16,6 @@ CREATE POLICY "shops_select_own"
     id IN (
       SELECT shop_id FROM profiles WHERE id = auth.uid()
     )
-    OR owner_id = auth.uid()
   );
 
 -- ── UPDATE: shop owner can update their own shop ─────────────
@@ -27,27 +26,14 @@ CREATE POLICY "shops_update_own"
     id IN (
       SELECT shop_id FROM profiles WHERE id = auth.uid()
     )
-    OR owner_id = auth.uid()
   )
   WITH CHECK (
     id IN (
       SELECT shop_id FROM profiles WHERE id = auth.uid()
     )
-    OR owner_id = auth.uid()
   );
 
--- ── INSERT: authenticated user can create their shop ─────────
-DROP POLICY IF EXISTS "shops_insert_own" ON shops;
-CREATE POLICY "shops_insert_own"
-  ON shops FOR INSERT
-  WITH CHECK (
-    owner_id = auth.uid()
-  );
-
--- ── Admin: service_role bypasses all RLS (already default) ───
--- No change needed for service_role.
-
--- ── PROFILES table: owner can update their own profile ───────
+-- ── PROFILES table: user can read and update their own row ───
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profiles_select_own" ON profiles;

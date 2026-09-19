@@ -166,17 +166,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       } catch (_) {}
     }
 
-    if (shopId == null && userId != null) {
-      try {
-        final shopRes = await Supabase.instance.client
-            .from('shops')
-            .select('id')
-            .eq('owner_id', userId)
-            .maybeSingle();
-        shopId = shopRes?['id'] as String?;
-      } catch (_) {}
-    }
-
     if (shopId == null) {
       final shop = ref.read(currentShopProvider).value;
       shopId = shop?['id'] as String?;
