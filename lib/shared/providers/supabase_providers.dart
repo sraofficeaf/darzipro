@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'license_provider.dart';
@@ -97,11 +98,12 @@ final currentShopProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
     final data = await supabase
         .from('shops')
         .select(
-            'id, name, phone, address, owner_name, logo_url, currency, plan_code, subscription_status, billing_cycle_start, billing_cycle_end, trial_started_at, lifetime_access, lifetime_storage_limit_bytes, storage_used_bytes, storage_addon_active')
+            'id, name, phone, address, logo_url, currency, plan_code, subscription_status, billing_cycle_start, billing_cycle_end, trial_started_at, lifetime_access, lifetime_storage_limit_bytes, storage_used_bytes, storage_addon_active')
         .eq('id', shopId)
         .maybeSingle();
     return data;
-  } catch (_) {
+  } catch (e, st) {
+    debugPrint('Error fetching currentShop: $e\n$st');
     return null;
   }
 });

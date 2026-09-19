@@ -1774,9 +1774,9 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
 
     final profile = ref.watch(profileProvider);
     final shop = ref.watch(currentShopProvider).value;
-    final ownerName = (shop?['owner_name'] as String?)?.trim().isNotEmpty == true
-        ? shop!['owner_name'] as String
-        : (profile.value?['full_name'] as String? ?? 'Saifur Rahman');
+    final ownerName = (profile.value?['full_name'] as String?)?.trim().isNotEmpty == true
+        ? profile.value!['full_name'] as String
+        : (shop?['name'] as String? ?? 'Darzi Pro');
 
     return Container(
       decoration: BoxDecoration(

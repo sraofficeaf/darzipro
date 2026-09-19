@@ -318,7 +318,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final resolved = await _getResolvedShopAndUserId();
     final userId = resolved.userId;
-    final shopId = resolved.shopId;
 
     if (userId == null) {
       messenger.showSnackBar(
@@ -332,12 +331,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     try {
       await Supabase.instance.client.from('profiles').update({key: value}).eq('id', userId);
-
-      if (shopId != null && key == 'full_name') {
-        try {
-          await Supabase.instance.client.from('shops').update({'owner_name': value}).eq('id', shopId);
-        } catch (_) {}
-      }
 
       ref.invalidate(profileProvider);
       ref.invalidate(currentShopProvider);
@@ -608,7 +601,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                             'name': shopCtrl.text.trim(),
                                             'phone': phoneCtrl.text.trim(),
                                             'address': addressCtrl.text.trim(),
-                                            'owner_name': ownerCtrl.text.trim(),
                                           }).eq('id', sId);
 
                                           try {
@@ -842,7 +834,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final shop = shopAsync.valueOrNull;
     final shopName = shop?['name'] as String? ?? '';
-    final ownerName = profileAsync.valueOrNull?['full_name'] as String? ?? (shop?['owner_name'] as String? ?? '');
+    final ownerName = profileAsync.valueOrNull?['full_name'] as String? ?? '';
     final phoneNum = shop?['phone'] as String? ?? '';
     final addressVal = shop?['address'] as String? ?? '';
     final logoUrl = shop?['logo_url'] as String?;
