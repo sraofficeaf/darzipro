@@ -256,18 +256,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final resolved = await _getResolvedShopAndUserId();
     final shopId = resolved.shopId;
+
+    // Debug: log what we got
+    debugPrint('[ProfileUpdate] shopId=$shopId userId=${resolved.userId}');
+
     if (shopId == null) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(isUrdu ? '❌ ایرر: دکان کا اکاؤنٹ نہیں ملا!' : '❌ Error: Shop account not found!'),
+          content: Text(isUrdu ? '❌ ایرر: دکان کا اکاؤنٹ نہیں ملا!' : '❌ Error: Shop ID not found! Please logout and login again.'),
           backgroundColor: _ProfColors.rose,
+          duration: const Duration(seconds: 4),
         ),
       );
       return;
     }
 
     try {
-      await Supabase.instance.client.from('shops').update({key: value}).eq('id', shopId);
+      debugPrint('[ProfileUpdate] Updating shops.$key for shopId=$shopId');
+
+      // Use .select() so that RLS violations throw instead of silently 0-row updating
+      final result = await Supabase.instance.client
+          .from('shops')
+          .update({key: value})
+          .eq('id', shopId)
+          .select('id, $key')
+          .maybeSingle();
+
+      debugPrint('[ProfileUpdate] Update result: $result');
+
+      if (result == null) {
+        // 0 rows matched — either wrong shopId or RLS blocked update
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('❌ Update blocked! No rows matched (shopId=$shopId). Check RLS policy on shops table.'),
+            backgroundColor: _ProfColors.rose,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+        return;
+      }
 
       if (key == 'name') {
         try {
@@ -280,15 +307,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       messenger.showSnackBar(
         SnackBar(
-          content: Text(isUrdu ? '✅ معلومات محفوظ ہو گئیں!' : '✅ Field updated successfully!'),
+          content: Text(isUrdu ? '✅ معلومات محفوظ ہو گئیں!' : '✅ $key updated successfully!'),
           backgroundColor: _ProfColors.green,
         ),
       );
     } catch (e) {
+      debugPrint('[ProfileUpdate] ERROR: $e');
       messenger.showSnackBar(
         SnackBar(
           content: Text('❌ Save failed: $e'),
           backgroundColor: _ProfColors.rose,
+          duration: const Duration(seconds: 6),
         ),
       );
     }
