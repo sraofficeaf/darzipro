@@ -148,6 +148,89 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  // ──── Helper: Resolve Logo URL ────
+  String? _resolveLogoUrl(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final clean = raw.trim();
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      return clean;
+    }
+    return Supabase.instance.client.storage.from('shop-logos').getPublicUrl(clean);
+  }
+
+  // ──── Helper: Build Logo / Initials Avatar ────
+  Widget _buildAvatar({
+    required String? logoUrl,
+    required String shopName,
+    required double size,
+    required double radius,
+    double fontSize = 22,
+  }) {
+    final resolvedUrl = _resolveLogoUrl(logoUrl);
+    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1D222D),
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: const Color(0x80FFC65A), width: 2),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.network(
+          resolvedUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildInitialsFallback(shopName, size, radius, fontSize);
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              width: size,
+              height: size,
+              color: const Color(0xFF1D222D),
+              child: const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(_ProfColors.gold),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return _buildInitialsFallback(shopName, size, radius, fontSize);
+  }
+
+  Widget _buildInitialsFallback(String shopName, double size, double radius, double fontSize) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [_ProfColors.gold2, Color(0xFFD97706)]),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: const Color(0x80FFC65A), width: 2),
+      ),
+      child: Center(
+        child: Text(
+          _getInitials(shopName),
+          style: GoogleFonts.manrope(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
   // ──── Resilient Shop & User ID Resolver ────
   Future<({String? shopId, String? userId})> _getResolvedShopAndUserId() async {
     String? userId = ref.read(currentUserIdProvider) ?? Supabase.instance.client.auth.currentUser?.id;
@@ -201,11 +284,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final extension = picked.name.split('.').last.toLowerCase();
       final storagePath = '$shopId/logo_${DateTime.now().millisecondsSinceEpoch}.$extension';
 
+      debugPrint('[LogoUpload] Uploading $storagePath (${bytes.length} bytes)');
+
       final shop = ref.read(currentShopProvider).value;
       final oldLogo = shop?['logo_url'] as String?;
-      if (oldLogo != null && oldLogo.isNotEmpty && !oldLogo.startsWith('http')) {
+      if (oldLogo != null && oldLogo.isNotEmpty) {
         try {
-          await Supabase.instance.client.storage.from('shop-logos').remove([oldLogo]);
+          final oldPath = oldLogo.contains('shop-logos/')
+              ? oldLogo.split('shop-logos/').last.split('?').first
+              : oldLogo;
+          if (!oldPath.startsWith('http')) {
+            await Supabase.instance.client.storage.from('shop-logos').remove([oldPath]);
+          }
         } catch (_) {}
       }
 
@@ -215,7 +305,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         fileOptions: FileOptions(upsert: true, contentType: 'image/$extension'),
       );
 
-      await Supabase.instance.client.from('shops').update({'logo_url': storagePath}).eq('id', shopId);
+      final publicUrl = Supabase.instance.client.storage.from('shop-logos').getPublicUrl(storagePath);
+      debugPrint('[LogoUpload] Upload successful. Public URL: $publicUrl');
+
+      await Supabase.instance.client.from('shops').update({'logo_url': publicUrl}).eq('id', shopId);
 
       ref.invalidate(currentShopProvider);
       ref.invalidate(profileProvider);
@@ -227,10 +320,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       );
     } catch (e) {
+      debugPrint('[LogoUpload] Failed: $e');
+      final errStr = e.toString();
+      final isBucketNotFound = errStr.contains('Bucket not found') || errStr.contains('404');
       messenger.showSnackBar(
         SnackBar(
-          content: Text('❌ Upload failed: $e'),
+          content: Text(isBucketNotFound
+              ? (isUrdu
+                  ? '❌ ایرر: "shop-logos" سٹوریج بالٹی Supabase میں نہیں ملی! SQL رن کریں۔'
+                  : '❌ Storage bucket "shop-logos" not found! Please run the SQL migration in Supabase.')
+              : '❌ Upload failed: $e'),
           backgroundColor: _ProfColors.rose,
+          duration: const Duration(seconds: 6),
         ),
       );
     } finally {
@@ -1138,20 +1239,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFFD97706), Color(0xFFB45309)]),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0x66FFC65A), width: 2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            _getInitials(shopName),
-                            style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
-                          ),
-                        ),
+                      _buildAvatar(
+                        logoUrl: logoUrl,
+                        shopName: shopName,
+                        size: 64,
+                        radius: 20,
+                        fontSize: 22,
                       ),
                       Positioned(
                         bottom: 2,
@@ -1483,20 +1576,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_ProfColors.gold2, Color(0xFFD97706)]),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0x66FFC65A), width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    _getInitials(shopName),
-                    style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
-                  ),
-                ),
+              _buildAvatar(
+                logoUrl: logoUrl,
+                shopName: shopName,
+                size: 60,
+                radius: 18,
+                fontSize: 22,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1568,7 +1653,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }) {
     switch (_activeTab) {
       case 'shop':
-        return _buildShopTabView(isDark, shopName, ownerName, phoneNum, addressVal, cardFooter, settingsBox);
+        return _buildShopTabView(isDark, shopName, ownerName, phoneNum, addressVal, cardFooter, logoUrl, settingsBox);
       case 'templates':
         return _buildTemplatesTabView(isDark, templatesAsync);
       case 'settings':
@@ -1672,24 +1757,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 final avatarWidget = Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Container(
-                      width: isCompact ? 72 : 90,
-                      height: isCompact ? 72 : 90,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_ProfColors.gold2, Color(0xFFD97706)]),
-                        borderRadius: BorderRadius.circular(isCompact ? 20 : 24),
-                        border: Border.all(color: const Color(0x80FFC65A), width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _getInitials(shopName),
-                          style: GoogleFonts.manrope(
-                            fontSize: isCompact ? 26 : 32,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                    _buildAvatar(
+                      logoUrl: logoUrl,
+                      shopName: shopName,
+                      size: isCompact ? 72 : 90,
+                      radius: isCompact ? 20 : 24,
+                      fontSize: isCompact ? 26 : 32,
                     ),
                     Positioned(
                       bottom: 2,
@@ -2022,6 +2095,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     String phoneNum,
     String addressVal,
     String cardFooter,
+    String? logoUrl,
     Box settingsBox,
   ) {
     return Column(
@@ -2054,9 +2128,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _buildProfileRow('🏪', 'Shop Name', shopName, isDark, hint: 'e.g. Ahmed Tailors', onTap: () {
               _openFieldEdit('Shop Name', shopName, (val) => _updateShopField('name', val));
             }),
-            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, isLast: true, hint: 'e.g. Muhammad Ahmed', onTap: () {
+            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, hint: 'e.g. Muhammad Ahmed', onTap: () {
               _openFieldEdit('Owner Name', ownerName, (val) => _updateProfileField('full_name', val));
             }),
+            _buildProfileRow(
+              '🖼️',
+              'Shop Logo',
+              logoUrl != null && logoUrl.isNotEmpty ? 'Logo Uploaded · Tap to Change' : '',
+              isDark,
+              isLast: true,
+              hint: 'Tap to upload shop logo',
+              trailing: _isUploadingLogo
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : (logoUrl != null && logoUrl.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _resolveLogoUrl(logoUrl) ?? '',
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold)),
+                          ),
+                        )
+                      : const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold))),
+              onTap: _isUploadingLogo ? null : _pickAndUploadLogo,
+            ),
           ],
         ),
         const SizedBox(height: 16),
