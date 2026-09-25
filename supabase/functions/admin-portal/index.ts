@@ -14,8 +14,8 @@ serve(async (req: Request) => {
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-    const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
     // ── STEP 1: Verify caller has a real Supabase Auth session via JWT ─────
     const authHeader = req.headers.get('Authorization');
@@ -27,7 +27,7 @@ serve(async (req: Request) => {
     }
 
     const callerJwt = authHeader.replace('Bearer ', '');
-    const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
+    const callerClient = createClient(SUPABASE_URL, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${callerJwt}` } },
     });
 
@@ -40,7 +40,7 @@ serve(async (req: Request) => {
     }
 
     // ── STEP 2: Confirm caller exists in admin_users table ──────────────────
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const supabase = createClient(SUPABASE_URL, supabaseServiceRoleKey);
     const { data: adminUser, error: adminErr } = await supabase
       .from('admin_users')
       .select('id, email, role')

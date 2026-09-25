@@ -14,8 +14,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,7 +39,7 @@ serve(async (req: Request) => {
     const callerJwt = authHeader.replace("Bearer ", "");
 
     // Create a caller-scoped client to verify their identity via JWT
-    const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
+    const callerClient = createClient(SUPABASE_URL, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${callerJwt}` } },
     });
     const { data: { user: callerUser }, error: authError } = await callerClient.auth.getUser();
@@ -51,7 +51,7 @@ serve(async (req: Request) => {
 
     // ─── STEP 2: Confirm caller is in admin_users ──────────────────────────
     // Use service_role client for this check so RLS on admin_users doesn't block it
-    const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const adminClient = createClient(SUPABASE_URL, supabaseServiceRoleKey);
     const { data: adminRow, error: adminErr } = await adminClient
       .from("admin_users")
       .select("id, email, role")
