@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/build_info.dart';
 import '../../core/services/registration_service.dart';
 import '../../shared/widgets/pro_field.dart';
 
@@ -18,7 +21,7 @@ import '../../shared/widgets/pro_field.dart';
 const int _kTotalSteps = 4;
 
 const List<String> _kStepLabels = [
-  'Shop', 'Location', 'Account', 'Ready',
+  'Shop', 'Location', 'Account', 'Confirm',
 ];
 
 class RegistrationFlowScreen extends StatefulWidget {
@@ -48,6 +51,8 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
   bool _obscureConfirm = true;
   bool _isLoading      = false;
   String? _errorMessage;
+  bool _isResendingEmail = false;
+  String? _resendSuccessMsg;
 
   // Invite validation
   Timer? _debounce;
@@ -249,8 +254,8 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
         ),
       ),
       const SizedBox(height: 14),
-      ProField(controller: _shopNameCtrl, label: 'Shop Name', hint: 'e.g. Al-Madina Tailors', icon: Icons.storefront_rounded),
-      ProField(controller: _ownerNameCtrl, label: 'Owner Full Name', hint: 'e.g. Muhammad Aslam', icon: Icons.person_rounded),
+      ProField(controller: _shopNameCtrl, label: 'Shop Name', hint: 'Enter shop name', icon: Icons.storefront_rounded),
+      ProField(controller: _ownerNameCtrl, label: 'Owner Full Name', hint: 'Enter owner full name', icon: Icons.person_rounded),
       ProField(controller: _phoneCtrl, label: 'Phone / WhatsApp', hint: '03XX-XXXXXXX', icon: Icons.phone_rounded, keyboardType: TextInputType.phone),
       _errorRow(),
       _primaryButton('Continue to Location', false, _submitStep0),
@@ -263,7 +268,7 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
     children: [
       _stepHeader('Location & Invite Code', 'Where is your shop located?', text, sub),
       const SizedBox(height: 16),
-      ProField(controller: _cityCtrl, label: 'City', hint: 'e.g. Peshawar, Lahore, Karachi', icon: Icons.location_city_rounded),
+      ProField(controller: _cityCtrl, label: 'City', hint: 'Enter city', icon: Icons.location_city_rounded),
       ProField(
         controller: _addressCtrl,
         label: 'Shop Address',
@@ -359,62 +364,122 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
     ],
   );
 
-  // ── Step 3: Success — Instant Free Trial ──────────────────────────────────
-  Widget _buildStep3(bool isDark, Color text, Color sub) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Container(
-        width: 72,
-        height: 72,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(0xFF10B981).withValues(alpha: 0.14),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4), width: 2),
+  // ── Step 3: Check Email for Activation ────────────────────────────────────
+  Widget _buildStep3(bool isDark, Color text, Color sub) {
+    final email = _emailCtrl.text.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.accent.withValues(alpha: 0.14),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.accent.withValues(alpha: 0.4), width: 2),
+          ),
+          child: const Icon(Icons.mark_email_read_rounded, size: 36, color: AppColors.accent),
         ),
-        child: const Text('🎉', style: TextStyle(fontSize: 34)),
-      ),
-      const SizedBox(height: 16),
-      Text(
-        'Free Trial Activated!',
-        style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900, color: text),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 8),
-      Text(
-        'Welcome to Darzi Pro! Your shop has been created and your 14-day Free Trial is now active.',
-        style: GoogleFonts.inter(fontSize: 13, color: sub, height: 1.5),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 18),
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0x12FFFFFF) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isDark ? const Color(0x1EFFFFFF) : const Color(0xFFCBD5E1)),
+        const SizedBox(height: 16),
+        Text(
+          'Check Your Email',
+          style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900, color: text),
+          textAlign: TextAlign.center,
         ),
-        child: Column(
-          children: [
-            _summaryRow('Plan', 'Free Trial (14 Days)'),
-            const Divider(height: 14),
-            _summaryRow('Order Quota', '20 Orders'),
-            const Divider(height: 14),
-            _summaryRow('Initial Price', 'Rs 0 (Free)'),
-            const Divider(height: 14),
-            _summaryRow('Auto-Upgrade', 'Dual-Metric Enabled'),
-          ],
+        const SizedBox(height: 8),
+        Text(
+          'We have sent a confirmation link to:\n$email\n\nPlease check your inbox and click the link to activate your Free Trial account.',
+          style: GoogleFonts.inter(fontSize: 13, color: sub, height: 1.5),
+          textAlign: TextAlign.center,
         ),
-      ),
-      const SizedBox(height: 22),
-      _primaryButton('Enter Shop Dashboard 🚀', false, () => context.go('/dashboard')),
-      const SizedBox(height: 12),
-      TextButton(
-        onPressed: () => context.go('/login'),
-        child: Text('Go to Login Screen', style: GoogleFonts.inter(fontSize: 13, color: sub)),
-      ),
-    ],
-  );
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0x12FFFFFF) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: isDark ? const Color(0x1EFFFFFF) : const Color(0xFFCBD5E1)),
+          ),
+          child: Column(
+            children: [
+              _summaryRow('Shop Name', _shopNameCtrl.text.trim()),
+              const Divider(height: 14),
+              _summaryRow('Plan', 'Free Trial (14 Days)'),
+              const Divider(height: 14),
+              _summaryRow('Status', 'Pending Email Confirmation'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (_resendSuccessMsg != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              _resendSuccessMsg!,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: const Color(0xFF10B981),
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+        _primaryButton('Go to Login Screen', false, () => context.go('/login')),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: _isResendingEmail
+              ? null
+              : () async {
+                  setState(() {
+                    _isResendingEmail = true;
+                    _resendSuccessMsg = null;
+                  });
+                  try {
+                    await Supabase.instance.client.auth.resend(
+                      type: OtpType.signup,
+                      email: email,
+                      emailRedirectTo: kIsWeb
+                          ? 'https://darzipro.pk/#/login'
+                          : 'darzipro://login',
+                    );
+                    if (mounted) {
+                      setState(() {
+                        _isResendingEmail = false;
+                        _resendSuccessMsg = '✅ Confirmation email resent! Check your inbox.';
+                      });
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      setState(() {
+                        _isResendingEmail = false;
+                        _resendSuccessMsg = 'Failed to resend: $e';
+                      });
+                    }
+                  }
+                },
+          icon: _isResendingEmail
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh_rounded, size: 16),
+          label: Text(
+            _isResendingEmail ? 'Sending...' : 'Resend Confirmation Email',
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _summaryRow(String label, String value) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -680,6 +745,17 @@ class _RegistrationFlowScreenState extends State<RegistrationFlowScreen>
                               ],
                             ),
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        BuildInfo.fullBuildTag,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: sub.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ],

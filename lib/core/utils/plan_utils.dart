@@ -130,24 +130,6 @@ class AppPlanUtils {
     return subscriptionStatus != 'read_only';
   }
 
-  /// Returns storage quota in MB based on plan.
-  /// NOTE: Founding shops have a separate founding_storage_limit_bytes column
-  /// in the shops table (default 5 GB). This method returns a default in MB
-  /// for display purposes when the DB value is not yet available.
-  static int getStorageQuotaMb(String? plan) {
-    final p = (plan ?? '').toLowerCase().trim();
-    if (p == 'founding') {
-      return 5 * 1024; // 5 GB default — actual limit from DB
-    } else if (p == 'unlimited' || p == 'lifetime' || p.contains('3yr') || p.contains('full')) {
-      return 100;
-    } else if (p == 'standard') {
-      return 50;
-    } else if (p == 'basic') {
-      return 20;
-    }
-    return 10;
-  }
-
   /// True if this plan is a founding member plan.
   static bool isFounding(String? plan) =>
       (plan ?? '').toLowerCase().trim() == 'founding';

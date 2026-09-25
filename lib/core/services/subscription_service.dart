@@ -48,12 +48,15 @@ class SubscriptionService {
   }
 
   /// Hardcoded fallback used ONLY when offline / DB unreachable.
+  /// Storage allowances are never hardcoded here — single source of truth is subscription_plans in DB.
   static const List<Map<String, dynamic>> _fallbackPlans = [
     {
       'code': 'trial',
       'name_en': 'Free Trial',
       'name_ur': 'مفت ٹرائل',
       'price_pkr': 0,
+      'billing_period': 'free',
+      'price_note': null,
       'max_orders_per_month': 20,
       'max_active_customers': null,
       'trial_days': 14,
@@ -64,6 +67,8 @@ class SubscriptionService {
       'name_en': 'Basic',
       'name_ur': 'بیسک',
       'price_pkr': 500,
+      'billing_period': 'monthly',
+      'price_note': null,
       'max_orders_per_month': 150,
       'max_active_customers': 300,
       'trial_days': null,
@@ -74,6 +79,8 @@ class SubscriptionService {
       'name_en': 'Standard',
       'name_ur': 'سٹینڈرڈ',
       'price_pkr': 1500,
+      'billing_period': 'monthly',
+      'price_note': null,
       'max_orders_per_month': 500,
       'max_active_customers': 1000,
       'trial_days': null,
@@ -84,6 +91,8 @@ class SubscriptionService {
       'name_en': 'Unlimited',
       'name_ur': 'ان لمیٹڈ',
       'price_pkr': 2500,
+      'billing_period': 'monthly',
+      'price_note': null,
       'max_orders_per_month': null,
       'max_active_customers': null,
       'trial_days': null,
@@ -91,9 +100,11 @@ class SubscriptionService {
     },
     {
       'code': 'founding',
-      'name_en': '👑 Founding Member',
-      'name_ur': '👑 بانی ممبر',
-      'price_pkr': 0,
+      'name_en': 'Founding Member',
+      'name_ur': 'بانی ممبر',
+      'price_pkr': 35000,
+      'billing_period': 'one_time',
+      'price_note': null,
       'max_orders_per_month': null,
       'max_active_customers': null,
       'trial_days': null,
@@ -191,7 +202,7 @@ class SubscriptionService {
     }
   }
 
-  /// Submits a manual payment for admin review.
+  /// Submits a manual payment for admin review to unified_payments.
   Future<Map<String, dynamic>> submitPayment({
     required String shopId,
     required String planCode,
@@ -202,21 +213,29 @@ class SubscriptionService {
     String? usageCycleId,
   }) async {
     try {
+      final amountMinor = amountPkr * 100;
       final body = {
         'shop_id': shopId,
-        'plan_code': planCode,
-        'amount_pkr': amountPkr,
-        'payment_method': paymentMethod,
-        'status': 'pending_admin_review',
-        if (transactionId != null && transactionId.isNotEmpty)
-          'transaction_id': transactionId,
+        'provider_code': 'manual',
+        'purpose': 'subscriptionMonthly',
+        'amount_minor': amountMinor,
+        'currency': 'PKR',
+        'status': 'awaitingReview',
+        if (transactionId != null && transactionId.isNotEmpty) ...{
+          'manual_transaction_id': transactionId,
+          'provider_reference': transactionId,
+        },
         if (screenshotUrl != null && screenshotUrl.isNotEmpty)
-          'payment_screenshot_url': screenshotUrl,
+          'receipt_url': screenshotUrl,
         'usage_cycle_id': ?usageCycleId,
+        'metadata': {
+          'plan_code': planCode,
+          'payment_method': paymentMethod,
+        },
       };
 
       final res = await http.post(
-        _restUri('/subscription_payments'),
+        _restUri('/unified_payments'),
         headers: {
           ..._anonHeaders,
           'Prefer': 'return=representation',
@@ -234,6 +253,28 @@ class SubscriptionService {
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
+  }
+
+  /// Fetches price in minor units for a given plan and currency.
+  Future<int?> fetchPlanPriceMinor({
+    required String planCode,
+    required String currency,
+  }) async {
+    try {
+      final res = await _client
+          .from('plan_prices')
+          .select('amount_minor')
+          .eq('plan_code', planCode)
+          .eq('currency', currency.toUpperCase())
+          .maybeSingle();
+
+      if (res != null && res['amount_minor'] != null) {
+        return (res['amount_minor'] as num).toInt();
+      }
+    } catch (e) {
+      debugPrint('fetchPlanPriceMinor error: $e');
+    }
+    return null;
   }
 
   // ── DOWNGRADE REQUEST ─────────────────────────────────────────────────────
@@ -414,8 +455,7 @@ class SubscriptionService {
     return 0;
   }
 
-  /// Submits a founding activation payment for admin review.
-  /// Sets payment_type = 'founding_activation' so MRR reports exclude it.
+  /// Submits a founding activation payment for admin review in unified_payments.
   Future<Map<String, dynamic>> submitFoundingActivationPayment({
     required String shopId,
     required int activationFeePkr,
@@ -424,21 +464,28 @@ class SubscriptionService {
     String? screenshotUrl,
   }) async {
     try {
+      final amountMinor = activationFeePkr * 100;
       final body = {
         'shop_id': shopId,
-        'plan_code': 'founding',
-        'payment_type': 'founding_activation',
-        'amount_pkr': activationFeePkr,
-        'payment_method': paymentMethod,
-        'status': 'pending_admin_review',
-        if (transactionId != null && transactionId.isNotEmpty)
-          'transaction_id': transactionId,
+        'provider_code': 'manual',
+        'purpose': 'foundingActivation',
+        'amount_minor': amountMinor,
+        'currency': 'PKR',
+        'status': 'awaitingReview',
+        if (transactionId != null && transactionId.isNotEmpty) ...{
+          'manual_transaction_id': transactionId,
+          'provider_reference': transactionId,
+        },
         if (screenshotUrl != null && screenshotUrl.isNotEmpty)
-          'payment_screenshot_url': screenshotUrl,
+          'receipt_url': screenshotUrl,
+        'metadata': {
+          'plan_code': 'founding',
+          'payment_method': paymentMethod,
+        },
       };
 
       final res = await http.post(
-        _restUri('/subscription_payments'),
+        _restUri('/unified_payments'),
         headers: {
           ..._anonHeaders,
           'Prefer': 'return=representation',
@@ -451,7 +498,7 @@ class SubscriptionService {
       }
       return {
         'success': false,
-        'error': 'Server error \${res.statusCode}: \${res.body}',
+        'error': 'Server error ${res.statusCode}: ${res.body}',
       };
     } catch (e) {
       return {'success': false, 'error': e.toString()};

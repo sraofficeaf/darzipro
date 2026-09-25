@@ -259,7 +259,7 @@ class _EditCustomerModalState extends ConsumerState<EditCustomerModal> {
                   // Full Name
                   AppTextField(
                     label: 'Full Name (Required)',
-                    hint: 'e.g. Saifur Rahman',
+                    hint: 'Enter full name',
                     controller: _nameCtrl,
                     prefix: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
@@ -271,7 +271,7 @@ class _EditCustomerModalState extends ConsumerState<EditCustomerModal> {
                   // Phone Number
                   AppTextField(
                     label: 'Phone Number (Required)',
-                    hint: 'e.g. 0300 1234567',
+                    hint: '03XX-XXXXXXX',
                     controller: _phoneCtrl,
                     prefix: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
@@ -284,7 +284,7 @@ class _EditCustomerModalState extends ConsumerState<EditCustomerModal> {
                   // Address
                   AppTextField(
                     label: 'Address (Optional)',
-                    hint: 'e.g. Saddar, Peshawar',
+                    hint: 'Enter address',
                     controller: _addressCtrl,
                     prefix: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
@@ -296,7 +296,7 @@ class _EditCustomerModalState extends ConsumerState<EditCustomerModal> {
                   // WhatsApp
                   AppTextField(
                     label: 'WhatsApp (Optional)',
-                    hint: 'e.g. 0300 1234567',
+                    hint: '03XX-XXXXXXX',
                     controller: _whatsappCtrl,
                     prefix: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),

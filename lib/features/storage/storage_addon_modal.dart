@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/payments/payment_provider.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/admin_service.dart';
+import '../../core/utils/image_compressor.dart';
 import '../../shared/providers/supabase_providers.dart';
 
 class StorageAddonModal extends ConsumerStatefulWidget {
@@ -28,11 +31,12 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
   final _txnCtrl = TextEditingController();
   String _paymentMethod = 'Easypaisa';
   String _selectedAddonType = 'monthly'; // 'monthly' or 'annual'
-  int _selectedAmount = 1200;            // 1200 or 10000
+  int _selectedAmount = 250;             // 250 or 2500
   bool _monthlyActive = true;
   bool _annualActive = true;
-  int _monthlyPrice = 1200;
-  int _annualPrice = 10000;
+  int _monthlyPrice = 250;
+  int _annualPrice = 2500;
+  int _addonGb = 1;
   Uint8List? _screenshotBytes;
   bool _isLoading = false;
   String? _error;
@@ -50,8 +54,9 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
       setState(() {
         _monthlyActive = config['storage_monthly_active'] as bool? ?? true;
         _annualActive = config['storage_annual_active'] as bool? ?? true;
-        _monthlyPrice = int.tryParse(config['storage_monthly_price']?.toString() ?? '1200') ?? 1200;
-        _annualPrice = int.tryParse(config['storage_annual_price']?.toString() ?? '10000') ?? 10000;
+        _monthlyPrice = int.tryParse(config['storage_monthly_price']?.toString() ?? '250') ?? 250;
+        _annualPrice = int.tryParse(config['storage_annual_price']?.toString() ?? '2500') ?? 2500;
+        _addonGb = int.tryParse(config['storage_addon_gb']?.toString() ?? '1') ?? 1;
 
         if (!_monthlyActive && _annualActive) {
           _selectedAddonType = 'annual';
@@ -73,9 +78,15 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
   Future<void> _pickScreenshot() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null) return;
-    final bytes = await picked.readAsBytes();
+    final rawBytes = await picked.readAsBytes();
+    if (rawBytes.length > ImageCompressor.maxUploadSizeBytes) {
+      setState(() => _error = 'File too large. Maximum allowed size is 30 MB.');
+      return;
+    }
+    final compressed = await ImageCompressor.compressGarmentPhoto(rawBytes);
     setState(() {
-      _screenshotBytes = bytes;
+      _screenshotBytes = compressed.bytes;
+      _error = null;
     });
   }
 
@@ -221,7 +232,7 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
                 Expanded(
                   child: _buildTypeOption(
                     id: 'monthly',
-                    title: 'Monthly',
+                    title: 'Monthly (+$_addonGb GB)',
                     price: 'Rs ${_monthlyPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
                     subtitle: '/ month',
                     amount: _monthlyPrice,
@@ -237,7 +248,7 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
                 Expanded(
                   child: _buildTypeOption(
                     id: 'annual',
-                    title: 'Annual',
+                    title: 'Annual (+$_addonGb GB)',
                     price: 'Rs ${_annualPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
                     subtitle: '/ year',
                     badge: 'BEST VALUE',
@@ -252,6 +263,58 @@ class _StorageAddonModalState extends ConsumerState<StorageAddonModal> {
             ],
           ),
           const SizedBox(height: 16),
+
+          // Instant Online Checkout Option
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/subscription/pay', extra: {
+                  'purpose': _selectedAddonType == 'annual'
+                      ? PaymentPurpose.storageAnnual
+                      : PaymentPurpose.storageMonthly,
+                  'planData': {
+                    'code': _selectedAddonType == 'annual' ? 'storage_annual' : 'storage_monthly',
+                    'name_en': _selectedAddonType == 'annual'
+                        ? 'Storage Add-on (+$_addonGb GB Annual)'
+                        : 'Storage Add-on (+$_addonGb GB Monthly)',
+                    'price_pkr': _selectedAmount,
+                  },
+                  'extraData': {
+                    'addon_type': _selectedAddonType,
+                  },
+                });
+              },
+              icon: const Icon(Icons.flash_on_rounded, size: 18, color: Color(0xFF10CBA0)),
+              label: Text(
+                'Pay Online / Card (Instant Activation)',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13.5),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: textPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: teal.withValues(alpha: 0.6), width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  'OR MANUAL TRANSFER',
+                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: textSecondary),
+                ),
+              ),
+              const Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: 14),
 
           Container(
             padding: const EdgeInsets.all(14),

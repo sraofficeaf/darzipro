@@ -9,7 +9,11 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_enums.dart';
 import '../../core/config/supabase_config.dart';
 import '../../core/utils/share_helper.dart';
+import '../../core/utils/image_compressor.dart';
+import '../../core/services/storage_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/providers/app_providers.dart';
+import '../../shared/providers/supabase_providers.dart';
 import '../../shared/models/models.dart';
 import '../printing/pdf_builder.dart';
 import 'widgets/add_payment_modal.dart';
@@ -102,16 +106,83 @@ class OrderDetailScreen extends ConsumerWidget {
     if (source != null) {
       final picked = await picker.pickImage(source: source);
       if (picked != null) {
-        ref.read(ordersProvider.notifier).addOrderImage(orderId, picked.path);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('✅ Design reference image added!'),
-              backgroundColor: _OdColors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
+        if (!context.mounted) return;
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          final shopId = ref.read(currentShopIdProvider);
+          if (shopId == null) throw Exception('Shop ID not found');
+
+          final rawBytes = await picked.readAsBytes();
+
+          // 1. Upload Guard: 30 MB rejection
+          if (rawBytes.length > ImageCompressor.maxUploadSizeBytes) {
+            final sizeMb = (rawBytes.length / (1024 * 1024)).toStringAsFixed(1);
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('⚠️ File too large ($sizeMb MB). Maximum allowed size is 30 MB.'),
+                backgroundColor: Colors.red.shade700,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+
+          // 2. Client-side compression & resizing (1600px max edge, quality 80)
+          final compressed = await ImageCompressor.compressGarmentPhoto(rawBytes);
+
+          // 3. Storage quota check
+          final check = await StorageService.instance.checkCanUpload(shopId, compressed.compressedBytesLength);
+          if (check['canUpload'] != true) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(check['reason']?.toString() ?? 'Storage full'),
+                backgroundColor: Colors.red.shade700,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+
+          // 4. Upload ONLY compressed bytes
+          final filename = '$shopId/${orderId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          await Supabase.instance.client.storage
+              .from('design-images')
+              .uploadBinary(
+                filename,
+                compressed.bytes,
+                fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+              );
+
+          // 5. Increment storage_used_bytes by compressed size
+          await StorageService.instance.incrementStorageUsed(shopId, compressed.compressedBytesLength);
+          ref.invalidate(baseStorageLimitMbProvider);
+          ref.invalidate(shopStorageAllowanceProvider);
+
+          // 6. Record storage path on order
+          await ref.read(ordersProvider.notifier).addOrderImage(orderId, filename);
+
+          if (context.mounted) {
+            final kb = compressed.compressedKb.toStringAsFixed(1);
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('✅ Garment photo added ($kb KB)!'),
+                backgroundColor: _OdColors.green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+          }
+        } catch (e) {
+          debugPrint('Error uploading order image: $e');
+          if (context.mounted) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('⚠️ Failed to add image: $e'),
+                backgroundColor: Colors.red.shade700,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       }
     }
@@ -120,10 +191,19 @@ class OrderDetailScreen extends ConsumerWidget {
   Future<void> _shareWhatsApp(
     BuildContext context,
     OrderModel order,
-    CustomerModel? customer,
-  ) async {
+    CustomerModel? customer, {
+    WidgetRef? ref,
+  }) async {
     try {
-      final bytes = await DarziPdfBuilder.buildThermal(order, customer, isUrdu: false);
+      final shop = ref?.read(currentShopProvider).value;
+      final bytes = await DarziPdfBuilder.buildThermal(
+        order,
+        customer,
+        isUrdu: false,
+        shopName: shop?['name'] as String?,
+        shopPhone: shop?['phone'] as String?,
+        shopAddress: shop?['address'] as String?,
+      );
       final deliveryDateStr = order.deliveryDate != null
           ? DateFormat('dd MMM yyyy').format(order.deliveryDate!)
           : 'To be confirmed';
@@ -1243,7 +1323,7 @@ class OrderDetailScreen extends ConsumerWidget {
               // WhatsApp
               _buildActionButton(
                 label: '💬 WhatsApp',
-                onTap: () => _shareWhatsApp(context, order, customer),
+                onTap: () => _shareWhatsApp(context, order, customer, ref: ref),
                 color: _OdColors.wa,
                 bgColor: const Color(0x1F25D366),
                 isDark: isDark,

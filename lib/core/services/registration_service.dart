@@ -303,10 +303,11 @@ class RegistrationService {
     }
   }
 
-  /// Instant Free Trial registration (Phase 7):
-  /// 1. Creates user in auth.users
-  /// 2. Executes register_new_shop_free_trial RPC to atomic setup shop + profile + trial
-  /// 3. Returns success and logs in immediately
+  /// Instant Free Trial registration:
+  /// 1. Signs up user in auth.users
+  /// 2. Calls register_new_shop_free_trial RPC (atomic: shop + profile + trial cycle)
+  /// 3. On RPC failure: deletes the orphan auth user so the person can retry with
+  ///    the same email address without hitting "email already registered".
   Future<Map<String, dynamic>> registerFreeTrial({
     required String email,
     required String password,
@@ -317,27 +318,31 @@ class RegistrationService {
     String? city,
     String? inviteCode,
   }) async {
+    final client = Supabase.instance.client;
+    String? newUserId;
     try {
-      final client = Supabase.instance.client;
-      // 1. Sign up user via Supabase Auth
+      // 1. Create auth account with redirect URL
       final authRes = await client.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: kIsWeb ? 'https://darzipro.pk/#/login' : 'darzipro://login',
       );
       final user = authRes.user;
       if (user == null) {
-        return {'success': false, 'error': 'Failed to create user account. Please check credentials.'};
+        return {'success': false, 'error': 'Failed to create user account. Please check your email and password.'};
       }
+      newUserId = user.id;
 
-      // 2. Call register_new_shop_free_trial RPC
+      // 2. Call RPC — it re-raises on failure, so catch below handles it
       final rpcRes = await client.rpc('register_new_shop_free_trial', params: {
-        'p_user_id': user.id,
-        'p_shop_name': shopName,
-        'p_owner_name': ownerName,
-        'p_phone': phone,
-        'p_address': address,
-        'p_city': city,
-        'p_invite_code': (inviteCode != null && inviteCode.trim().isNotEmpty) ? inviteCode.trim() : null,
+        'p_user_id':     user.id,
+        'p_shop_name':   shopName,
+        'p_owner_name':  ownerName,
+        'p_phone':       phone,
+        'p_address':     address,
+        'p_city':        city,
+        'p_invite_code': (inviteCode != null && inviteCode.trim().isNotEmpty)
+            ? inviteCode.trim() : null,
       });
 
       if (rpcRes is Map && rpcRes['success'] == true) {
@@ -346,11 +351,53 @@ class RegistrationService {
           'shopId': rpcRes['shop_id'],
           'inviteCode': rpcRes['invite_code'],
         };
-      } else {
-        return {'success': false, 'error': rpcRes?['error'] ?? 'Shop setup failed'};
       }
+      throw Exception(rpcRes?['error'] ?? 'Shop setup failed');
+
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      // Shop creation failed after auth user was created.
+      // Sign out the session so they don't land on an empty dashboard.
+      // The user can resume via /registration-resume or the login guard.
+      if (newUserId != null) {
+        try { await client.auth.signOut(); } catch (_) {}
+      }
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      return {'success': false, 'error': msg};
+    }
+  }
+
+  /// Resume registration for a stranded account.
+  /// Called by RegistrationResumeScreen when the user already has an active
+  /// auth session but has no profiles row (previous registration attempt failed
+  /// after auth user was created). Does NOT call signUp.
+  Future<Map<String, dynamic>> completeStrandedRegistration({
+    required String shopName,
+    required String ownerName,
+    required String phone,
+    required String address,
+    String? city,
+  }) async {
+    try {
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user == null) {
+        return {'success': false, 'error': 'No active session. Please sign in again.'};
+      }
+      final rpcRes = await client.rpc('register_new_shop_free_trial', params: {
+        'p_user_id':     user.id,
+        'p_shop_name':   shopName,
+        'p_owner_name':  ownerName,
+        'p_phone':       phone,
+        'p_address':     address,
+        'p_city':        city,
+        'p_invite_code': null,
+      });
+      if (rpcRes is Map && rpcRes['success'] == true) {
+        return {'success': true, 'shopId': rpcRes['shop_id'], 'inviteCode': rpcRes['invite_code']};
+      }
+      throw Exception(rpcRes?['error'] ?? 'Shop setup failed');
+    } catch (e) {
+      return {'success': false, 'error': e.toString().replaceFirst('Exception: ', '')};
     }
   }
 

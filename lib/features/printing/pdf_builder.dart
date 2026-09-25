@@ -99,7 +99,8 @@ class DarziPdfBuilder {
 
   // â”€â”€ A4 LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static Future<List<int>> buildA4(
-      OrderModel order, CustomerModel? customer, {bool isUrdu = false}) async {
+      OrderModel order, CustomerModel? customer,
+      {bool isUrdu = false, String? shopName, String? shopPhone, String? shopAddress}) async {
     final arabicFont = await _loadUrduFont();
 
     final pdf = pw.Document(
@@ -119,7 +120,7 @@ class DarziPdfBuilder {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              _buildA4Header(order, isUrdu),
+              _buildA4Header(order, isUrdu, shopName: shopName, shopPhone: shopPhone, shopAddress: shopAddress),
               _goldStripe(),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(28),
@@ -138,7 +139,7 @@ class DarziPdfBuilder {
                       _buildNotesBox(order.notes!, isUrdu),
                     ],
                     pw.SizedBox(height: 28),
-                    _buildA4Footer(order, isUrdu),
+                    _buildA4Footer(order, isUrdu, shopName: shopName),
                   ],
                 ),
               ),
@@ -153,7 +154,8 @@ class DarziPdfBuilder {
 
   // â”€â”€ THERMAL 80MM LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static Future<List<int>> buildThermal(
-      OrderModel order, CustomerModel? customer, {bool isUrdu = false}) async {
+      OrderModel order, CustomerModel? customer,
+      {bool isUrdu = false, String? shopName, String? shopPhone, String? shopAddress}) async {
     final arabicFont = await _loadUrduFont();
 
     final pdf = pw.Document(
@@ -168,6 +170,15 @@ class DarziPdfBuilder {
     final format = PdfPageFormat(80 * PdfPageFormat.mm, double.infinity,
         marginAll: 4 * PdfPageFormat.mm);
 
+    final displayShopName = (shopName != null && shopName.trim().isNotEmpty)
+        ? shopName.trim()
+        : 'Darzi Pro';
+    final contactParts = [
+      if (shopAddress != null && shopAddress.trim().isNotEmpty) shopAddress.trim(),
+      if (shopPhone != null && shopPhone.trim().isNotEmpty) shopPhone.trim(),
+    ];
+    final contactStr = contactParts.join(' · ');
+
     pdf.addPage(
       pw.Page(
         pageFormat: format,
@@ -181,14 +192,15 @@ class DarziPdfBuilder {
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      isUrdu ? 'Ø³ÛŒÙ Ø§Ù„Ø±Ø­Ù…Ù† Ù¹ÛŒÙ„Ø±Ø²' : 'SAIFURRAHMAN TAILORS',
+                      isUrdu ? _ur(displayShopName) : displayShopName.toUpperCase(),
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 11),
                     ),
-                    pw.Text(
-                      isUrdu ? 'ØµØ¯Ø±ØŒ Ù¾Ø´Ø§ÙˆØ± Â· 0300-1234567' : 'Saddar, Peshawar Â· 0300-1234567',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
+                    if (contactStr.isNotEmpty)
+                      pw.Text(
+                        isUrdu ? _ur(contactStr) : contactStr,
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
                   ],
                 ),
               ),
@@ -326,7 +338,17 @@ class DarziPdfBuilder {
 
   // â”€â”€ A4 WIDGET BUILDERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  static pw.Widget _buildA4Header(OrderModel order, bool isUrdu) {
+  static pw.Widget _buildA4Header(OrderModel order, bool isUrdu,
+      {String? shopName, String? shopPhone, String? shopAddress}) {
+    final displayShopName = (shopName != null && shopName.trim().isNotEmpty)
+        ? shopName.trim()
+        : 'Darzi Pro';
+    final contactParts = [
+      if (shopAddress != null && shopAddress.trim().isNotEmpty) shopAddress.trim(),
+      if (shopPhone != null && shopPhone.trim().isNotEmpty) shopPhone.trim(),
+    ];
+    final contactStr = contactParts.join(' · ');
+
     return pw.Container(
       decoration: const pw.BoxDecoration(
         gradient: pw.LinearGradient(
@@ -351,11 +373,16 @@ class DarziPdfBuilder {
                   borderRadius: pw.BorderRadius.circular(10),
                 ),
                 child: pw.Center(
-                  child: pw.Text('DP',
-                      style: pw.TextStyle(
-                          color: _dark,
-                          fontWeight: pw.FontWeight.bold,
-                          fontSize: 18)),
+                  child: pw.Text(
+                    displayShopName.isNotEmpty
+                        ? displayShopName[0].toUpperCase()
+                        : 'D',
+                    style: pw.TextStyle(
+                      color: _dark,
+                      fontSize: 22,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
               pw.SizedBox(width: 12),
@@ -363,16 +390,17 @@ class DarziPdfBuilder {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    isUrdu ? 'Ø³ÛŒÙ Ø§Ù„Ø±Ø­Ù…Ù† Ù¹ÛŒÙ„Ø±Ø²' : 'SaifurRahman Tailors',
+                    isUrdu ? _ur(displayShopName) : displayShopName,
                     style: pw.TextStyle(
                         color: _white,
                         fontWeight: pw.FontWeight.bold,
                         fontSize: 16),
                   ),
-                  pw.Text(
-                    isUrdu ? 'ØµØ¯Ø±ØŒ Ù¾Ø´Ø§ÙˆØ± Â· 0300-1234567' : 'Saddar, Peshawar Â· 0300-1234567',
-                    style: pw.TextStyle(color: _gold, fontSize: 10),
-                  ),
+                  if (contactStr.isNotEmpty)
+                    pw.Text(
+                      isUrdu ? _ur(contactStr) : contactStr,
+                      style: pw.TextStyle(color: _gold, fontSize: 10),
+                    ),
                 ],
               ),
             ],
@@ -709,7 +737,8 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildA4Footer(OrderModel order, bool isUrdu) {
+  static pw.Widget _buildA4Footer(OrderModel order, bool isUrdu, {String? shopName}) {
+    final footerShop = (shopName != null && shopName.trim().isNotEmpty) ? shopName.trim() : null;
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
@@ -717,11 +746,13 @@ class DarziPdfBuilder {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              isUrdu ? 'Ø¯Ø±Ø²ÛŒ Ù¾Ø±Ùˆ Ú©Û’ Ø°Ø±ÛŒØ¹Û’ ØªÛŒØ§Ø± Ú©Ø±Ø¯Û' : 'Generated by Darzi Pro',
+              isUrdu ? 'درزی پرو کے ذریعے تیار کردہ' : 'Generated by Darzi Pro',
               style: pw.TextStyle(color: _grey, fontSize: 8),
             ),
             pw.Text(
-              'SaifurRahman Tailors Â· ${formatDateShort(DateTime.now())}',
+              footerShop != null
+                  ? '$footerShop · ${formatDateShort(DateTime.now())}'
+                  : formatDateShort(DateTime.now()),
               style: pw.TextStyle(color: _grey, fontSize: 8),
             ),
           ],
@@ -780,7 +811,8 @@ class DarziPdfBuilder {
   }
 
   static Future<List<int>> buildTraditionalNaapCard(
-      OrderModel? order, CustomerModel? customer, MeasurementModel? measurement) async {
+      OrderModel? order, CustomerModel? customer, MeasurementModel? measurement,
+      {String? shopName, String? shopPhone, String? shopAddress}) async {
     final urduFont = await _loadUrduFont();
 
     final Map<String, String> measurements = {};
@@ -810,7 +842,7 @@ class DarziPdfBuilder {
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
                 // 1. Header
-                _buildNewHeader(order, customer, urduFont),
+                _buildNewHeader(order, customer, urduFont, shopName: shopName, shopPhone: shopPhone, shopAddress: shopAddress),
                 // Gold divider
                 pw.Container(
                   height: 2,
@@ -856,7 +888,7 @@ class DarziPdfBuilder {
                 pw.SizedBox(height: 8),
 
                 // 5. Footer
-                _buildNewFooter(urduFont),
+                _buildNewFooter(urduFont, shopPhone: shopPhone, shopAddress: shopAddress),
               ],
             ),
           );
@@ -893,7 +925,9 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildNewHeader(OrderModel? order, CustomerModel? customer, pw.Font urduFont) {
+  static pw.Widget _buildNewHeader(OrderModel? order, CustomerModel? customer, pw.Font urduFont,
+      {String? shopName, String? shopPhone, String? shopAddress}) {
+    final displayShopName = (shopName != null && shopName.trim().isNotEmpty) ? shopName.trim() : 'Darzi Pro';
     return pw.Container(
       height: 56,
       decoration: const pw.BoxDecoration(
@@ -944,7 +978,7 @@ class DarziPdfBuilder {
             ),
           ),
 
-          // Col 2 â€” Shop name + address centred
+          // Col 2 — Shop name + address centred
           pw.Expanded(
             child: pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -952,7 +986,7 @@ class DarziPdfBuilder {
                 mainAxisAlignment: pw.MainAxisAlignment.center,
                 children: [
                   pw.Text(
-                    'SaifurRahman Tailors',
+                    displayShopName,
                     style: pw.TextStyle(
                       fontSize: 16,
                       fontWeight: pw.FontWeight.bold,
@@ -960,15 +994,20 @@ class DarziPdfBuilder {
                     ),
                     textAlign: pw.TextAlign.center,
                   ),
-                  pw.SizedBox(height: 4),
-                  pw.Text(
-                    'Saddar, Peshawar  |  0300-1234567',
-                    style: const pw.TextStyle(
-                      fontSize: 7,
-                      color: PdfColors.grey600,
+                  if ((shopAddress != null && shopAddress.trim().isNotEmpty) || (shopPhone != null && shopPhone.trim().isNotEmpty)) ...[
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      [
+                        if (shopAddress != null && shopAddress.trim().isNotEmpty) shopAddress.trim(),
+                        if (shopPhone != null && shopPhone.trim().isNotEmpty) shopPhone.trim(),
+                      ].join('  |  '),
+                      style: const pw.TextStyle(
+                        fontSize: 7,
+                        color: PdfColors.grey600,
+                      ),
+                      textAlign: pw.TextAlign.center,
                     ),
-                    textAlign: pw.TextAlign.center,
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -1618,7 +1657,12 @@ class DarziPdfBuilder {
     );
   }
 
-  static pw.Widget _buildNewFooter(pw.Font urduFont) {
+  static pw.Widget _buildNewFooter(pw.Font urduFont, {String? shopPhone, String? shopAddress}) {
+    final contactParts = [
+      if (shopAddress != null && shopAddress.trim().isNotEmpty) shopAddress.trim(),
+      if (shopPhone != null && shopPhone.trim().isNotEmpty) shopPhone.trim(),
+    ];
+    final contactStr = contactParts.join(' · ');
     return pw.Column(
       mainAxisSize: pw.MainAxisSize.min,
       children: [
@@ -1637,7 +1681,7 @@ class DarziPdfBuilder {
             pw.Directionality(
               textDirection: pw.TextDirection.rtl,
               child: pw.Text(
-                _ur('Ø´Ú©Ø±ÛŒÛ! Ø¯ÙˆØ¨Ø§Ø±Û ØªØ´Ø±ÛŒÙ Ù„Ø§Ø¦ÛŒÚº'),
+                _ur('شکریہ! دوبارہ تشریف لائیں'),
                 style: pw.TextStyle(
                   font: urduFont,
                   fontSize: 8,
@@ -1646,10 +1690,13 @@ class DarziPdfBuilder {
                 ),
               ),
             ),
-            pw.Text(
-              'Saddar, Peshawar · 0300-1234567',
-              style: pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600),
-            ),
+            if (contactStr.isNotEmpty)
+              pw.Text(
+                contactStr,
+                style: pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600),
+              )
+            else
+              pw.SizedBox(),
           ],
         ),
       ],

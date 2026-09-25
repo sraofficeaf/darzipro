@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,15 +8,16 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
+import '../../shared/providers/subscription_provider.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeIn;
@@ -62,19 +64,52 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  void _navigateToNext() {
+  Future<void> _navigateToNext() async {
     if (_navigated) return;
     _navigated = true;
     try {
       final session = Supabase.instance.client.auth.currentSession;
-      if (session != null) {
-        context.go('/dashboard');
-      } else {
-        context.go('/login');
+      if (session == null) {
+        if (mounted) context.go('/login');
+        return;
       }
+
+      // Session exists — check whether this user has a profiles row.
+      // A missing profile means a previous registration created the auth account
+      // but the shop setup RPC failed. Send them to the resume screen instead
+      // of an empty dashboard.
+      try {
+        final resumeRes = await Supabase.instance.client
+            .rpc('get_registration_resume');
+        if (resumeRes is Map && resumeRes['needs_resume'] == true) {
+          final email = resumeRes['email'] as String? ?? '';
+          if (mounted) context.go('/registration-resume?email=${Uri.encodeComponent(email)}');
+          return;
+        }
+      } catch (_) {
+        // If the RPC itself fails, fall through to /dashboard rather than
+        // blocking login — the user may already have a valid profile.
+      }
+
+      // Prefetch subscription state from server before mounting dashboard
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('shop_id')
+            .eq('id', session.user.id)
+            .maybeSingle();
+        final shopId = profile?['shop_id'] as String?;
+        if (shopId != null && shopId.isNotEmpty) {
+          await ref
+              .read(subscriptionStateProvider.notifier)
+              .fetchForShop(shopId, forceRefresh: true);
+        }
+      } catch (_) {}
+
+      if (mounted) context.go('/dashboard');
     } catch (e) {
-      debugPrint('Splash authentication check error: $e');
-      context.go('/login');
+      debugPrint('Splash navigation error: $e');
+      if (mounted) context.go('/login');
     }
   }
 

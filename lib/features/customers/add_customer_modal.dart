@@ -291,7 +291,7 @@ class _AddCustomerModalState extends ConsumerState<AddCustomerModal> {
             AppTextField(
               label: 'Full Name',
               controller: _nameCtrl,
-              hint: 'e.g. Saifur Rahman',
+              hint: 'Enter customer name',
               prefix: const Icon(Icons.person_rounded, size: 16, color: Color(0xFF2D4060)),
             ),
             if (_nameError != null)
@@ -303,7 +303,7 @@ class _AddCustomerModalState extends ConsumerState<AddCustomerModal> {
             AppTextField(
               label: 'Phone Number',
               controller: _phoneCtrl,
-              hint: '0300-1234567',
+              hint: '03XX-XXXXXXX',
               keyboardType: TextInputType.phone,
               prefix: const Icon(Icons.phone_rounded, size: 16, color: Color(0xFF2D4060)),
             ),
@@ -316,7 +316,7 @@ class _AddCustomerModalState extends ConsumerState<AddCustomerModal> {
             AppTextField(
               label: 'Address (Optional)',
               controller: _addressCtrl,
-              hint: 'Saddar, Peshawar',
+              hint: 'Enter address',
               prefix: const Icon(Icons.location_on_rounded, size: 16, color: Color(0xFF2D4060)),
             ),
             const SizedBox(height: 10),

@@ -9,80 +9,62 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_enums.dart';
-import '../../core/router/app_router.dart';
+import '../../core/theme/theme_extensions.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
-import '../orders/new_order_modal.dart';
 import 'add_customer_modal.dart';
+import 'edit_customer_modal.dart';
 
-// ── COLOR SYSTEM & TOKENS (MATCHING HTML MOCKUP) ─────────────────────────────
-class _ClientColors {
-  static const ink = Color(0xFF111827);
-  static const muted = Color(0xFF7B8494);
-  static const faint = Color(0xFFAAB2BF);
-  static const line = Color(0xFFE8EAF0);
-  static const paper = Color(0xFFF5F6F8);
-  static const dark = Color(0xFF151922);
-  static const darkCard = Color(0xFF181D27);
-  static const darkSurface = Color(0xFF1D222D);
-  static const darkLine = Color(0xFF333946);
+// ── COLOR SYSTEM & DESIGN TOKENS (EXACT MATCH WITH USER MOCKUP) ──────────────
+class _Colors {
+  _Colors._();
 
-  static const gold = Color(0xFFE9A227);
-  static const gold2 = Color(0xFFFFC65A);
-  static const goldBg = Color(0xFFFFF6E5);
-  static const goldLine = Color(0xFFF3DDA8);
+  static const Color darkBanner = Color(0xFF111726);
+  static const Color gold = Color(0xFFE9A227);
+  static const Color goldLight = Color(0xFFFFC65A);
 
-  static const green = Color(0xFF18B887);
-  static const greenBg = Color(0xFFEAFBF5);
+  static const Color cardBg = Colors.white;
+  static const Color cardBgDark = Color(0xFF111726);
+  static const Color borderLight = Color(0xFFE8ECF2);
+  static const Color borderDark = Color(0xFF1F293D);
 
-  static const rose = Color(0xFFEF5261);
+  static const Color ink = Color(0xFF0F172A);
+  static const Color muted = Color(0xFF64748B);
+  static const Color faint = Color(0xFF94A3B8);
 
-  static const blue = Color(0xFF5478E8);
-  static const blueBg = Color(0xFFEEF2FF);
+  // Soft KPI accents
+  static const Color blueBg = Color(0xFFEFF6FF);
+  static const Color blue = Color(0xFF2563EB);
 
-  static const violet = Color(0xFF8764E8);
+  static const Color cyanBg = Color(0xFFECFEFF);
+  static const Color cyan = Color(0xFF0891B2);
 
-  static const whatsapp = Color(0xFF25D366);
+  static const Color pinkBg = Color(0xFFFDF2F8);
+  static const Color pink = Color(0xFFDB2777);
+
+  static const Color greenBg = Color(0xFFF0FDF4);
+  static const Color green = Color(0xFF16A34A);
+
+  // Initials Avatar deterministic color palette
+  static const List<Color> avatarColors = [
+    Color(0xFFE9A227), // Gold/Amber (e.g. AK)
+    Color(0xFF8B5CF6), // Purple (e.g. SB)
+    Color(0xFF0D9488), // Teal (e.g. MR)
+    Color(0xFFEC4899), // Pink (e.g. ZF)
+    Color(0xFF6366F1), // Indigo (e.g. AS)
+    Color(0xFF3B82F6), // Blue
+    Color(0xFF10B981), // Emerald
+  ];
 }
 
-// ── TYPOGRAPHY STYLES (CACHED FOR ZERO RUNTIME ALLOCATIONS) ───────────────────
-class _ClientStyles {
-  static final heroTitle = GoogleFonts.manrope(
-    fontSize: 21,
-    fontWeight: FontWeight.w800,
-    color: Colors.white,
-    letterSpacing: -0.6,
-  );
-  static final heroSubtitle = GoogleFonts.dmSans(
-    fontSize: 12,
-    color: const Color(0xFFAEB5C2),
-  );
-  static final sectionTitle = GoogleFonts.manrope(
-    fontSize: 22,
-    fontWeight: FontWeight.w800,
-    color: _ClientColors.ink,
-    letterSpacing: -0.7,
-  );
-  static final sectionSubtitle = GoogleFonts.dmSans(
-    fontSize: 11.5,
-    color: _ClientColors.muted,
-  );
-  static final cardTag = GoogleFonts.dmSans(
-    fontSize: 9.5,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 0.6,
-    color: _ClientColors.muted,
-  );
-}
-
-// ── FAST IN-MEMORY STATS COMPUTATION ──────────────────────────────────────────
+// ── FAST IN-MEMORY STATS COMPUTATION (Zero runtime allocations during frame) ──
 class _CustomerStats {
   final int total;
   final int active;
   final int men;
   final int women;
   final int child;
-  final int newThisWeek;
+  final int newThisMonth;
 
   const _CustomerStats({
     required this.total,
@@ -90,7 +72,7 @@ class _CustomerStats {
     required this.men,
     required this.women,
     required this.child,
-    required this.newThisWeek,
+    required this.newThisMonth,
   });
 
   factory _CustomerStats.fromList(List<CustomerModel> list) {
@@ -99,7 +81,7 @@ class _CustomerStats {
     int men = 0;
     int women = 0;
     int child = 0;
-    int newThisWeek = 0;
+    int newThisMonth = 0;
     final now = DateTime.now();
 
     for (final c in list) {
@@ -111,7 +93,7 @@ class _CustomerStats {
       } else if (c.gender == CustomerGender.child) {
         child++;
       }
-      if (now.difference(c.createdAt).inDays <= 7) newThisWeek++;
+      if (now.difference(c.createdAt).inDays <= 30) newThisMonth++;
     }
 
     return _CustomerStats(
@@ -120,9 +102,16 @@ class _CustomerStats {
       men: men,
       women: women,
       child: child,
-      newThisWeek: newThisWeek,
+      newThisMonth: newThisMonth,
     );
   }
+}
+
+enum _ClientSortBy {
+  newest,
+  oldest,
+  nameAsc,
+  mostOrders,
 }
 
 // ── CUSTOMERS SCREEN ─────────────────────────────────────────────────────────
@@ -138,10 +127,19 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounceTimer;
 
+  // View state
+  bool _isGridView = false;
+  String _statusFilter = 'all'; // 'all', 'active', 'inactive'
+  CustomerGender? _selectedGender;
+  _ClientSortBy _sortBy = _ClientSortBy.newest;
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
-    _searchController.text = ref.read(customerSearchProvider);
+    _searchQuery = ref.read(customerSearchProvider);
+    _searchController.text = _searchQuery;
+    _selectedGender = ref.read(customerGenderFilterProvider);
   }
 
   @override
@@ -156,20 +154,82 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 250), () {
       if (mounted) {
+        setState(() => _searchQuery = val);
         ref.read(customerSearchProvider.notifier).state = val;
       }
     });
   }
 
-  void _clearSearch() {
+  void _clearFilters() {
     _debounceTimer?.cancel();
     _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _statusFilter = 'all';
+      _selectedGender = null;
+      _sortBy = _ClientSortBy.newest;
+    });
     ref.read(customerSearchProvider.notifier).state = '';
+    ref.read(customerGenderFilterProvider.notifier).state = null;
   }
 
-  void _onFilterChanged(CustomerGender? gender) {
-    final current = ref.read(customerGenderFilterProvider);
-    ref.read(customerGenderFilterProvider.notifier).state = current == gender ? null : gender;
+  List<CustomerModel> _filterAndSort(List<CustomerModel> list) {
+    var result = List<CustomerModel>.from(list);
+
+    // Search query
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      result = result.where((c) {
+        return c.name.toLowerCase().contains(q) ||
+            c.phone.toLowerCase().contains(q) ||
+            c.address.toLowerCase().contains(q);
+      }).toList();
+    }
+
+    // Gender filter
+    if (_selectedGender != null) {
+      result = result.where((c) => c.gender == _selectedGender).toList();
+    }
+
+    // Status filter
+    if (_statusFilter == 'active') {
+      result = result.where((c) => c.totalOrders > 0).toList();
+    } else if (_statusFilter == 'inactive') {
+      result = result.where((c) => c.totalOrders == 0).toList();
+    }
+
+    // Sorting
+    switch (_sortBy) {
+      case _ClientSortBy.newest:
+        result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case _ClientSortBy.oldest:
+        result.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case _ClientSortBy.nameAsc:
+        result.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+      case _ClientSortBy.mostOrders:
+        result.sort((a, b) => b.totalOrders.compareTo(a.totalOrders));
+        break;
+    }
+
+    return result;
+  }
+
+  Color _getAvatarColor(String name) {
+    if (name.isEmpty) return _Colors.avatarColors[0];
+    final hash = name.codeUnits.fold<int>(0, (prev, elem) => prev + elem);
+    return _Colors.avatarColors[hash % _Colors.avatarColors.length];
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts[0].isEmpty) return 'C';
+    if (parts.length == 1) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 
   Future<void> _exportClientsCSV(List<CustomerModel> list) async {
@@ -210,30 +270,37 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   @override
   Widget build(BuildContext context) {
     final allCustomersAsync = ref.watch(customersProvider);
-    final filteredAsync = ref.watch(filteredCustomersProvider);
-    final genderFilter = ref.watch(customerGenderFilterProvider);
-
+    final isDark = context.isDark;
     final allCustomers = allCustomersAsync.valueOrNull ?? const [];
     final stats = _CustomerStats.fromList(allCustomers);
+    final filteredClients = _filterAndSort(allCustomers);
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth >= 850;
+    final isDesktop = screenWidth >= 900;
+    final bg = isDark ? const Color(0xFF090D16) : const Color(0xFFF4F6F9);
 
     return Scaffold(
-      backgroundColor: _ClientColors.paper,
+      backgroundColor: bg,
       body: SafeArea(
         child: Column(
           children: [
-            // Top Hero Header matching HTML
+            // Top Hero Banner with Mannequin Tailor Motif
             RepaintBoundary(
-              child: _buildHeroHeader(stats, allCustomers, isDesktop),
+              child: _buildHeroBanner(isDesktop, isDark, allCustomers),
             ),
 
-            // Main Body: Responsive Desktop vs Mobile
+            // 4 KPI Cards (Total Clients, Men, Women, Children)
+            RepaintBoundary(
+              child: _buildKpiRow(stats, isDesktop, isDark),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Main Body: Desktop 2-Column (Filters + Directory) vs Mobile Stacked
             Expanded(
               child: isDesktop
-                  ? _buildDesktopLayout(stats, filteredAsync, genderFilter, allCustomers)
-                  : _buildMobileLayout(stats, filteredAsync, genderFilter, allCustomers),
+                  ? _buildDesktopMainLayout(filteredClients, isDark)
+                  : _buildMobileMainLayout(filteredClients, isDark),
             ),
           ],
         ),
@@ -241,251 +308,173 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     );
   }
 
-  // ── HERO HEADER (MATCHING HTML: DARK ROUNDED BANNER + GOLD BRAND MARK) ──────
-  Widget _buildHeroHeader(_CustomerStats stats, List<CustomerModel> allCustomers, bool isDesktop) {
+  // ── 1. HERO BANNER (MATCHING USER SCREENSHOT EXACTLY) ───────────────────────
+  Widget _buildHeroBanner(bool isDesktop, bool isDark, List<CustomerModel> allCustomers) {
     return Container(
-      margin: EdgeInsets.fromLTRB(isDesktop ? 16 : 10, isDesktop ? 16 : 6, isDesktop ? 16 : 10, isDesktop ? 12 : 8),
-      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 22 : 10, vertical: isDesktop ? 16 : 10),
+      margin: EdgeInsets.fromLTRB(
+        isDesktop ? 20 : 12,
+        isDesktop ? 16 : 8,
+        isDesktop ? 20 : 12,
+        12,
+      ),
+      height: isDesktop ? 96 : 82,
       decoration: BoxDecoration(
-        color: _ClientColors.dark,
-        borderRadius: BorderRadius.circular(isDesktop ? 24 : 16),
+        color: _Colors.darkBanner,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x28151922),
-            blurRadius: 30,
-            offset: Offset(0, 14),
+            color: Color(0x1A000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
           ),
         ],
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          // Brand Mark: Gold Gradient 'D' (Only on desktop to save mobile width)
-          if (isDesktop) ...[
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_ClientColors.gold2, _ClientColors.gold],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Center(
-                child: Text(
-                  'D',
-                  style: TextStyle(
-                    fontFamily: 'Manrope',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF241605),
+          // Background subtle tailor mannequin/gold curve gradient
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: isDesktop ? 360 : 180,
+            child: IgnorePointer(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Color(0x1AE9A227),
+                      Color(0x38E9A227),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 13),
-          ],
-
-          // Title & Subtitle
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Clients', style: _ClientStyles.heroTitle.copyWith(fontSize: isDesktop ? 21 : 16)),
-                if (isDesktop) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    'Manage your shop customers · اپنے گاہکوں کا انتظام',
-                    style: _ClientStyles.heroSubtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
           ),
 
-          const SizedBox(width: 6),
-
-          // Action Buttons: Search, Export, Add Client
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildHeroButton(
-                icon: Icons.search_rounded,
-                label: 'Search',
-                isPrimary: false,
-                isDesktop: isDesktop,
-                onTap: () => _searchFocusNode.requestFocus(),
-              ),
-              SizedBox(width: isDesktop ? 8 : 5),
-              _buildHeroButton(
-                icon: Icons.download_rounded,
-                label: 'Export',
-                isPrimary: false,
-                isDesktop: isDesktop,
-                onTap: () => _exportClientsCSV(allCustomers),
-              ),
-              SizedBox(width: isDesktop ? 8 : 5),
-              _buildHeroButton(
-                icon: Icons.add_rounded,
-                label: 'Add Client',
-                isPrimary: true,
-                isDesktop: isDesktop,
-                onTap: () => AddCustomerModal.show(context),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeroButton({
-    required IconData icon,
-    required String label,
-    required bool isPrimary,
-    required bool isDesktop,
-    required VoidCallback? onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          height: isDesktop ? 38 : 34,
-          width: isDesktop ? null : 34,
-          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 13 : 0),
-          decoration: BoxDecoration(
-            color: isPrimary ? _ClientColors.gold : _ClientColors.darkSurface,
-            border: Border.all(
-              color: isPrimary ? _ClientColors.gold : _ClientColors.darkLine,
-            ),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
+          // Content Row
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isDesktop ? 20 : 12),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: isDesktop ? 15 : 16,
-                  color: isPrimary ? const Color(0xFF211500) : const Color(0xFFE9ECF2),
-                ),
-                if (isDesktop) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isPrimary ? const Color(0xFF211500) : const Color(0xFFE9ECF2),
+                // Gold Icon Badge
+                Container(
+                  width: isDesktop ? 46 : 38,
+                  height: isDesktop ? 46 : 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_Colors.goldLight, _Colors.gold],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x33E9A227),
+                        blurRadius: 10,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.people_alt_rounded,
+                      size: isDesktop ? 24 : 20,
+                      color: const Color(0xFF1E1402),
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+                ),
+                const SizedBox(width: 14),
 
-  // ── DESKTOP LAYOUT (2 COLUMNS: STICKY SIDEBAR + MAIN CONTENT) ────────────────
-  Widget _buildDesktopLayout(
-    _CustomerStats stats,
-    AsyncValue<List<CustomerModel>> filteredAsync,
-    CustomerGender? genderFilter,
-    List<CustomerModel> allCustomers,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // LEFT SIDEBAR (WIDTH 300PX)
-          SizedBox(
-            width: 300,
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 24),
-              child: RepaintBoundary(
-                child: _buildDesktopSidebar(stats, genderFilter, allCustomers),
-              ),
-            ),
-          ),
+                // Title & Subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Clients',
+                        style: GoogleFonts.outfit(
+                          fontSize: isDesktop ? 22 : 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isDesktop
+                            ? 'Manage your shop customers, track orders and keep your business organized.'
+                            : 'Manage your shop customers and orders.',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: isDesktop ? 12 : 11,
+                          color: const Color(0xFFA0ABBA),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-          const SizedBox(width: 16),
+                const SizedBox(width: 12),
 
-          // RIGHT MAIN VIEW
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                RepaintBoundary(child: _buildDesktopNavbar(stats)),
-                const SizedBox(height: 14),
+                // Export CSV Icon Button
+                IconButton(
+                  tooltip: 'Export CSV',
+                  icon: const Icon(Icons.download_rounded, color: Colors.white70, size: 20),
+                  onPressed: () => _exportClientsCSV(allCustomers),
+                ),
 
-                // Overview Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Client Directory', style: _ClientStyles.sectionTitle),
-                        const SizedBox(height: 2),
-                        Text('Browse, search, and manage all your shop customers.', style: _ClientStyles.sectionSubtitle),
+                const SizedBox(width: 6),
+
+                // + Add New Client Button (Solid Gold)
+                InkWell(
+                  onTap: () => AddCustomerModal.show(context),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    height: isDesktop ? 40 : 36,
+                    padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16 : 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_Colors.goldLight, _Colors.gold],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33E9A227),
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
+                        ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _ClientColors.greenBg,
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: _ClientColors.green,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.add_rounded,
+                          size: 18,
+                          color: Color(0xFF1B1300),
+                        ),
+                        if (isDesktop) ...[
                           const SizedBox(width: 6),
                           Text(
-                            '${stats.active} active records',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: _ClientColors.green,
+                            'Add New Client',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1B1300),
                             ),
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Search Bar
-                _buildSearchBar(),
-                const SizedBox(height: 12),
-
-                // Filter Chips Row
-                _buildFilterChipsRow(stats, genderFilter),
-                const SizedBox(height: 12),
-
-                // Virtualized Client List
-                Expanded(
-                  child: _buildClientList(filteredAsync),
+                  ),
                 ),
               ],
             ),
@@ -495,22 +484,601 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     );
   }
 
-  // ── DESKTOP SIDEBAR WIDGET ──────────────────────────────────────────────────
-  Widget _buildDesktopSidebar(
-    _CustomerStats stats,
-    CustomerGender? genderFilter,
-    List<CustomerModel> allCustomers,
-  ) {
+  // ── 2. 4 STAT KPI CARDS (MATCHING USER SCREENSHOT) ──────────────────────────
+  Widget _buildKpiRow(_CustomerStats stats, bool isDesktop, bool isDark) {
+    final menPercent = stats.total > 0 ? ((stats.men / stats.total) * 100).round() : 0;
+    final womenPercent = stats.total > 0 ? ((stats.women / stats.total) * 100).round() : 0;
+    final childPercent = stats.total > 0 ? ((stats.child / stats.total) * 100).round() : 0;
+
+    final cards = [
+      _buildKpiCard(
+        title: 'Total Clients',
+        count: '${stats.total}',
+        badgeText: '↑ ${stats.newThisMonth} new this month',
+        badgeColor: _Colors.green,
+        badgeBg: _Colors.greenBg,
+        icon: Icons.people_alt_outlined,
+        iconColor: _Colors.blue,
+        iconBg: _Colors.blueBg,
+        chevronColor: _Colors.blue,
+        isDark: isDark,
+        onTap: () {
+          setState(() {
+            _selectedGender = null;
+            _statusFilter = 'all';
+          });
+        },
+      ),
+      _buildKpiCard(
+        title: 'Men',
+        count: '${stats.men}',
+        badgeText: '$menPercent% of total',
+        badgeColor: _Colors.muted,
+        badgeBg: Colors.transparent,
+        icon: Icons.man_rounded,
+        iconColor: _Colors.cyan,
+        iconBg: _Colors.cyanBg,
+        chevronColor: _Colors.cyan,
+        isDark: isDark,
+        onTap: () {
+          setState(() {
+            _selectedGender = _selectedGender == CustomerGender.male ? null : CustomerGender.male;
+          });
+        },
+      ),
+      _buildKpiCard(
+        title: 'Women',
+        count: '${stats.women}',
+        badgeText: '$womenPercent% of total',
+        badgeColor: _Colors.muted,
+        badgeBg: Colors.transparent,
+        icon: Icons.woman_rounded,
+        iconColor: _Colors.pink,
+        iconBg: _Colors.pinkBg,
+        chevronColor: _Colors.pink,
+        isDark: isDark,
+        onTap: () {
+          setState(() {
+            _selectedGender = _selectedGender == CustomerGender.female ? null : CustomerGender.female;
+          });
+        },
+      ),
+      _buildKpiCard(
+        title: 'Children',
+        count: '${stats.child}',
+        badgeText: '$childPercent% of total',
+        badgeColor: _Colors.muted,
+        badgeBg: Colors.transparent,
+        icon: Icons.child_care_rounded,
+        iconColor: _Colors.green,
+        iconBg: _Colors.greenBg,
+        chevronColor: _Colors.green,
+        isDark: isDark,
+        onTap: () {
+          setState(() {
+            _selectedGender = _selectedGender == CustomerGender.child ? null : CustomerGender.child;
+          });
+        },
+      ),
+    ];
+
+    if (isDesktop) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: cards
+              .map((c) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: c,
+                    ),
+                  ))
+              .toList(),
+        ),
+      );
+    }
+
+    // Mobile: Horizontal scrolling strip
+    return SizedBox(
+      height: 96,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: cards.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => SizedBox(width: 175, child: cards[i]),
+      ),
+    );
+  }
+
+  Widget _buildKpiCard({
+    required String title,
+    required String count,
+    required String badgeText,
+    required Color badgeColor,
+    required Color badgeBg,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required Color chevronColor,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    final cardBg = isDark ? _Colors.cardBgDark : _Colors.cardBg;
+    final borderColor = isDark ? _Colors.borderDark : _Colors.borderLight;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor, width: 1.0),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.transparent : const Color(0x06000000),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Top Row: Soft Circle Icon + Title + Chevron Right
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isDark ? iconColor.withValues(alpha: 0.15) : iconBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Icon(icon, size: 17, color: iconColor),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : _Colors.muted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: chevronColor.withValues(alpha: 0.6),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // Bottom Row: Large Number + Subtitle / Trend
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    count,
+                    style: GoogleFonts.outfit(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : _Colors.ink,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Container(
+                      padding: badgeBg != Colors.transparent
+                          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2)
+                          : EdgeInsets.zero,
+                      decoration: badgeBg != Colors.transparent
+                          ? BoxDecoration(
+                              color: isDark ? badgeColor.withValues(alpha: 0.15) : badgeBg,
+                              borderRadius: BorderRadius.circular(4),
+                            )
+                          : null,
+                      child: Text(
+                        badgeText,
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: badgeColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 3. DESKTOP MAIN LAYOUT: FILTERS PANEL (LEFT) + DIRECTORY (RIGHT) ───────
+  Widget _buildDesktopMainLayout(List<CustomerModel> clients, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left: Filters Card (Width: 260px)
+          SizedBox(
+            width: 260,
+            child: RepaintBoundary(
+              child: _buildFilterCard(isDark),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Right: Clients Directory Card
+          Expanded(
+            child: _buildClientsDirectoryCard(clients, isDark),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 4. MOBILE MAIN LAYOUT: STACKED WITH COLLAPSIBLE FILTER ──────────────────
+  Widget _buildMobileMainLayout(List<CustomerModel> clients, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          // Quick Search & Filter bar
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDark ? _Colors.cardBgDark : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isDark ? _Colors.borderDark : _Colors.borderLight),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    style: GoogleFonts.inter(fontSize: 13, color: isDark ? Colors.white : _Colors.ink),
+                    decoration: InputDecoration(
+                      hintText: 'Search clients, phone...',
+                      hintStyle: GoogleFonts.inter(fontSize: 12, color: _Colors.faint),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _Colors.faint),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark ? _Colors.cardBgDark : Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: isDark ? _Colors.borderDark : _Colors.borderLight),
+                  ),
+                ),
+                icon: const Icon(Icons.tune_rounded, size: 18),
+                onPressed: () => _showMobileFilterModal(context, isDark),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Client Directory
+          Expanded(
+            child: _buildClientsDirectoryCard(clients, isDark),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 5. LEFT FILTERS CARD (EXACT MOCKUP DESIGN) ──────────────────────────────
+  Widget _buildFilterCard(bool isDark) {
+    final cardBg = isDark ? _Colors.cardBgDark : _Colors.cardBg;
+    final borderColor = isDark ? _Colors.borderDark : _Colors.borderLight;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.transparent : const Color(0x05000000),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Title Row: Funnel Icon + Filters + Clear All
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.tune_rounded, size: 16, color: _Colors.gold),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Filters',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : _Colors.ink,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: _clearFilters,
+                child: Text(
+                  'Clear All',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _Colors.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Search Field
+          Container(
+            height: 38,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x14FFFFFF) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
+            ),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              onChanged: _onSearchChanged,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: isDark ? Colors.white : _Colors.ink,
+              ),
+              decoration: const InputDecoration(
+                hintText: 'Search by name, phone or address...',
+                hintStyle: TextStyle(fontSize: 11, color: _Colors.faint),
+                prefixIcon: Icon(Icons.search_rounded, size: 16, color: _Colors.faint),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Section 1: Status
+          Text(
+            'Status',
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white70 : _Colors.ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _buildFilterChip(
+                label: 'All',
+                isSelected: _statusFilter == 'all',
+                isDark: isDark,
+                onTap: () => setState(() => _statusFilter = 'all'),
+              ),
+              _buildFilterChip(
+                label: 'Active',
+                isSelected: _statusFilter == 'active',
+                dotColor: _Colors.green,
+                isDark: isDark,
+                onTap: () => setState(() => _statusFilter = 'active'),
+              ),
+              _buildFilterChip(
+                label: 'Inactive',
+                isSelected: _statusFilter == 'inactive',
+                dotColor: _Colors.faint,
+                isDark: isDark,
+                onTap: () => setState(() => _statusFilter = 'inactive'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Section 2: Gender
+          Text(
+            'Gender',
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white70 : _Colors.ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _buildFilterChip(
+                label: 'All',
+                isSelected: _selectedGender == null,
+                isDark: isDark,
+                onTap: () => setState(() => _selectedGender = null),
+              ),
+              _buildFilterChip(
+                label: 'Men',
+                isSelected: _selectedGender == CustomerGender.male,
+                dotColor: _Colors.blue,
+                isDark: isDark,
+                onTap: () => setState(() => _selectedGender = CustomerGender.male),
+              ),
+              _buildFilterChip(
+                label: 'Women',
+                isSelected: _selectedGender == CustomerGender.female,
+                dotColor: _Colors.pink,
+                isDark: isDark,
+                onTap: () => setState(() => _selectedGender = CustomerGender.female),
+              ),
+              _buildFilterChip(
+                label: 'Children',
+                isSelected: _selectedGender == CustomerGender.child,
+                dotColor: _Colors.green,
+                isDark: isDark,
+                onTap: () => setState(() => _selectedGender = CustomerGender.child),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Section 3: Sort By
+          Text(
+            'Sort By',
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white70 : _Colors.ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x14FFFFFF) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<_ClientSortBy>(
+                value: _sortBy,
+                isExpanded: true,
+                dropdownColor: isDark ? _Colors.darkBanner : Colors.white,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _Colors.muted),
+                style: GoogleFonts.inter(fontSize: 12, color: isDark ? Colors.white : _Colors.ink),
+                items: const [
+                  DropdownMenuItem(value: _ClientSortBy.newest, child: Text('Newest First')),
+                  DropdownMenuItem(value: _ClientSortBy.oldest, child: Text('Oldest First')),
+                  DropdownMenuItem(value: _ClientSortBy.nameAsc, child: Text('Name (A-Z)')),
+                  DropdownMenuItem(value: _ClientSortBy.mostOrders, child: Text('Most Orders')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _sortBy = val);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    Color? dotColor,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _Colors.gold
+              : (isDark ? const Color(0x0FFFFFFF) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? _Colors.gold
+                : (isDark ? const Color(0x1FFFFFFF) : const Color(0xFFE2E8F0)),
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (dotColor != null) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF1B1300) : dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? const Color(0xFF1B1300)
+                    : (isDark ? Colors.white70 : const Color(0xFF334155)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 6. RIGHT CLIENT DIRECTORY CARD (TABLE / LIST & GRID TOGGLE) ─────────────
+  Widget _buildClientsDirectoryCard(List<CustomerModel> clients, bool isDark) {
+    final cardBg = isDark ? _Colors.cardBgDark : _Colors.cardBg;
+    final borderColor = isDark ? _Colors.borderDark : _Colors.borderLight;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _ClientColors.line),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1.0),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0E111827),
-            blurRadius: 30,
-            offset: Offset(0, 10),
+            color: isDark ? Colors.transparent : const Color(0x05000000),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -518,909 +1086,452 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Cover Card with Golden People Icon
+          // Header Bar: "All Clients (X)" + Grid/List View Switcher
           Container(
-            height: 120,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_ClientColors.darkCard, Color(0xFF1F2633)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: borderColor)),
             ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_ClientColors.gold2, _ClientColors.gold],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'All Clients (${clients.length})',
+                  style: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : _Colors.ink,
+                  ),
+                ),
+
+                // View Toggle (⊞ Grid / ≡ List)
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0x1FFFFFFF) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      // Grid icon
+                      _buildViewToggleButton(
+                        icon: Icons.grid_view_rounded,
+                        isActive: _isGridView,
+                        isDark: isDark,
+                        onTap: () => setState(() => _isGridView = true),
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _ClientColors.gold.withValues(alpha: 0.35),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.people_alt_rounded, color: Color(0xFF241505), size: 26),
-                    ),
+                      // List icon
+                      _buildViewToggleButton(
+                        icon: Icons.view_headline_rounded,
+                        isActive: !_isGridView,
+                        isDark: isDark,
+                        onTap: () => setState(() => _isGridView = false),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Client Directory',
-                    style: GoogleFonts.manrope(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${stats.total} total clients',
-                    style: GoogleFonts.ibmPlexMono(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFAEB5C2),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
-          // 2. Sidebar Body
-          Padding(
-            padding: const EdgeInsets.all(18),
+          // Clients Content Area
+          Expanded(
+            child: clients.isEmpty
+                ? _buildEmptyState(isDark)
+                : _isGridView
+                    ? _buildGridView(clients, isDark)
+                    : _buildListView(clients, isDark),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewToggleButton({
+    required IconData icon,
+    required bool isActive,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: isActive
+              ? (isDark ? const Color(0xFF1E293B) : const Color(0xFF0F172A))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: isActive ? Colors.white : _Colors.faint,
+        ),
+      ),
+    );
+  }
+
+  // ── 7. LIST VIEW (ITEM EXTENT = 68PX FOR MAXIMUM CPU EFFICIENCY) ───────────
+  Widget _buildListView(List<CustomerModel> clients, bool isDark) {
+    return ListView.builder(
+      physics: const BouncingScrollPhysics(),
+      itemExtent: 68.0, // Fixed height avoids expensive layout recalculations!
+      itemCount: clients.length,
+      itemBuilder: (context, index) {
+        final client = clients[index];
+        return _buildClientListRow(client, isDark, index == clients.length - 1);
+      },
+    );
+  }
+
+  Widget _buildClientListRow(CustomerModel client, bool isDark, bool isLast) {
+    final avatarColor = _getAvatarColor(client.name);
+    final initials = _getInitials(client.name);
+    final borderColor = isDark ? _Colors.borderDark : _Colors.borderLight;
+    final isActive = client.totalOrders > 0;
+
+    return Container(
+      height: 68.0,
+      decoration: BoxDecoration(
+        border: isLast ? null : Border(bottom: BorderSide(color: borderColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          // Colored Initials Avatar
+          CircleAvatar(
+            radius: 19,
+            backgroundColor: avatarColor,
+            child: Text(
+              initials,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Name, Phone & City
+          Expanded(
+            flex: 4,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 2x2 Stats Grid
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 1.65,
+                Text(
+                  client.name,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : _Colors.ink,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
                   children: [
-                    _buildSidebarStatCard('${stats.total}', 'TOTAL', _ClientColors.gold),
-                    _buildSidebarStatCard('${stats.active}', 'ACTIVE', _ClientColors.green),
-                    _buildSidebarStatCard('${stats.men}', 'MEN', _ClientColors.ink),
-                    _buildSidebarStatCard('${stats.newThisWeek}', 'NEW THIS WEEK', _ClientColors.rose),
+                    const Icon(Icons.phone_outlined, size: 12, color: _Colors.faint),
+                    const SizedBox(width: 4),
+                    Text(
+                      client.phone.isNotEmpty ? client.phone : 'No phone',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 11,
+                        color: _Colors.muted,
+                      ),
+                    ),
+                    if (client.address.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      const Icon(Icons.location_on_outlined, size: 12, color: _Colors.faint),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          client.address,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: _Colors.muted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 18),
-
-                // Quick Filters Header
-                Text('QUICK FILTERS', style: _ClientStyles.cardTag),
-                const SizedBox(height: 9),
-
-                // Filters List
-                _buildSidebarFilterOption(
-                  emoji: '👥',
-                  title: 'All Clients',
-                  count: stats.total,
-                  isActive: genderFilter == null,
-                  onTap: () => _onFilterChanged(null),
-                ),
-                const SizedBox(height: 5),
-                _buildSidebarFilterOption(
-                  emoji: '👔',
-                  title: 'Men',
-                  count: stats.men,
-                  isActive: genderFilter == CustomerGender.male,
-                  onTap: () => _onFilterChanged(CustomerGender.male),
-                ),
-                const SizedBox(height: 5),
-                _buildSidebarFilterOption(
-                  emoji: '👗',
-                  title: 'Women',
-                  count: stats.women,
-                  isActive: genderFilter == CustomerGender.female,
-                  onTap: () => _onFilterChanged(CustomerGender.female),
-                ),
-                const SizedBox(height: 5),
-                _buildSidebarFilterOption(
-                  emoji: '👕',
-                  title: 'Children',
-                  count: stats.child,
-                  isActive: genderFilter == CustomerGender.child,
-                  onTap: () => _onFilterChanged(CustomerGender.child),
-                ),
-                const SizedBox(height: 18),
-
-                // Quick Action Buttons
-                Container(
-                  padding: const EdgeInsets.only(top: 14),
-                  decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: _ClientColors.line)),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildSidebarActionButton(
-                        icon: Icons.add_rounded,
-                        label: 'Add New Client',
-                        isGold: true,
-                        onTap: () => AddCustomerModal.show(context),
-                      ),
-                      const SizedBox(height: 7),
-                      _buildSidebarActionButton(
-                        icon: Icons.download_rounded,
-                        label: 'Export Clients',
-                        isGold: false,
-                        onTap: () => _exportClientsCSV(allCustomers),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSidebarStatCard(String count, String label, Color numColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFB),
-        border: Border.all(color: _ClientColors.line),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            count,
-            style: GoogleFonts.ibmPlexMono(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: numColor,
-              letterSpacing: -0.6,
+          // Gender Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: client.gender == CustomerGender.male
+                  ? (isDark ? const Color(0x202563EB) : _Colors.blueBg)
+                  : (client.gender == CustomerGender.female
+                      ? (isDark ? const Color(0x20DB2777) : _Colors.pinkBg)
+                      : (isDark ? const Color(0x2016A34A) : _Colors.greenBg)),
+              borderRadius: BorderRadius.circular(6),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.dmSans(
-              fontSize: 8.5,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-              color: _ClientColors.muted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarFilterOption({
-    required String emoji,
-    required String title,
-    required int count,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? _ClientColors.dark : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isActive ? _ClientColors.dark : Colors.transparent,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: isActive ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFF4F5F7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(child: Text(emoji, style: const TextStyle(fontSize: 13))),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.manrope(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isActive ? Colors.white : _ClientColors.ink,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: client.gender == CustomerGender.male
+                        ? _Colors.blue
+                        : (client.gender == CustomerGender.female ? _Colors.pink : _Colors.green),
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-              Text(
-                '$count',
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? const Color(0xFFAEB5C2) : _ClientColors.muted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarActionButton({
-    required IconData icon,
-    required String label,
-    required bool isGold,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 38,
-          decoration: BoxDecoration(
-            color: isGold ? _ClientColors.gold : const Color(0xFFFAFAFB),
-            border: Border.all(
-              color: isGold ? _ClientColors.gold : _ClientColors.line,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: isGold ? const Color(0xFF211500) : _ClientColors.ink,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.manrope(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: isGold ? const Color(0xFF211500) : _ClientColors.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── DESKTOP NAVBAR WIDGET ───────────────────────────────────────────────────
-  Widget _buildDesktopNavbar(_CustomerStats stats) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _ClientColors.line),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08111827),
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              _buildNavTab(
-                title: 'Clients',
-                icon: Icons.people_alt_rounded,
-                isActive: true,
-                badgeCount: stats.total,
-                onTap: () {},
-              ),
-              const SizedBox(width: 6),
-              _buildNavTab(
-                title: 'Orders',
-                icon: Icons.inventory_2_outlined,
-                isActive: false,
-                onTap: () => context.go(AppRoutes.orders),
-              ),
-              const SizedBox(width: 6),
-              _buildNavTab(
-                title: 'Naap',
-                icon: Icons.straighten_rounded,
-                isActive: false,
-                onTap: () => context.go(AppRoutes.measurements),
-              ),
-              const SizedBox(width: 6),
-              _buildNavTab(
-                title: 'Reports',
-                icon: Icons.analytics_outlined,
-                isActive: false,
-                onTap: () => context.go(AppRoutes.reports),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              _buildNavSquare(
-                icon: Icons.refresh_rounded,
-                tooltip: 'Refresh list',
-                onTap: () => ref.invalidate(customersProvider),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavTab({
-    required String title,
-    required IconData icon,
-    required bool isActive,
-    int? badgeCount,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? _ClientColors.dark : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isActive
-                ? [
-                    const BoxShadow(
-                      color: Color(0x18151922),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: isActive ? Colors.white : _ClientColors.muted,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: GoogleFonts.manrope(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isActive ? Colors.white : _ClientColors.muted,
-                ),
-              ),
-              if (badgeCount != null) ...[
                 const SizedBox(width: 5),
                 Text(
-                  '$badgeCount',
-                  style: GoogleFonts.ibmPlexMono(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: isActive ? _ClientColors.gold2 : _ClientColors.muted,
+                  client.gender == CustomerGender.male
+                      ? 'Men'
+                      : (client.gender == CustomerGender.female ? 'Women' : 'Children'),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: client.gender == CustomerGender.male
+                        ? _Colors.blue
+                        : (client.gender == CustomerGender.female ? _Colors.pink : _Colors.green),
                   ),
                 ),
               ],
-            ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
+          const SizedBox(width: 8),
 
-  Widget _buildNavSquare({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 36,
-            height: 36,
+          // Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              border: Border.all(color: _ClientColors.line),
-              borderRadius: BorderRadius.circular(10),
+              color: isActive
+                  ? (isDark ? const Color(0x2016A34A) : _Colors.greenBg)
+                  : (isDark ? const Color(0x10FFFFFF) : const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, size: 16, color: _ClientColors.muted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: isActive ? _Colors.green : _Colors.faint,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  isActive ? 'Active' : 'Inactive',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? _Colors.green : _Colors.muted,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
+          const SizedBox(width: 12),
 
-  // ── SEARCH BAR WIDGET (DEBOUNCED, HIGH PERFORMANCE) ──────────────────────────
-  Widget _buildSearchBar() {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _ClientColors.line),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04111827),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          const Icon(Icons.search_rounded, size: 18, color: _ClientColors.faint),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              onChanged: _onSearchChanged,
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: _ClientColors.ink,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search by name, phone, or address...',
-                hintStyle: GoogleFonts.dmSans(fontSize: 13, color: _ClientColors.faint),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
+          // "View Details" Action Button
+          OutlinedButton.icon(
+            onPressed: () => context.push('/customers/${client.id}'),
+            icon: const Icon(Icons.visibility_outlined, size: 14),
+            label: const Text('View Details'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              textStyle: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600),
+              foregroundColor: isDark ? Colors.white70 : _Colors.ink,
+              side: BorderSide(color: isDark ? const Color(0x33FFFFFF) : const Color(0xFFCBD5E1)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
           ),
-          if (_searchController.text.isNotEmpty)
-            GestureDetector(
-              onTap: _clearSearch,
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: _ClientColors.paper,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Center(
-                  child: Icon(Icons.close_rounded, size: 14, color: _ClientColors.muted),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 
-  // ── FILTER CHIPS ROW ────────────────────────────────────────────────────────
-  Widget _buildFilterChipsRow(_CustomerStats stats, CustomerGender? genderFilter) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          _buildChip(
-            label: 'All',
-            count: stats.total,
-            isActive: genderFilter == null,
-            onTap: () => _onFilterChanged(null),
-          ),
-          const SizedBox(width: 8),
-          _buildChip(
-            label: '👔 Men',
-            count: stats.men,
-            isActive: genderFilter == CustomerGender.male,
-            onTap: () => _onFilterChanged(CustomerGender.male),
-          ),
-          const SizedBox(width: 8),
-          _buildChip(
-            label: '👗 Women',
-            count: stats.women,
-            isActive: genderFilter == CustomerGender.female,
-            onTap: () => _onFilterChanged(CustomerGender.female),
-          ),
-          const SizedBox(width: 8),
-          _buildChip(
-            label: '👕 Children',
-            count: stats.child,
-            isActive: genderFilter == CustomerGender.child,
-            onTap: () => _onFilterChanged(CustomerGender.child),
-          ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(width: 4),
 
-  Widget _buildChip({
-    required String label,
-    required int count,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? _ClientColors.dark : Colors.white,
-            border: Border.all(
-              color: isActive ? _ClientColors.dark : _ClientColors.line,
-            ),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.manrope(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? Colors.white : _ClientColors.muted,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                '$count',
-                style: GoogleFonts.ibmPlexMono(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? const Color(0xFFAEB5C2) : _ClientColors.muted,
-                ),
-              ),
+          // More Options Popup Menu
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_horiz_rounded, size: 18, color: _Colors.muted),
+            tooltip: 'Actions',
+            color: isDark ? _Colors.darkBanner : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            onSelected: (action) {
+              if (action == 'view') {
+                context.push('/customers/${client.id}');
+              } else if (action == 'edit') {
+                EditCustomerModal.show(context, customer: client);
+              } else if (action == 'call') {
+                launchUrl(Uri.parse('tel:${client.phone}'));
+              } else if (action == 'whatsapp') {
+                final cleanPhone = client.phone.replaceAll(RegExp(r'[^0-9]'), '');
+                launchUrl(Uri.parse('https://wa.me/$cleanPhone'), mode: LaunchMode.externalApplication);
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(value: 'view', child: Text('View Profile')),
+              const PopupMenuItem(value: 'edit', child: Text('Edit Details')),
+              const PopupMenuItem(value: 'call', child: Text('Call Client')),
+              const PopupMenuItem(value: 'whatsapp', child: Text('WhatsApp')),
             ],
           ),
-        ),
+
+          // Chevron Right
+          InkWell(
+            onTap: () => context.push('/customers/${client.id}'),
+            child: const Icon(Icons.chevron_right_rounded, size: 18, color: _Colors.faint),
+          ),
+        ],
       ),
     );
   }
 
-  // ── VIRTUALIZED CLIENT LIST (EXTREME CPU EFFICIENCY) ─────────────────────────
-  Widget _buildClientList(AsyncValue<List<CustomerModel>> filteredAsync) {
-    return filteredAsync.when(
-      data: (list) {
-        if (list.isEmpty) {
-          return _buildEmptyState();
-        }
+  // ── 8. GRID VIEW MODE ───────────────────────────────────────────────────────
+  Widget _buildGridView(List<CustomerModel> clients, bool isDark) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(14),
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 280,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.35,
+      ),
+      itemCount: clients.length,
+      itemBuilder: (context, index) {
+        final client = clients[index];
+        final avatarColor = _getAvatarColor(client.name);
+        final initials = _getInitials(client.name);
+        final borderColor = isDark ? _Colors.borderDark : _Colors.borderLight;
+        final isActive = client.totalOrders > 0;
 
-        return ListView.builder(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 24),
-          cacheExtent: 300,
-          itemCount: list.length,
-          itemBuilder: (ctx, idx) {
-            return RepaintBoundary(
-              key: ValueKey(list[idx].id),
-              child: _ClientCard(
-                customer: list[idx],
-                isMobile: false,
-              ),
-            );
-          },
+        return InkWell(
+          onTap: () => context.push('/customers/${client.id}'),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x14FFFFFF) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 17,
+                      backgroundColor: avatarColor,
+                      child: Text(
+                        initials,
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        client.name,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : _Colors.ink,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: isActive ? _Colors.green : _Colors.faint,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  client.phone.isNotEmpty ? client.phone : 'No phone',
+                  style: GoogleFonts.jetBrainsMono(fontSize: 11, color: _Colors.muted),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${client.totalOrders} Orders',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _Colors.gold,
+                      ),
+                    ),
+                    Text(
+                      'View Details →',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       },
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: _ClientColors.gold),
-      ),
-      error: (err, _) => Center(
-        child: Text(
-          'Error loading clients: $err',
-          style: GoogleFonts.dmSans(color: _ClientColors.rose),
-        ),
-      ),
     );
   }
 
-  // ── MOBILE LAYOUT (< 850PX) ────────────────────────────────────────────────
-  Widget _buildMobileLayout(
-    _CustomerStats stats,
-    AsyncValue<List<CustomerModel>> filteredAsync,
-    CustomerGender? genderFilter,
-    List<CustomerModel> allCustomers,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Mobile Hero Card matching HTML mockup
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2A2110), Color(0xFF1B2436)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x18151922),
-                        blurRadius: 18,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Client Directory',
-                        style: GoogleFonts.manrope(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: -0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${stats.total} customers · ${stats.active} active',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFFAEB5C2),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 3-stat Bar
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(child: _buildMobileStatItem('${stats.total}', 'TOTAL')),
-                            Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.1)),
-                            Expanded(child: _buildMobileStatItem('${stats.active}', 'ACTIVE')),
-                            Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.1)),
-                            Expanded(child: _buildMobileStatItem('${stats.newThisWeek}', 'NEW')),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Full-width Add Button
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => AddCustomerModal.show(context),
-                          borderRadius: BorderRadius.circular(11),
-                          child: Container(
-                            height: 38,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [_ClientColors.gold2, _ClientColors.gold],
-                              ),
-                              borderRadius: BorderRadius.circular(11),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.add_rounded, size: 16, color: Color(0xFF211500)),
-                                const SizedBox(width: 5),
-                                Text(
-                                  'Add New Client',
-                                  style: GoogleFonts.manrope(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF211500),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Mobile Search Bar
-                _buildSearchBar(),
-                const SizedBox(height: 10),
-
-                // Mobile Filter Chips
-                _buildFilterChipsRow(stats, genderFilter),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-
-          // Virtualized Sliver List for Mobile (Zero lag / 60 FPS)
-          filteredAsync.when(
-            data: (list) {
-              if (list.isEmpty) {
-                return SliverToBoxAdapter(child: _buildEmptyState());
-              }
-
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, idx) {
-                    return RepaintBoundary(
-                      key: ValueKey(list[idx].id),
-                      child: _ClientCard(
-                        customer: list[idx],
-                        isMobile: true,
-                      ),
-                    );
-                  },
-                  childCount: list.length,
-                ),
-              );
-            },
-            loading: () => const SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(color: _ClientColors.gold),
-                ),
-              ),
-            ),
-            error: (err, _) => SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Error: $err',
-                    style: GoogleFonts.dmSans(color: _ClientColors.rose),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 40),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobileStatItem(String num, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          num,
-          style: GoogleFonts.ibmPlexMono(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 8.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
-            color: const Color(0xFFAEB5C2),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState() {
+  // ── 9. EMPTY STATE ─────────────────────────────────────────────────────────
+  Widget _buildEmptyState(bool isDark) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('👥', style: TextStyle(fontSize: 44)),
-            const SizedBox(height: 12),
+            const Icon(Icons.people_outline_rounded, size: 42, color: _Colors.faint),
+            const SizedBox(height: 10),
             Text(
               'No clients found',
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: _ClientColors.ink,
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : _Colors.ink,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
-              'Try a different search term or filter,\nor add your first client to get started.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                color: _ClientColors.muted,
-                height: 1.5,
-              ),
+              'Try adjusting your search or filters.',
+              style: GoogleFonts.inter(fontSize: 12, color: _Colors.muted),
             ),
-            const SizedBox(height: 18),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => AddCustomerModal.show(context),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [_ClientColors.gold2, _ClientColors.gold],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _ClientColors.gold.withValues(alpha: 0.3),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.add_rounded, size: 16, color: Color(0xFF211500)),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Add New Client',
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF211500),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: _clearFilters,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Reset Filters'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _Colors.gold,
+                foregroundColor: const Color(0xFF1B1300),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],
@@ -1428,607 +1539,51 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       ),
     );
   }
-}
 
-// ── CLIENT CARD (HIGH PERFORMANCE, STATING ZERO TICKS) ───────────────────────
-class _ClientCard extends StatelessWidget {
-  final CustomerModel customer;
-  final bool isMobile;
-
-  const _ClientCard({
-    required this.customer,
-    required this.isMobile,
-  });
-
-  String _formatTimeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}M AGO';
-    if (diff.inHours < 24) return '${diff.inHours}H AGO';
-    if (diff.inDays == 1) return 'YESTERDAY';
-    if (diff.inDays < 7) return '${diff.inDays}D AGO';
-    if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}W AGO';
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
-
-  Future<void> _launchWhatsApp(String phone) async {
-    var p = phone.replaceAll(RegExp(r'\D'), '');
-    if (p.startsWith('0')) {
-      p = '92${p.substring(1)}';
-    }
-    final uri = Uri.parse('https://wa.me/$p');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isMale = customer.gender == CustomerGender.male;
-    final isFemale = customer.gender == CustomerGender.female;
-
-    final avatarGradient = isMale
-        ? const LinearGradient(colors: [Color(0xFFFFC85E), Color(0xFFD88A13)])
-        : (isFemale
-            ? const LinearGradient(colors: [Color(0xFFF5A4D6), Color(0xFFC54FA0)])
-            : const LinearGradient(colors: [Color(0xFF8ED4FF), Color(0xFF4A90E2)]));
-
-    final initial = customer.name.trim().isNotEmpty
-        ? customer.name.trim()[0].toUpperCase()
-        : 'C';
-
-    final naapCount = customer.totalOrders == 0
-        ? 1
-        : (customer.totalOrders > 5 ? 3 : 2);
-
-    final isNew = DateTime.now().difference(customer.createdAt).inDays <= 7;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _ClientColors.line),
-        borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05111827),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/customers/${customer.id}');
-          },
-          borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 18,
-              vertical: isMobile ? 12 : 14,
-            ),
-            child: Row(
-              children: [
-                // Avatar with online status dot
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: isMobile ? 44 : 50,
-                      height: isMobile ? 44 : 50,
-                      decoration: BoxDecoration(
-                        gradient: avatarGradient,
-                        borderRadius: BorderRadius.circular(isMobile ? 13 : 15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFD88A13).withValues(alpha: 0.22),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          initial,
-                          style: GoogleFonts.manrope(
-                            fontSize: isMobile ? 16 : 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 1,
-                      right: 1,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10CBA0),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(width: isMobile ? 10 : 14),
-
-                // Name, Phone & Tags
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        customer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: isMobile ? 13.5 : 15,
-                          fontWeight: FontWeight.w800,
-                          color: _ClientColors.ink,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        customer.phone.isNotEmpty ? customer.phone : 'No phone',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.ibmPlexMono(
-                          fontSize: isMobile ? 10 : 11,
-                          fontWeight: FontWeight.w600,
-                          color: _ClientColors.muted,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Tags
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: [
-                          _buildTag(
-                            label: _formatTimeAgo(customer.createdAt),
-                            bg: _ClientColors.blueBg,
-                            color: _ClientColors.blue,
-                          ),
-                          _buildTag(
-                            label: '$naapCount NAAP',
-                            bg: _ClientColors.greenBg,
-                            color: _ClientColors.green,
-                          ),
-                          _buildTag(
-                            label: isNew ? 'NEW' : 'ACTIVE',
-                            bg: isNew ? _ClientColors.goldBg : _ClientColors.greenBg,
-                            color: isNew ? const Color(0xFF8B6C22) : _ClientColors.green,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // Action Buttons (WhatsApp, Naap, New Order) + Chevron
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildIconAction(
-                      icon: Icons.chat_rounded,
-                      tooltip: 'WhatsApp',
-                      bg: const Color(0x1A25D366),
-                      border: const Color(0x3325D366),
-                      color: _ClientColors.whatsapp,
-                      isMobile: isMobile,
-                      onTap: () => _launchWhatsApp(customer.phone),
-                    ),
-                    const SizedBox(width: 5),
-                    Consumer(
-                      builder: (context, ref, child) => _buildIconAction(
-                        icon: Icons.straighten_rounded,
-                        tooltip: 'Naap / Measurements',
-                        bg: const Color(0x1A8764E8),
-                        border: const Color(0x338764E8),
-                        color: _ClientColors.violet,
-                        isMobile: isMobile,
-                        onTap: () => _showNaapPicker(context, ref, customer),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    _buildIconAction(
-                      icon: Icons.add_rounded,
-                      tooltip: 'New Order',
-                      bg: _ClientColors.goldBg,
-                      border: _ClientColors.goldLine,
-                      color: _ClientColors.gold,
-                      isMobile: isMobile,
-                      onTap: () => NewOrderModal.show(context, preSelectedCustomer: customer),
-                    ),
-                    if (!isMobile) ...[
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: _ClientColors.faint,
-                        size: 20,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTag({
-    required String label,
-    required Color bg,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.dmSans(
-          fontSize: 8.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.4,
-          color: color,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIconAction({
-    required IconData icon,
-    required String tooltip,
-    required Color bg,
-    required Color border,
-    required Color color,
-    required bool isMobile,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: isMobile ? 32 : 36,
-            height: isMobile ? 32 : 36,
-            decoration: BoxDecoration(
-              color: bg,
-              border: Border.all(color: border),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: Icon(icon, size: isMobile ? 15 : 17, color: color),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showNaapPicker(BuildContext context, WidgetRef ref, CustomerModel customer) {
-    HapticFeedback.lightImpact();
-    final allMeasurements = ref.read(measurementsProvider).valueOrNull ?? [];
-    final customerMeasurements = allMeasurements
-        .where((m) => m.customerId == customer.id)
-        .toList();
-
-    // Deduplicate profiles by name
-    final Map<String, MeasurementModel> latestByName = {};
-    for (final m in customerMeasurements) {
-      final key = m.profileName.trim().toLowerCase();
-      if (!latestByName.containsKey(key) || m.updatedAt.isAfter(latestByName[key]!.updatedAt)) {
-        latestByName[key] = m;
-      }
-    }
-    final uniqueProfiles = latestByName.values.toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-
-    if (uniqueProfiles.length == 1) {
-      context.push(
-        '/print?customerId=${customer.id}&measurementId=${uniqueProfiles.first.id}',
-      );
-      return;
-    }
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+  // ── 10. MOBILE FILTER BOTTOM SHEET ─────────────────────────────────────────
+  void _showMobileFilterModal(BuildContext context, bool isDark) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+      backgroundColor: isDark ? _Colors.darkBanner : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? _ClientColors.darkCard : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(
-              color: isDark ? _ClientColors.darkLine : _ClientColors.line,
-              width: 1,
-            ),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.of(ctx).padding.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Header Row
-              Row(
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_ClientColors.gold2, _ClientColors.gold],
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Text('📐', style: TextStyle(fontSize: 18)),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'کونسا ناپ پروفائل پرنٹ کرنا ہے؟',
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : _ClientColors.ink,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${customer.name} · Select a profile to view & print',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11.5,
-                            color: _ClientColors.muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : _ClientColors.muted),
+                  const SizedBox(height: 16),
+                  _buildFilterCard(isDark),
+                  const SizedBox(height: 14),
+                  ElevatedButton(
                     onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _Colors.gold,
+                      foregroundColor: const Color(0xFF1B1300),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              if (uniqueProfiles.isEmpty) ...[
-                // Empty state
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: isDark ? _ClientColors.dark : _ClientColors.paper,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? _ClientColors.darkLine : _ClientColors.line,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('📏', style: TextStyle(fontSize: 36)),
-                      const SizedBox(height: 10),
-                      Text(
-                        'No measurement profiles found',
-                        style: GoogleFonts.manrope(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : _ClientColors.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Is customer ka abhi tak koi naap record nahi hai.',
-                        style: GoogleFonts.dmSans(fontSize: 11.5, color: _ClientColors.muted),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customer.id;
-                          ctx.push('/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}');
-                        },
-                        icon: const Icon(Icons.add_rounded, size: 16),
-                        label: Text('＋ Add Naap (نیا ناپ لیں)', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _ClientColors.gold,
-                          foregroundColor: const Color(0xFF211500),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                // List of measurement profiles
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(ctx).size.height * 0.45,
-                  ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: uniqueProfiles.length,
-                    separatorBuilder: (_, index) => const SizedBox(height: 8),
-                    itemBuilder: (context, i) {
-                      final m = uniqueProfiles[i];
-                      final catEmoji = m.category == MeasurementCategory.women
-                          ? '👗'
-                          : (m.category == MeasurementCategory.children ? '👕' : '👔');
-
-                      // Key measurements summary from sections
-                      final List<String> previewChips = [];
-                      for (final sec in m.sections) {
-                        for (final f in sec.fields) {
-                          if (f.value.trim().isNotEmpty && previewChips.length < 3) {
-                            previewChips.add('${f.label}: ${f.value}');
-                          }
-                        }
-                      }
-
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            context.push(
-                              '/print?customerId=${customer.id}&measurementId=${m.id}',
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1D222D) : Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isDark ? _ClientColors.darkLine : _ClientColors.line,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0x268764E8) : const Color(0xFFF3F0FF),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Center(
-                                    child: Text(catEmoji, style: const TextStyle(fontSize: 16)),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        m.profileName.isNotEmpty ? m.profileName : m.title,
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          color: isDark ? Colors.white : _ClientColors.ink,
-                                        ),
-                                      ),
-                                      if (previewChips.isNotEmpty) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          previewChips.join(' · '),
-                                          style: GoogleFonts.dmSans(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: _ClientColors.muted,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [_ClientColors.gold2, _ClientColors.gold],
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text('🖨️', style: TextStyle(fontSize: 11)),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'View & Print',
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF211500),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Footer button to manage/add naap in studio
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    ref.read(selectedMeasurementCustomerIdProvider.notifier).state = customer.id;
-                    ctx.push('/measurements/${customer.id}/${Uri.encodeComponent(customer.name)}');
-                  },
-                  icon: const Icon(Icons.edit_note_rounded, size: 16),
-                  label: Text('Open Naap Studio (ناپ سٹوڈیو کھولیں)', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isDark ? Colors.white70 : _ClientColors.ink,
-                    side: BorderSide(color: isDark ? _ClientColors.darkLine : _ClientColors.line),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
-            ],
-          ),
+            );
+          },
         );
       },
     );

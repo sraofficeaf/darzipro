@@ -11,6 +11,7 @@ import '../../core/widgets/shared_widgets.dart';
 import '../../core/utils/share_helper.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
+import '../../shared/providers/supabase_providers.dart';
 import 'pdf_builder.dart';
 import 'widgets/card_image_capturer.dart';
 import 'widgets/naap_card_widget.dart';
@@ -114,21 +115,37 @@ class _PrintPreviewScreenState extends ConsumerState<PrintPreviewScreen> {
           ),
         );
       } else if (targetLayout == PrintLayout.thermal) {
+        final shop = ref.read(currentShopProvider).value;
+        final sName = shop?['name'] as String? ?? '';
+        final sPhone = shop?['phone'] as String? ?? '';
+        final sAddress = shop?['address'] as String? ?? '';
+
         bytes = await CardImageCapturer.captureOnDemand(
           context,
           cardWidget: TokenCardWidget(
             order: order,
             customer: effectiveCustomer,
             isThermal: true,
+            shopName: sName,
+            shopPhone: sPhone,
+            shopAddress: sAddress,
           ),
         );
       } else {
+        final shop = ref.read(currentShopProvider).value;
+        final sName = shop?['name'] as String? ?? '';
+        final sPhone = shop?['phone'] as String? ?? '';
+        final sAddress = shop?['address'] as String? ?? '';
+
         bytes = await CardImageCapturer.captureOnDemand(
           context,
           cardWidget: TokenCardWidget(
             order: order,
             customer: effectiveCustomer,
             isThermal: false,
+            shopName: sName,
+            shopPhone: sPhone,
+            shopAddress: sAddress,
           ),
         );
       }

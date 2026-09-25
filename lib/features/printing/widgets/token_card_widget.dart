@@ -11,13 +11,28 @@ class TokenCardWidget extends StatelessWidget {
   final OrderModel order;
   final CustomerModel? customer;
   final bool isThermal;
+  final String? shopName;
+  final String? shopPhone;
+  final String? shopAddress;
 
   const TokenCardWidget({
     super.key,
     required this.order,
     required this.customer,
     this.isThermal = false,
+    this.shopName,
+    this.shopPhone,
+    this.shopAddress,
   });
+
+  String get _displayShopName => (shopName != null && shopName!.trim().isNotEmpty) ? shopName!.trim() : 'Darzi Pro';
+  String get _displayShopSubtitle {
+    final parts = [
+      if (shopAddress != null && shopAddress!.trim().isNotEmpty) shopAddress!.trim(),
+      if (shopPhone != null && shopPhone!.trim().isNotEmpty) shopPhone!.trim(),
+    ];
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,17 +58,18 @@ class TokenCardWidget extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  'SaifurRahman Tailors',
+                  _displayShopName,
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     color: const Color(0xFF0F172A),
                   ),
                 ),
-                Text(
-                  'Saddar, Peshawar · 0300-1234567',
-                  style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF475569)),
-                ),
+                if (_displayShopSubtitle.isNotEmpty)
+                  Text(
+                    _displayShopSubtitle,
+                    style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF475569)),
+                  ),
               ],
             ),
           ),
@@ -225,13 +241,14 @@ class TokenCardWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'SaifurRahman Tailors',
+                          _displayShopName,
                           style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
                         ),
-                        Text(
-                          'Saddar, Peshawar · 0300-1234567',
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFF5A623)),
-                        ),
+                        if (_displayShopSubtitle.isNotEmpty)
+                          Text(
+                            _displayShopSubtitle,
+                            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFF5A623)),
+                          ),
                       ],
                     ),
                   ],

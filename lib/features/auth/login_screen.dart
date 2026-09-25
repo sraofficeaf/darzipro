@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,10 +7,12 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/build_info.dart';
 import '../../shared/providers/admin_providers.dart';
+import '../../shared/providers/subscription_provider.dart';
+import '../../shared/providers/supabase_providers.dart';
 import '../../shared/widgets/pro_field.dart';
 
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:local_auth/local_auth.dart' show BiometricType;
 import '../../core/services/biometric_service.dart';
 
@@ -127,10 +130,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
       }
 
       // ── Step 1: Authenticate with Supabase Auth ──────────────────────────
-      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      AuthResponse authResponse;
+      try {
+        authResponse = await Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+      } on AuthException catch (authErr) {
+        if (authErr.message.toLowerCase().contains('email not confirmed') ||
+            authErr.code == 'email_not_confirmed') {
+          if (mounted) {
+            _showUnconfirmedEmailDialog(email);
+          }
+          return;
+        }
+        rethrow;
+      }
 
       final user = authResponse.user;
       if (user == null) {
@@ -165,11 +180,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         return;
       }
 
-      // Fast single-pass platform check
+      // Check shop status and prefetch subscription
       try {
         final profileData = await Supabase.instance.client
             .from('profiles')
-            .select('shop_id, role, shops(invite_level_unlocked, status), licenses(plan)')
+            .select('shop_id, role, shops(status, plan_code)')
             .eq('id', user.id)
             .maybeSingle();
 
@@ -179,7 +194,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
           if (role != 'super_admin' && role != 'admin') {
             final shopData = profileData['shops'] as Map<String, dynamic>?;
             final shopStatus = shopData?['status'] as String?;
-            final levelUnlocked = (shopData?['invite_level_unlocked'] as int?) ?? 1;
 
             if (shopStatus == 'deleted') {
               await Supabase.instance.client.auth.signOut();
@@ -202,39 +216,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
               }
               return;
             }
+          }
 
-            String platform = 'web';
-            if (kIsWeb) {
-              platform = 'web';
-            } else if (defaultTargetPlatform == TargetPlatform.android) {
-              platform = 'android';
-            } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-              platform = 'ios';
-            } else if (defaultTargetPlatform == TargetPlatform.windows) {
-              platform = 'windows';
-            } else if (defaultTargetPlatform == TargetPlatform.macOS) {
-              platform = 'macos';
-            } else if (defaultTargetPlatform == TargetPlatform.linux) {
-              platform = 'linux';
+          final shopId = profileData['shop_id'] as String?;
+          if (shopId != null && shopId.isNotEmpty) {
+            try {
+              await ref
+                  .read(subscriptionStateProvider.notifier)
+                  .fetchForShop(shopId, forceRefresh: true);
+              ref.invalidate(currentShopProvider);
+              ref.invalidate(profileProvider);
+            } catch (subErr) {
+              debugPrint('Pre-login subscription fetch error: $subErr');
             }
-
-            final licsList = profileData['licenses'] as List?;
-            final String plan = licsList != null && licsList.isNotEmpty
-                ? ((licsList.first as Map)['plan'] as String? ?? '').toLowerCase()
-                : '';
-
-            bool isBlocked = false;
-            if (platform == 'windows' || platform == 'web' || platform == 'macos' || platform == 'linux') {
-              if (plan == 'mobile_only' || (levelUnlocked == 1 && plan != 'full_access' && plan != 'full_access_3yr')) {
-                isBlocked = true;
-              }
-            }
-
-            if (isBlocked) {
-              await Supabase.instance.client.auth.signOut();
-              if (mounted) context.go('/platform-blocked');
-              return;
-            }
+          }
+        } else if (!isAdminLoggedIn) {
+          // Stranded account: user exists in auth.users, but registration RPC failed
+          // so no profile or shop was created. Direct them to complete registration.
+          if (mounted) {
+            context.go('/registration-resume?email=${Uri.encodeComponent(email)}');
+            return;
           }
         }
       } catch (platformErr) {
@@ -251,6 +252,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         context.go('/dashboard');
       }
     } catch (e) {
+      if (e is AuthException &&
+          (e.message.toLowerCase().contains('email not confirmed') ||
+              e.code == 'email_not_confirmed')) {
+        if (mounted) {
+          _showUnconfirmedEmailDialog(_emailController.text.trim());
+        }
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -284,6 +293,129 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         setState(() => _isLoggingIn = false);
       }
     }
+  }
+
+  void _showUnconfirmedEmailDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        bool isResending = false;
+        String? feedbackMsg;
+        bool isError = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.mark_email_unread_rounded, color: AppColors.accent, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Email Not Confirmed',
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your account email ($email) has not been confirmed yet.',
+                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white70, height: 1.4),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Please check your inbox (and spam folder) for the verification link. If you didn\'t receive it, tap below to resend.',
+                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white60, height: 1.4),
+                  ),
+                  if (feedbackMsg != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isError
+                            ? const Color(0xFFFF3A58).withValues(alpha: 0.15)
+                            : const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        feedbackMsg!,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: isError ? const Color(0xFFFF3A58) : const Color(0xFF10B981),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('Close', style: GoogleFonts.inter(color: Colors.white54)),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: isResending
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isResending = true;
+                            feedbackMsg = null;
+                          });
+                          try {
+                            await Supabase.instance.client.auth.resend(
+                              type: OtpType.signup,
+                              email: email,
+                              emailRedirectTo: kIsWeb
+                                  ? 'https://darzipro.pk/#/login'
+                                  : 'darzipro://login',
+                            );
+                            setDialogState(() {
+                              isResending = false;
+                              isError = false;
+                              feedbackMsg = '✅ Confirmation email sent! Please check your inbox.';
+                            });
+                          } catch (err) {
+                            setDialogState(() {
+                              isResending = false;
+                              isError = true;
+                              feedbackMsg = 'Failed to resend: $err';
+                            });
+                          }
+                        },
+                  icon: isResending
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : const Icon(Icons.send_rounded, size: 16),
+                  label: Text(
+                    isResending ? 'Sending...' : 'Resend Confirmation Email',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleBiometricLogin() async {
@@ -581,6 +713,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      BuildInfo.fullBuildTag,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: textMuted.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ],
                 ),

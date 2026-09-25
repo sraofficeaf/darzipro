@@ -160,7 +160,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final statsAsync = ref.watch(dashboardStatsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
+    final shopName = shopAsync.value?['name'] as String? ?? '';
     final orders = ordersAsync.valueOrNull ?? [];
     final customers = customersAsync.valueOrNull ?? [];
 
@@ -387,7 +387,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$dateSubtitle · $shopName',
+                        shopName.isNotEmpty ? '$dateSubtitle · $shopName' : dateSubtitle,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: context.text3,

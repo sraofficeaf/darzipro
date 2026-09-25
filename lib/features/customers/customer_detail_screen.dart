@@ -37,7 +37,6 @@ class _Tokens {
   // Gold brand accents
   static const Color gold = Color(0xFFE9A227);
   static const Color gold2 = Color(0xFFFFC65A);
-  static const Color gold3 = Color(0xFFD88A13);
   static const Color goldBg = Color(0xFFFFF6E5);
   static const Color goldLine = Color(0xFFF3DDA8);
   static const Color goldInk = Color(0xFF8A5A00);
@@ -56,9 +55,6 @@ class _Tokens {
   static const Color blue = Color(0xFF5478E8);
   static const Color blueBg = Color(0xFFEEF2FF);
   static const Color blueLine = Color(0xFFDCE3FA);
-
-  static const Color violet = Color(0xFF8764E8);
-  static const Color violetBg = Color(0xFFF3F0FF);
 }
 
 // ── BILINGUAL NAAP FIELD DEFINITION (English Key + Urdu Term) ────────────────
@@ -100,7 +96,6 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
     with SingleTickerProviderStateMixin {
   // Tabs: 0: Profile, 1: Naap, 2: Orders, 3: Billing
   int _activeTab = 0;
-  late String _nowFormatted; // initState mein set hoga — har build pe DateTime.now() nahi
 
   // Order Filters
   final TextEditingController _orderSearchCtrl = TextEditingController();
@@ -114,7 +109,6 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
   @override
   void initState() {
     super.initState();
-    _nowFormatted = DateFormat('dd MMM · hh:mm a').format(DateTime.now());
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -270,81 +264,38 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
 
                   return ListView(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isDesktop ? 26 : 14,
-                      vertical: isDesktop ? 22 : 12,
+                      horizontal: isDesktop ? 24 : 14,
+                      vertical: isDesktop ? 20 : 12,
                     ),
                     children: [
-                      // ── TOP HERO HEADER ─────────────────────────────────
+                      // ── 1. FULL-WIDTH HERO BANNER (MATCHING IMAGE 2) ─────
                       _buildHeroHeader(currentCustomer, isDesktop),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
 
-                      if (isDesktop) ...[
-                        // ── DESKTOP 2-COLUMN LAYOUT ──────────────────────
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Left Column (340px Sticky Profile Panel)
-                            SizedBox(
-                              width: 340,
-                              child: _buildProfilePanel(
-                                customer: currentCustomer,
-                                orders: orders,
-                                measurements: measurements,
-                                totalBusiness: totalBusiness,
-                                totalOutstanding: totalOutstanding,
-                                shopName: shopName,
-                              ),
-                            ),
-                            const SizedBox(width: 18),
+                      // ── 2. QUICK ACTION BAR (+ New Order, Message, Print, ...) ─
+                      _buildActionBar(currentCustomer, orders.length, totalOutstanding, isDesktop),
+                      const SizedBox(height: 14),
 
-                            // Right Column (Tabs + Views)
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildNavbar(measurements.length, orders.length, totalOutstanding),
-                                  const SizedBox(height: 18),
-                                  _buildActiveTabContent(
-                                    customer: currentCustomer,
-                                    orders: orders,
-                                    measurements: measurements,
-                                    orderBalancesMap: orderBalancesMap,
-                                    totalBusiness: totalBusiness,
-                                    totalPaid: totalPaid,
-                                    totalOutstanding: totalOutstanding,
-                                    shopName: shopName,
-                                    isDesktop: true,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        // ── MOBILE SINGLE-COLUMN STACKED LAYOUT ────────────
-                        _buildMobileClientCard(
-                          customer: currentCustomer,
-                          ordersCount: orders.length,
-                          naapCount: measurements.length,
-                          totalBusiness: totalBusiness,
-                          totalOutstanding: totalOutstanding,
-                          shopName: shopName,
-                        ),
-                        const SizedBox(height: 14),
-                        _buildNavbar(measurements.length, orders.length, totalOutstanding),
-                        const SizedBox(height: 14),
-                        _buildActiveTabContent(
-                          customer: currentCustomer,
-                          orders: orders,
-                          measurements: measurements,
-                          orderBalancesMap: orderBalancesMap,
-                          totalBusiness: totalBusiness,
-                          totalPaid: totalPaid,
-                          totalOutstanding: totalOutstanding,
-                          shopName: shopName,
-                          isDesktop: false,
-                        ),
-                      ],
+                      // ── 3. 4 FINANCIAL & WORK KPI CARDS ─────────────────
+                      _buildKpiCards(orders, measurements, totalPaid, totalOutstanding, isDesktop),
+                      const SizedBox(height: 16),
+
+                      // ── 4. NAVBAR TABS (Profile, Naap, Orders, Khata/Ledger) ─
+                      _buildNavbar(measurements.length, orders.length, totalOutstanding),
+                      const SizedBox(height: 16),
+
+                      // ── 5. ACTIVE TAB CONTENT ROUTER ─────────────────────
+                      _buildActiveTabContent(
+                        customer: currentCustomer,
+                        orders: orders,
+                        measurements: measurements,
+                        orderBalancesMap: orderBalancesMap,
+                        totalBusiness: totalBusiness,
+                        totalPaid: totalPaid,
+                        totalOutstanding: totalOutstanding,
+                        shopName: shopName,
+                        isDesktop: isDesktop,
+                      ),
                     ],
                   );
                 },
@@ -356,806 +307,526 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
     );
   }
 
-  // ── 1. HERO HEADER ──────────────────────────────────────────────────────────
+  // ── 1. HERO HEADER (IMAGE 2 MATCHING LUXURY NAVY BANNER) ───────────────────
   Widget _buildHeroHeader(CustomerModel customer, bool isDesktop) {
-    // _nowFormatted initState mein set hota hai — har build pe DateTime.now() nahi
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: _Tokens.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _Tokens.line, width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A111827),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Brand Info
-          Row(
-            children: [
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.arrow_back_rounded, color: _Tokens.ink, size: 20),
-                onPressed: () => context.pop(),
-              ),
-              const SizedBox(width: 12),
-              // Brand mark
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_Tokens.gold2, _Tokens.gold],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(13),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x38E9A227),
-                          blurRadius: 14,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'D',
-                      style: GoogleFonts.outfit(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF241605),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -2,
-                    right: -2,
-                    child: Container(
-                      width: 11,
-                      height: 11,
-                      decoration: BoxDecoration(
-                        color: _Tokens.green,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _Tokens.white, width: 2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Darzi Pro',
-                    style: GoogleFonts.outfit(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: _Tokens.ink,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  if (isDesktop)
-                    Text(
-                      'Client workspace · $_nowFormatted',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: _Tokens.muted,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-
-          // Actions
-          Row(
-            children: [
-              // Search button
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _Tokens.ink,
-                  side: const BorderSide(color: _Tokens.line),
-                  backgroundColor: _Tokens.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                ),
-                onPressed: () {
-                  _switchTab(2); // Jump to Orders tab
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    _orderSearchFocus.requestFocus();
-                  });
-                },
-                icon: const Icon(Icons.search_rounded, size: 16, color: _Tokens.muted),
-                label: Row(
-                  children: [
-                    if (isDesktop) ...[
-                      Text('Search', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _Tokens.paper,
-                          border: Border.all(color: _Tokens.line),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '⌘K',
-                          style: GoogleFonts.jetBrainsMono(fontSize: 9, color: _Tokens.muted, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Print Naap button
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _Tokens.ink,
-                  side: const BorderSide(color: _Tokens.line),
-                  backgroundColor: _Tokens.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                ),
-                onPressed: () => _handlePrintFromHeader(customer),
-                icon: const Icon(Icons.print_outlined, size: 16, color: _Tokens.muted),
-                label: Text(
-                  'Print Naap',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // New Order button
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _Tokens.gold,
-                  foregroundColor: const Color(0xFF211500),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  shadowColor: const Color(0x38E9A227),
-                ),
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  NewOrderModal.show(context, preSelectedCustomer: customer);
-                },
-                icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFF211500)),
-                label: Text(
-                  'New Order',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF211500),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 2. DESKTOP PROFILE PANEL (STICKY SIDEBAR) ──────────────────────────────
-  Widget _buildProfilePanel({
-    required CustomerModel customer,
-    required List<OrderModel> orders,
-    required List<MeasurementModel> measurements,
-    required double totalBusiness,
-    required double totalOutstanding,
-    required String shopName,
-  }) {
-    final statusText = customer.totalOrders == 0
-        ? 'NEW'
-        : (customer.totalOrders <= 5 ? 'ACTIVE' : 'REGULAR');
     final shortId = customer.id.length >= 6
         ? 'DK-${customer.id.substring(0, 5).toUpperCase()}'
-        : customer.id;
+        : customer.id.toUpperCase();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _Tokens.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _Tokens.line, width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A111827),
-            blurRadius: 18,
-            offset: Offset(0, 4),
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(isDesktop ? 22 : 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Cover
-          Container(
-            height: 110,
-            decoration: const BoxDecoration(
-              color: _Tokens.goldBg,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(23)),
-              gradient: RadialGradient(
-                center: Alignment(0.7, -0.4),
-                radius: 1.2,
-                colors: [Color(0x38E9A227), Color(0x105478E8), _Tokens.paper2],
-              ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0x33F59E0B), width: 1),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x26000000),
+              blurRadius: 16,
+              offset: Offset(0, 6),
             ),
-          ),
-
-          // Profile Body
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Avatar with Negative Offset
-                Transform.translate(
-                  offset: const Offset(0, -43),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                // Back Button
+                InkWell(
+                  onTap: () => context.pop(),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0x1AFFFFFF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0x26FFFFFF)),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // Avatar
+                Container(
+                  width: isDesktop ? 60 : 50,
+                  height: isDesktop ? 60 : 50,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_Tokens.gold2, _Tokens.gold],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x40E9A227),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    customer.initials,
+                    style: GoogleFonts.outfit(
+                      fontSize: isDesktop ? 24 : 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF241605),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Name & Badges
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Stack(
-                        clipBehavior: Clip.none,
+                      Row(
                         children: [
-                          Container(
-                            width: 86,
-                            height: 86,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [_Tokens.gold2, _Tokens.gold3],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                          Flexible(
+                            child: Text(
+                              customer.name,
+                              style: GoogleFonts.outfit(
+                                fontSize: isDesktop ? 22 : 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
                               ),
-                              borderRadius: BorderRadius.circular(25),
-                              border: Border.all(color: _Tokens.white, width: 5),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x38D98A13),
-                                  blurRadius: 20,
-                                  offset: Offset(0, 8),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Status Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0x2610B981),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0x4D10B981)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'ACTIVE',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF34D399),
+                                    letterSpacing: 0.4,
+                                  ),
                                 ),
                               ],
                             ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              customer.initials,
-                              style: GoogleFonts.outfit(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
-                                color: _Tokens.white,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 2,
-                            right: 2,
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: _Tokens.green,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: _Tokens.white, width: 3),
-                              ),
-                            ),
                           ),
                         ],
                       ),
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _Tokens.violetBg,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: const BoxDecoration(
-                                color: _Tokens.violet,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              statusText,
-                              style: GoogleFonts.inter(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: _Tokens.violet,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Name & Client ID (compensate for translation offset)
-                Transform.translate(
-                  offset: const Offset(0, -32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        customer.name,
-                        style: GoogleFonts.outfit(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: _Tokens.ink,
-                          letterSpacing: -0.6,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
+                      const SizedBox(height: 6),
+                      // Meta Chips Row
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
+                          // ID Badge
                           Container(
-                            width: 5,
-                            height: 5,
-                            decoration: const BoxDecoration(
-                              color: _Tokens.faint,
-                              shape: BoxShape.circle,
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0x26FFFFFF),
+                              borderRadius: BorderRadius.circular(6),
                             ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            shortId,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10.5,
-                              color: _Tokens.muted,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Mini Sparkline Card
-                Transform.translate(
-                  offset: const Offset(0, -22),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _Tokens.paper,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _Tokens.line),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'LAST 6 MONTHS',
-                              style: GoogleFonts.inter(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: _Tokens.muted,
-                                letterSpacing: 0.7,
-                              ),
-                            ),
-                            Text(
-                              '+42%',
+                            child: Text(
+                              shortId,
                               style: GoogleFonts.jetBrainsMono(
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: _Tokens.green,
+                                color: const Color(0xFFCBD5E1),
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 32,
-                          width: double.infinity,
-                          child: CustomPaint(painter: _SparklinePainter()),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Contact Details
-                Transform.translate(
-                  offset: const Offset(0, -14),
-                  child: Column(
-                    children: [
-                      // Phone Row with Tap-to-Call + WhatsApp
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => _makePhoneCall(customer.phone, context),
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 28,
-                                      height: 28,
-                                      decoration: BoxDecoration(
-                                        color: _Tokens.paper,
-                                        borderRadius: BorderRadius.circular(9),
-                                      ),
-                                      child: const Icon(Icons.phone_outlined, size: 14, color: _Tokens.ink),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        customer.phone,
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: _Tokens.muted,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                          ),
+                          // Gender Tag
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0x26F59E0B),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              customer.gender.label,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFFBBF24),
+                              ),
+                            ),
+                          ),
+                          // Phone
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.phone_outlined, size: 12, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 4),
+                              Text(
+                                customer.phone,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: const Color(0xFFE2E8F0),
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                          // WhatsApp Button
-                          InkWell(
-                            onTap: () => _openWhatsApp(customer.phone, context),
-                            borderRadius: BorderRadius.circular(9),
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: _Tokens.greenBg,
-                                borderRadius: BorderRadius.circular(9),
-                                border: Border.all(color: _Tokens.greenLine),
-                              ),
-                              child: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: _Tokens.green),
+                          if (customer.address.isNotEmpty)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.location_on_outlined, size: 12, color: Color(0xFF94A3B8)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  customer.address,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
                         ],
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Address Row
-                      Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: _Tokens.paper,
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: const Icon(Icons.location_on_outlined, size: 14, color: _Tokens.ink),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              customer.address.isNotEmpty ? customer.address : 'Lahore, Pakistan',
-                              style: GoogleFonts.inter(
-                                fontSize: 11.5,
-                                color: _Tokens.muted,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Member Since Row
-                      Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: _Tokens.paper,
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: const Icon(Icons.schedule_rounded, size: 14, color: _Tokens.ink),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Member since ${_timeAgo(customer.createdAt)}',
-                              style: GoogleFonts.inter(
-                                fontSize: 11.5,
-                                color: _Tokens.muted,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 16),
-                      const Divider(color: _Tokens.line, height: 1),
-                      const SizedBox(height: 16),
-
-                      // 2x2 KPI Grid
-                      Row(
-                        children: [
-                          Expanded(child: _buildPanelKpiBox('ORDERS', '${orders.length}', null)),
-                          const SizedBox(width: 8),
-                          Expanded(child: _buildPanelKpiBox('NAAP', '${measurements.length}', null)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(child: _buildPanelKpiBox('BUSINESS', 'Rs ${_formatK(totalBusiness)}', _Tokens.green)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildPanelKpiBox(
-                              'DUE',
-                              'Rs ${_formatK(totalOutstanding)}',
-                              totalOutstanding > 0 ? _Tokens.rose : _Tokens.green,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // Actions List
-                      SizedBox(
-                        width: double.infinity,
-                        height: 42,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _Tokens.gold,
-                            foregroundColor: const Color(0xFF211500),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-                          ),
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            NewOrderModal.show(context, preSelectedCustomer: customer);
-                          },
-                          icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFF211500)),
-                          label: Text('Create New Order',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF211500))),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 40,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: _Tokens.white,
-                            side: const BorderSide(color: _Tokens.line),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-                          ),
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            EditCustomerModal.show(context, customer: customer);
-                          },
-                          icon: const Icon(Icons.edit_outlined, size: 15, color: _Tokens.ink),
-                          label: Text('Edit Client',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: _Tokens.ink)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 40,
-                        child: TextButton.icon(
-                          style: TextButton.styleFrom(
-                            backgroundColor: _Tokens.roseBg,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(11),
-                              side: const BorderSide(color: _Tokens.roseLine),
-                            ),
-                          ),
-                          onPressed: () => _confirmDeleteCustomer(customer, orders.length, totalOutstanding),
-                          icon: const Icon(Icons.delete_outline_rounded, size: 15, color: _Tokens.rose),
-                          label: Text('Delete Customer',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: _Tokens.rose)),
-                        ),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPanelKpiBox(String label, String value, Color? numColor) {
+  // ── 2. QUICK ACTION BAR (+ New Order, Message, Call, Print, Edit, More) ─────
+  Widget _buildActionBar(
+    CustomerModel customer,
+    int orderCount,
+    double totalOutstanding,
+    bool isDesktop,
+  ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: _Tokens.paper,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: _Tokens.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: numColor ?? _Tokens.ink,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 8.5,
-              fontWeight: FontWeight.w900,
-              color: _Tokens.muted,
-              letterSpacing: 0.7,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 3. MOBILE CLIENT CARD ───────────────────────────────────────────────────
-  Widget _buildMobileClientCard({
-    required CustomerModel customer,
-    required int ordersCount,
-    required int naapCount,
-    required double totalBusiness,
-    required double totalOutstanding,
-    required String shopName,
-  }) {
-    final statusText = customer.totalOrders == 0
-        ? 'NEW CLIENT'
-        : (customer.totalOrders <= 5 ? 'ACTIVE CLIENT' : 'REGULAR CLIENT');
-
-    return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: _Tokens.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _Tokens.line),
         boxShadow: const [
-          BoxShadow(color: Color(0x08111827), blurRadius: 10, offset: Offset(0, 3)),
+          BoxShadow(
+            color: Color(0x08111827),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
-      child: Column(
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          // Primary: + New Order
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _Tokens.gold,
+              foregroundColor: const Color(0xFF211500),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              NewOrderModal.show(context, preSelectedCustomer: customer);
+            },
+            icon: const Icon(Icons.add_rounded, size: 17, color: Color(0xFF211500)),
+            label: Text(
+              'New Order',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF211500),
+              ),
+            ),
+          ),
+
+          // Action Buttons Group
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_Tokens.gold2, _Tokens.gold3]),
-                  borderRadius: BorderRadius.circular(16),
+              // WhatsApp
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  side: const BorderSide(color: Color(0x3310B981)),
+                  backgroundColor: const Color(0x0D10B981),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  customer.initials,
-                  style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900, color: _Tokens.white),
+                onPressed: () => _openWhatsApp(customer.phone, context),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15, color: Color(0xFF059669)),
+                label: Text(
+                  'WhatsApp',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(customer.name,
-                        style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w800, color: _Tokens.ink)),
-                    const SizedBox(height: 2),
-                    Text(customer.phone,
-                        style: GoogleFonts.jetBrainsMono(fontSize: 11, color: _Tokens.muted)),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _Tokens.violetBg,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        statusText,
-                        style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.w800, color: _Tokens.violet),
-                      ),
+              const SizedBox(width: 8),
+
+              // Call
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _Tokens.ink,
+                  side: const BorderSide(color: _Tokens.line),
+                  backgroundColor: _Tokens.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _makePhoneCall(customer.phone, context),
+                icon: const Icon(Icons.phone_outlined, size: 15, color: _Tokens.muted),
+                label: Text(
+                  'Call',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Print Card
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _Tokens.ink,
+                  side: const BorderSide(color: _Tokens.line),
+                  backgroundColor: _Tokens.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _handlePrintFromHeader(customer),
+                icon: const Icon(Icons.print_outlined, size: 15, color: _Tokens.muted),
+                label: Text(
+                  'Print Card',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Edit Profile
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _Tokens.ink,
+                  side: const BorderSide(color: _Tokens.line),
+                  backgroundColor: _Tokens.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => EditCustomerModal.show(context, customer: customer),
+                icon: const Icon(Icons.edit_outlined, size: 15, color: _Tokens.muted),
+                label: Text(
+                  'Edit Profile',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Overflow Popup
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded, size: 18, color: _Tokens.muted),
+                tooltip: 'More options',
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (val) {
+                  if (val == 'delete') {
+                    _confirmDeleteCustomer(customer, orderCount, totalOutstanding);
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete_outline_rounded, size: 16, color: _Tokens.rose),
+                        const SizedBox(width: 8),
+                        Text('Archive / Delete', style: GoogleFonts.inter(fontSize: 12, color: _Tokens.rose, fontWeight: FontWeight.w600)),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.phone_outlined, size: 18, color: _Tokens.ink),
-                    onPressed: () => _makePhoneCall(customer.phone, context),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: _Tokens.green),
-                    onPressed: () => _openWhatsApp(customer.phone, context),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // 4 Mobile Stats
-          Row(
-            children: [
-              Expanded(child: _buildMiniStat('Orders', '$ordersCount', null)),
-              const SizedBox(width: 6),
-              Expanded(child: _buildMiniStat('Naap', '$naapCount', null)),
-              const SizedBox(width: 6),
-              Expanded(child: _buildMiniStat('Business', _formatK(totalBusiness), _Tokens.green)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _buildMiniStat(
-                  'Due',
-                  _formatK(totalOutstanding),
-                  totalOutstanding > 0 ? _Tokens.rose : _Tokens.green,
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildMiniStat(String label, String value, Color? color) {
+  // ── 3. 4 FINANCIAL & WORK KPI CARDS (IMAGE 2 MATCHING) ──────────────────────
+  Widget _buildKpiCards(
+    List<OrderModel> orders,
+    List<MeasurementModel> measurements,
+    double totalPaid,
+    double totalOutstanding,
+    bool isDesktop,
+  ) {
+    final cards = [
+      _buildDetailKpiCard(
+        title: 'TOTAL ORDERS',
+        value: '${orders.length}',
+        subtext: orders.isNotEmpty ? '${orders.length} orders on file' : 'No orders yet',
+        icon: Icons.shopping_bag_outlined,
+        iconColor: const Color(0xFFD97706),
+        iconBg: const Color(0xFFFEF3C7),
+      ),
+      _buildDetailKpiCard(
+        title: 'NAAP RECORDS',
+        value: '${measurements.length}',
+        subtext: measurements.isNotEmpty ? measurements.first.profileName : 'No naap profile',
+        icon: Icons.straighten_rounded,
+        iconColor: const Color(0xFF0284C7),
+        iconBg: const Color(0xFFE0F2FE),
+      ),
+      _buildDetailKpiCard(
+        title: 'TOTAL PAID',
+        value: 'Rs ${_formatK(totalPaid)}',
+        subtext: 'Payments collected',
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: const Color(0xFF059669),
+        iconBg: const Color(0xFFD1FAE5),
+      ),
+      _buildDetailKpiCard(
+        title: 'OUTSTANDING',
+        value: 'Rs ${_formatK(totalOutstanding)}',
+        subtext: totalOutstanding > 0 ? 'Payment due' : 'All clear',
+        icon: Icons.account_balance_wallet_outlined,
+        iconColor: totalOutstanding > 0 ? const Color(0xFFE11D48) : const Color(0xFF059669),
+        iconBg: totalOutstanding > 0 ? const Color(0xFFFFE4E6) : const Color(0xFFD1FAE5),
+      ),
+    ];
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          for (int i = 0; i < cards.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            Expanded(child: cards[i]),
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: cards[0]),
+            const SizedBox(width: 8),
+            Expanded(child: cards[1]),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: cards[2]),
+            const SizedBox(width: 8),
+            Expanded(child: cards[3]),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailKpiCard({
+    required String title,
+    required String value,
+    required String subtext,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _Tokens.paper,
-        borderRadius: BorderRadius.circular(11),
+        color: _Tokens.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _Tokens.line),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06111827),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value,
-              style: GoogleFonts.jetBrainsMono(fontSize: 12.5, fontWeight: FontWeight.w800, color: color ?? _Tokens.ink)),
-          const SizedBox(height: 2),
-          Text(label.toUpperCase(),
-              style: GoogleFonts.inter(fontSize: 7.5, fontWeight: FontWeight.w900, color: _Tokens.muted)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: _Tokens.muted,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 16, color: iconColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: _Tokens.ink,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtext,
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+              color: _Tokens.muted,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -1167,7 +838,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: _Tokens.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _Tokens.line),
         boxShadow: const [
           BoxShadow(color: Color(0x08111827), blurRadius: 10, offset: Offset(0, 2)),
@@ -1175,11 +846,12 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
       ),
       child: Row(
         children: [
-          _buildNavTab(label: 'Profile', index: 0),
-          _buildNavTab(label: 'Naap', index: 1, countBadge: '$naapCount'),
-          _buildNavTab(label: 'Orders', index: 2, countBadge: '$ordersCount'),
+          _buildNavTab(label: 'Profile', icon: Icons.person_outline_rounded, index: 0),
+          _buildNavTab(label: 'Naap', icon: Icons.straighten_rounded, index: 1, countBadge: '$naapCount'),
+          _buildNavTab(label: 'Orders', icon: Icons.inventory_2_outlined, index: 2, countBadge: '$ordersCount'),
           _buildNavTab(
-            label: 'Billing',
+            label: 'Khata / Ledger',
+            icon: Icons.menu_book_outlined,
             index: 3,
             countBadge: outstanding > 0 ? 'Rs ${_formatK(outstanding)}' : null,
             badgeColor: outstanding > 0 ? _Tokens.rose : null,
@@ -1191,6 +863,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
 
   Widget _buildNavTab({
     required String label,
+    required IconData icon,
     required int index,
     String? countBadge,
     Color? badgeColor,
@@ -1205,7 +878,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isActive ? _Tokens.gold : Colors.transparent,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: isActive
                 ? const [
                     BoxShadow(
@@ -1219,23 +892,32 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w700,
-                  color: isActive ? const Color(0xFF211500) : _Tokens.muted,
+              Icon(
+                icon,
+                size: 15,
+                color: isActive ? const Color(0xFF211500) : _Tokens.muted,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                    color: isActive ? const Color(0xFF211500) : _Tokens.muted,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (countBadge != null) ...[
-                const SizedBox(width: 5),
+                const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: isActive
-                        ? const Color(0x26000000)
-                        : (badgeColor?.withValues(alpha: 0.12) ?? const Color(0x14000000)),
-                    borderRadius: BorderRadius.circular(6),
+                        ? const Color(0x33000000)
+                        : (badgeColor ?? _Tokens.paper2),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     countBadge,
@@ -1300,7 +982,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
     }
   }
 
-  // ── 6. TAB 1: PROFILE TAB ───────────────────────────────────────────────────
+  // ── 6. TAB 1: PROFILE TAB (IMAGE 2 4-CARD DASHBOARD GRID) ───────────────────
   Widget _buildProfileTab({
     required CustomerModel customer,
     required List<OrderModel> orders,
@@ -1311,234 +993,169 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
     required double totalOutstanding,
     required bool isDesktop,
   }) {
-    final paidPercent = totalBusiness > 0
-        ? ((totalPaid / totalBusiness) * 100).toStringAsFixed(1)
-        : '100.0';
+    final personalInfoCard = _buildPersonalInfoCard(customer);
+    final recentOrdersCard = _buildRecentOrdersCard(orders, orderBalancesMap);
+    final latestNaapCard = _buildLatestMeasurementsCard(customer, measurements);
+    final ledgerSummaryCard = _buildLedgerSummaryCard(
+      totalBusiness: totalBusiness,
+      totalPaid: totalPaid,
+      totalOutstanding: totalOutstanding,
+      customer: customer,
+    );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Tab Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    if (isDesktop) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left Column: Personal Information + Recent Orders
+          Expanded(
+            child: Column(
               children: [
-                Text('Client overview',
-                    style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w800, color: _Tokens.ink)),
-                const SizedBox(height: 2),
-                Text('Everything important about this customer, in one place.',
-                    style: GoogleFonts.inter(fontSize: 11, color: _Tokens.muted)),
+                personalInfoCard,
+                const SizedBox(height: 14),
+                recentOrdersCard,
               ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _Tokens.greenBg,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Row(
-                children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: _Tokens.green, shape: BoxShape.circle)),
-                  const SizedBox(width: 6),
-                  Text('Active client', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: _Tokens.green)),
-                ],
-              ),
+          ),
+          const SizedBox(width: 14),
+          // Right Column: Latest Measurements + Ledger Summary
+          Expanded(
+            child: Column(
+              children: [
+                latestNaapCard,
+                const SizedBox(height: 14),
+                ledgerSummaryCard,
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        // Bento Grid: Personal Info Card + 4 Metric Cards
-        if (isDesktop) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left: Personal Info Card
-              Expanded(
-                flex: 5,
-                child: _buildPersonalInfoCard(customer, measurements),
-              ),
-              const SizedBox(width: 12),
-              // Right: 4 Metrics Cards (2x2)
-              Expanded(
-                flex: 6,
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMetricCard(
-                            icon: Icons.inventory_2_outlined,
-                            iconColor: _Tokens.gold,
-                            iconBg: _Tokens.goldBg,
-                            value: '${orders.length}',
-                            label: 'TOTAL ORDERS',
-                            trend: orders.length > 1 ? 'Repeat customer' : 'New customer',
-                            trendColor: _Tokens.green,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMetricCard(
-                            icon: Icons.check_circle_outline_rounded,
-                            iconColor: _Tokens.green,
-                            iconBg: _Tokens.greenBg,
-                            value: 'Rs ${_formatK(totalPaid)}',
-                            label: 'PAID SO FAR',
-                            trend: '$paidPercent% collected',
-                            trendColor: _Tokens.green,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildMetricCard(
-                            icon: Icons.warning_amber_rounded,
-                            iconColor: _Tokens.rose,
-                            iconBg: _Tokens.roseBg,
-                            value: 'Rs ${_formatK(totalOutstanding)}',
-                            label: 'OUTSTANDING',
-                            trend: totalOutstanding > 0 ? 'Payment due' : 'All clear',
-                            trendColor: totalOutstanding > 0 ? _Tokens.rose : _Tokens.green,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildMetricCard(
-                            icon: Icons.straighten_rounded,
-                            iconColor: _Tokens.blue,
-                            iconBg: _Tokens.blueBg,
-                            value: '${measurements.length}',
-                            label: 'NAAP PROFILES',
-                            trend: 'Updated recently',
-                            trendColor: _Tokens.blue,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ] else ...[
-          _buildPersonalInfoCard(customer, measurements),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricCard(
-                  icon: Icons.inventory_2_outlined,
-                  iconColor: _Tokens.gold,
-                  iconBg: _Tokens.goldBg,
-                  value: '${orders.length}',
-                  label: 'TOTAL ORDERS',
-                  trend: 'Repeat customer',
-                  trendColor: _Tokens.green,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricCard(
-                  icon: Icons.check_circle_outline_rounded,
-                  iconColor: _Tokens.green,
-                  iconBg: _Tokens.greenBg,
-                  value: 'Rs ${_formatK(totalPaid)}',
-                  label: 'PAID SO FAR',
-                  trend: '$paidPercent% paid',
-                  trendColor: _Tokens.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricCard(
-                  icon: Icons.warning_amber_rounded,
-                  iconColor: _Tokens.rose,
-                  iconBg: _Tokens.roseBg,
-                  value: 'Rs ${_formatK(totalOutstanding)}',
-                  label: 'OUTSTANDING',
-                  trend: totalOutstanding > 0 ? 'Due' : 'Clear',
-                  trendColor: totalOutstanding > 0 ? _Tokens.rose : _Tokens.green,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricCard(
-                  icon: Icons.straighten_rounded,
-                  iconColor: _Tokens.blue,
-                  iconBg: _Tokens.blueBg,
-                  value: '${measurements.length}',
-                  label: 'NAAP PROFILES',
-                  trend: 'Active',
-                  trendColor: _Tokens.blue,
-                ),
-              ),
-            ],
           ),
         ],
+      );
+    }
 
-        const SizedBox(height: 14),
+    // Mobile Column: Stacks the 4 cards
+    return Column(
+      children: [
+        personalInfoCard,
+        const SizedBox(height: 12),
+        recentOrdersCard,
+        const SizedBox(height: 12),
+        latestNaapCard,
+        const SizedBox(height: 12),
+        ledgerSummaryCard,
+      ],
+    );
+  }
 
-        // Recent Activity & Latest Orders Section
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: _Tokens.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _Tokens.line),
+  // ── CARD 1: PERSONAL INFORMATION ───────────────────────────────────────────
+  Widget _buildPersonalInfoCard(CustomerModel customer) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _Tokens.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _Tokens.line),
+        boxShadow: const [
+          BoxShadow(color: Color(0x06111827), blurRadius: 10, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _Tokens.goldBg,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.person_outline_rounded, size: 16, color: _Tokens.goldInk),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Personal Information',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _Tokens.ink,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 16, color: _Tokens.muted),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Edit Profile',
+                onPressed: () => EditCustomerModal.show(context, customer: customer),
+              ),
+            ],
           ),
+          const SizedBox(height: 16),
+
+          // Key-Value Rows
+          _buildInfoRow('Full Name', customer.name, 'Gender', customer.gender.label),
+          const SizedBox(height: 10),
+          _buildInfoRow('Phone', customer.phone, 'Customer ID', 'DK-${customer.id.length >= 6 ? customer.id.substring(0, 6).toUpperCase() : customer.id.toUpperCase()}'),
+          const SizedBox(height: 10),
+          _buildInfoRow('Address', customer.address.isNotEmpty ? customer.address : 'Lahore, Pakistan', 'Customer Since', DateFormat('dd MMM yyyy').format(customer.createdAt)),
+
+          const SizedBox(height: 14),
+          // Notes box
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _Tokens.paper,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _Tokens.lineSoft),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.note_alt_outlined, size: 15, color: _Tokens.muted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    customer.notes?.isNotEmpty == true
+                        ? customer.notes!
+                        : 'Standard fitting profile · No custom tailoring notes recorded.',
+                    style: GoogleFonts.inter(fontSize: 11, color: _Tokens.muted, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String k1, String v1, String k2, String v2) {
+    return Row(
+      children: [
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (isDesktop) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Timeline
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildCardTitle('Recent Activity'),
-                          const SizedBox(height: 12),
-                          _buildRecentActivityTimeline(orders),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    // Latest Orders
-                    Expanded(
-                      flex: 6,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildCardTitle('Latest Orders'),
-                          const SizedBox(height: 12),
-                          _buildLatestOrdersTable(orders, orderBalancesMap),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ] else ...[
-                _buildCardTitle('Recent Activity'),
-                const SizedBox(height: 10),
-                _buildRecentActivityTimeline(orders),
-                const SizedBox(height: 16),
-                _buildCardTitle('Latest Orders'),
-                const SizedBox(height: 10),
-                _buildLatestOrdersTable(orders, orderBalancesMap),
-              ],
+              Text(k1, style: GoogleFonts.inter(fontSize: 10.5, color: _Tokens.muted, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text(v1, style: GoogleFonts.inter(fontSize: 12, color: _Tokens.ink, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(k2, style: GoogleFonts.inter(fontSize: 10.5, color: _Tokens.muted, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text(v2, style: GoogleFonts.inter(fontSize: 12, color: _Tokens.ink, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
@@ -1546,321 +1163,476 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
     );
   }
 
-  Widget _buildCardTitle(String title) {
-    return Text(
-      title.toUpperCase(),
-      style: GoogleFonts.inter(
-        fontSize: 10,
-        fontWeight: FontWeight.w900,
-        color: _Tokens.faint,
-        letterSpacing: 1.2,
-      ),
-    );
-  }
-
-  Widget _buildPersonalInfoCard(CustomerModel customer, List<MeasurementModel> measurements) {
-    final latestNaapDate = measurements.isNotEmpty
-        ? DateFormat('dd MMM yyyy').format(measurements.first.updatedAt)
-        : null;
+  // ── CARD 2: RECENT ORDERS ───────────────────────────────────────────────────
+  Widget _buildRecentOrdersCard(List<OrderModel> orders, Map<String, OrderBalance> balances) {
+    final recent = orders.take(3).toList();
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: _Tokens.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _Tokens.line),
+        boxShadow: const [
+          BoxShadow(color: Color(0x06111827), blurRadius: 10, offset: Offset(0, 2)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildCardTitle('Personal Information'),
-          const SizedBox(height: 14),
-          _buildInfoGridRow('Full name', customer.name, 'Gender', customer.gender.label),
-          _buildInfoGridRow('Phone', customer.phone, 'Member since', _timeAgo(customer.createdAt)),
-          _buildInfoGridRow('Address', customer.address.isNotEmpty ? customer.address : '-', 'City', 'Lahore'),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: _Tokens.goldBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _Tokens.goldLine),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline_rounded, size: 16, color: _Tokens.goldInk),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    latestNaapDate != null
-                        ? 'Customer profile is ready. Latest measurement update: $latestNaapDate.'
-                        : 'Customer profile is active. Add a naap profile to start tailoring.',
-                    style: GoogleFonts.inter(fontSize: 11, color: _Tokens.muted),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoGridRow(String key1, String val1, String key2, String val2) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(key1, style: GoogleFonts.inter(fontSize: 9.5, color: _Tokens.muted, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(val1, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: _Tokens.ink)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(key2, style: GoogleFonts.inter(fontSize: 9.5, color: _Tokens.muted, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(val2, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: _Tokens.ink)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetricCard({
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String value,
-    required String label,
-    required String trend,
-    required Color trendColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _Tokens.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _Tokens.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, size: 16, color: iconColor),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: _Tokens.ink,
-              letterSpacing: -0.8,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 8.5,
-              fontWeight: FontWeight.w900,
-              color: _Tokens.muted,
-              letterSpacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 6),
+          // Header
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(width: 4, height: 4, decoration: BoxDecoration(color: trendColor, shape: BoxShape.circle)),
-              const SizedBox(width: 4),
-              Text(
-                trend,
-                style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w700, color: trendColor),
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFFD97706)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Recent Orders',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _Tokens.ink,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentActivityTimeline(List<OrderModel> orders) {
-    final List<Map<String, dynamic>> events = [];
-    for (final order in orders) {
-      events.add({
-        'type': 'order',
-        'date': order.orderDate,
-        'title': 'New Order · ${order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Suit'}',
-        'subtitle': '${order.tokenNumber} · ${DateFormat('dd MMM').format(order.orderDate)}',
-        'amount': '-Rs ${order.totalAmount.toInt()}',
-        'isCredit': false,
-      });
-      for (final p in order.payments) {
-        events.add({
-          'type': 'payment',
-          'date': p.paidAt,
-          'title': 'Payment · ${p.method.name.toUpperCase()}',
-          'subtitle': '${order.tokenNumber} · ${DateFormat('dd MMM').format(p.paidAt)}',
-          'amount': '+Rs ${p.amount.toInt()}',
-          'isCredit': true,
-        });
-      }
-    }
-    events.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
-    final displayEvents = events.take(4).toList();
-
-    if (displayEvents.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text('No activity recorded yet.', style: GoogleFonts.inter(fontSize: 12, color: _Tokens.muted)),
-      );
-    }
-
-    return Column(
-      children: displayEvents.map((e) {
-        final isCredit = e['isCredit'] as bool;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(
-            color: _Tokens.paper,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: isCredit ? _Tokens.greenBg : _Tokens.blueBg,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isCredit ? Icons.arrow_downward_rounded : Icons.shopping_bag_outlined,
-                  size: 15,
-                  color: isCredit ? _Tokens.green : _Tokens.blue,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              InkWell(
+                onTap: () => _switchTab(2),
+                child: Row(
                   children: [
-                    Text(e['title'] as String,
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _Tokens.ink),
-                        overflow: TextOverflow.ellipsis),
-                    Text(e['subtitle'] as String,
-                        style: GoogleFonts.inter(fontSize: 9.5, color: _Tokens.muted)),
+                    Text(
+                      'View All',
+                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _Tokens.goldInk),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: _Tokens.goldInk),
                   ],
                 ),
               ),
-              Text(
-                e['amount'] as String,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isCredit ? _Tokens.green : _Tokens.rose,
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (recent.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text('No orders recorded yet.', style: GoogleFonts.inter(fontSize: 12, color: _Tokens.muted)),
+              ),
+            )
+          else
+            ...recent.map((order) {
+              final b = balances[order.id];
+              final total = b != null ? (b.totalAmount - b.discount) : (order.totalAmount - order.discount);
+              final due = b != null ? b.remainingAmount : order.remainingAmount;
+
+              return InkWell(
+                onTap: () => context.push('/orders/${order.id}'),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _Tokens.paper,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _Tokens.lineSoft),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: _Tokens.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _Tokens.line),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.checkroom_outlined, size: 17, color: _Tokens.ink),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}',
+                                  style: GoogleFonts.jetBrainsMono(fontSize: 11, fontWeight: FontWeight.w700, color: _Tokens.ink),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: order.status == OrderStatus.delivered
+                                        ? const Color(0x2610B981)
+                                        : const Color(0x26F59E0B),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    order.status.label,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: order.status == OrderStatus.delivered
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Suit',
+                              style: GoogleFonts.inter(fontSize: 10.5, color: _Tokens.muted),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Rs ${total.toInt()}',
+                            style: GoogleFonts.jetBrainsMono(fontSize: 11.5, fontWeight: FontWeight.w800, color: _Tokens.ink),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            due > 0 ? 'Rs ${due.toInt()} Due' : 'Paid ✓',
+                            style: GoogleFonts.inter(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: due > 0 ? _Tokens.rose : _Tokens.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  // ── CARD 3: LATEST MEASUREMENTS ─────────────────────────────────────────────
+  Widget _buildLatestMeasurementsCard(CustomerModel customer, List<MeasurementModel> measurements) {
+    final latest = measurements.isNotEmpty ? measurements.first : null;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _Tokens.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _Tokens.line),
+        boxShadow: const [
+          BoxShadow(color: Color(0x06111827), blurRadius: 10, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0F2FE),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.straighten_rounded, size: 16, color: Color(0xFF0284C7)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Latest Measurements',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _Tokens.ink,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () => _switchTab(1),
+                child: Row(
+                  children: [
+                    Text(
+                      'View All',
+                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _Tokens.goldInk),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: _Tokens.goldInk),
+                  ],
                 ),
               ),
             ],
           ),
-        );
-      }).toList(),
-    );
-  }
+          const SizedBox(height: 14),
 
-  Widget _buildLatestOrdersTable(List<OrderModel> orders, Map<String, OrderBalance> balances) {
-    final recentOrders = orders.take(3).toList();
-
-    if (recentOrders.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text('No orders recorded yet.', style: GoogleFonts.inter(fontSize: 12, color: _Tokens.muted)),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _Tokens.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _Tokens.line),
-      ),
-      child: Column(
-        children: recentOrders.map((order) {
-          final b = balances[order.id];
-          final total = b != null ? (b.totalAmount - b.discount) : (order.totalAmount - order.discount);
-          final due = b != null ? b.remainingAmount : order.remainingAmount;
-
-          return InkWell(
-            onTap: () => context.push('/orders/${order.id}'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: _Tokens.lineSoft)),
+          if (latest == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Column(
+                  children: [
+                    Text('No measurement profile found.', style: GoogleFonts.inter(fontSize: 12, color: _Tokens.muted)),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _Tokens.line),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _switchTab(1),
+                      icon: const Icon(Icons.add_rounded, size: 14, color: _Tokens.ink),
+                      label: Text('Add Naap', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _Tokens.ink)),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            // Profile Name & Date
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: _Tokens.paper,
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    padding: const EdgeInsets.symmetric(vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _Tokens.goldBg,
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(color: _Tokens.goldLine),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      order.tokenNumber.isNotEmpty ? order.tokenNumber : '#${order.orderNumber}',
-                      style: GoogleFonts.jetBrainsMono(fontSize: 9.5, fontWeight: FontWeight.w800, color: _Tokens.goldInk),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
+                  const Icon(Icons.accessibility_new_rounded, size: 16, color: _Tokens.muted),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(order.itemsSummary.isNotEmpty ? order.itemsSummary : 'Order',
-                            style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w800, color: _Tokens.ink),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                        Text('${DateFormat('dd MMM yyyy').format(order.orderDate)} · ${order.status.label}',
-                            style: GoogleFonts.inter(fontSize: 9.5, color: _Tokens.muted)),
-                      ],
+                    child: Text(
+                      latest.profileName,
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w800, color: _Tokens.ink),
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('Rs ${total.toInt()}',
-                          style: GoogleFonts.jetBrainsMono(fontSize: 11, fontWeight: FontWeight.w800, color: _Tokens.ink)),
-                      Text(
-                        due > 0 ? 'Due ${due.toInt()}' : 'Paid ✓',
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: due > 0 ? _Tokens.rose : _Tokens.green,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    _timeAgo(latest.updatedAt),
+                    style: GoogleFonts.inter(fontSize: 10.5, color: _Tokens.muted),
                   ),
                 ],
               ),
             ),
-          );
-        }).toList(),
+            const SizedBox(height: 12),
+
+            // Key Measurement Chips (Chaati, Lambai, Teera, Bazo, Kamar, Gala)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildNaapChip('Lambai', _findNaapVal(latest, ['lambai', 'length'])),
+                _buildNaapChip('Chaati', _findNaapVal(latest, ['chaati', 'chhaati', 'chest'])),
+                _buildNaapChip('Teera', _findNaapVal(latest, ['teera', 'teerwa', 'shoulder'])),
+                _buildNaapChip('Bazo', _findNaapVal(latest, ['bazo', 'sleeve'])),
+                _buildNaapChip('Kamar', _findNaapVal(latest, ['kamar', 'waist'])),
+                _buildNaapChip('Gala', _findNaapVal(latest, ['gala', 'collar'])),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? _findNaapVal(MeasurementModel? m, List<String> aliases) {
+    if (m == null) return null;
+    for (final section in m.sections) {
+      for (final field in section.fields) {
+        final k = field.key.trim().toLowerCase();
+        final l = field.label.trim().toLowerCase();
+        for (final a in aliases) {
+          if (k == a || l.contains(a)) {
+            if (field.value.trim().isNotEmpty) return field.value.trim();
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  Widget _buildNaapChip(String label, dynamic val) {
+    final strVal = (val != null && val.toString().trim().isNotEmpty) ? '$val"' : '-';
+    return Container(
+      width: 78,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: _Tokens.paper,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _Tokens.lineSoft),
+      ),
+      child: Column(
+        children: [
+          Text(strVal, style: GoogleFonts.jetBrainsMono(fontSize: 12.5, fontWeight: FontWeight.w800, color: _Tokens.ink)),
+          const SizedBox(height: 2),
+          Text(label, style: GoogleFonts.inter(fontSize: 8.5, color: _Tokens.muted, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  // ── CARD 4: LEDGER SUMMARY ──────────────────────────────────────────────────
+  Widget _buildLedgerSummaryCard({
+    required double totalBusiness,
+    required double totalPaid,
+    required double totalOutstanding,
+    required CustomerModel customer,
+  }) {
+    final paidPercent = totalBusiness > 0 ? (totalPaid / totalBusiness).clamp(0.0, 1.0) : 1.0;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _Tokens.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _Tokens.line),
+        boxShadow: const [
+          BoxShadow(color: Color(0x06111827), blurRadius: 10, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD1FAE5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.menu_book_outlined, size: 16, color: Color(0xFF059669)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Ledger Summary',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _Tokens.ink,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () => _switchTab(3),
+                child: Row(
+                  children: [
+                    Text(
+                      'View All',
+                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _Tokens.goldInk),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: _Tokens.goldInk),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Total Billed vs Paid
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Total Billed', style: GoogleFonts.inter(fontSize: 10.5, color: _Tokens.muted)),
+                  const SizedBox(height: 2),
+                  Text('Rs ${_formatK(totalBusiness)}', style: GoogleFonts.jetBrainsMono(fontSize: 15, fontWeight: FontWeight.w800, color: _Tokens.ink)),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('Total Paid', style: GoogleFonts.inter(fontSize: 10.5, color: _Tokens.muted)),
+                  const SizedBox(height: 2),
+                  Text('Rs ${_formatK(totalPaid)}', style: GoogleFonts.jetBrainsMono(fontSize: 15, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: LinearProgressIndicator(
+              value: paidPercent,
+              backgroundColor: const Color(0xFFFFE4E6),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF059669)),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Outstanding Due Highlight Box
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: totalOutstanding > 0 ? const Color(0xFFFFF1F2) : const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: totalOutstanding > 0 ? const Color(0xFFFFCCD3) : const Color(0xFFBBF7D0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      totalOutstanding > 0 ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+                      size: 16,
+                      color: totalOutstanding > 0 ? _Tokens.rose : const Color(0xFF059669),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      totalOutstanding > 0 ? 'Pending Balance' : 'Zero Balance Due',
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: totalOutstanding > 0 ? _Tokens.rose : const Color(0xFF059669),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Rs ${_formatK(totalOutstanding)}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: totalOutstanding > 0 ? _Tokens.rose : const Color(0xFF059669),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3249,6 +3021,78 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
     );
   }
 
+  Widget _buildCardTitle(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.outfit(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: _Tokens.ink,
+        letterSpacing: -0.2,
+      ),
+    );
+  }
+
+  Widget _buildRecentActivityTimeline(List<OrderModel> orders) {
+    if (orders.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'No activity recorded yet',
+          style: GoogleFonts.inter(fontSize: 11, color: _Tokens.muted),
+        ),
+      );
+    }
+    final recent = orders.take(4).toList();
+    return Column(
+      children: recent.map((order) {
+        final dateStr = DateFormat('dd MMM yyyy').format(order.orderDate);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: _Tokens.blue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '#${order.orderNumber}',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: _Tokens.ink,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    dateStr,
+                    style: GoogleFonts.inter(fontSize: 10, color: _Tokens.muted),
+                  ),
+                ],
+              ),
+              Text(
+                'Rs ${_formatK(order.totalAmount)}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: _Tokens.ink,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildBalanceCard({
     required String label,
     required String value,
@@ -3628,44 +3472,4 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen>
       }
     }
   }
-}
-
-// ── CUSTOM SPARKLINE PAINTER ──────────────────────────────────────────────────
-class _SparklinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final strokePaint = Paint()
-      ..color = _Tokens.green
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final fillPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0x5918B887), Color(0x0018B887)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final path = Path();
-    path.moveTo(0, size.height * 0.8);
-    path.lineTo(size.width * 0.16, size.height * 0.7);
-    path.lineTo(size.width * 0.33, size.height * 0.6);
-    path.lineTo(size.width * 0.50, size.height * 0.65);
-    path.lineTo(size.width * 0.66, size.height * 0.45);
-    path.lineTo(size.width * 0.83, size.height * 0.30);
-    path.lineTo(size.width, size.height * 0.20);
-
-    final fillPath = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, strokePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

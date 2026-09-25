@@ -1517,13 +1517,13 @@ class _DashboardError extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════
 // ✦ STORAGE WARNING BANNER
 // ══════════════════════════════════════════════════════════════════════
-class _StorageWarningBanner extends StatelessWidget {
+class _StorageWarningBanner extends ConsumerWidget {
   final AsyncValue<Map<String, dynamic>?> shopAsync;
 
   const _StorageWarningBanner({required this.shopAsync});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final shop = shopAsync.valueOrNull;
     if (shop == null) return const SizedBox.shrink();
 
@@ -1617,8 +1617,10 @@ class _StorageWarningBanner extends StatelessWidget {
       );
     }
 
-    const int warningThreshold = 1200000; // 1.2MB = 80%
-    const int hardLimit = 1500000;        // 1.5MB = 100%
+    final limitMb = ref.watch(baseStorageLimitMbProvider).valueOrNull;
+    if (limitMb == null || limitMb <= 0) return const SizedBox.shrink();
+    final hardLimit = limitMb * 1024 * 1024;
+    final warningThreshold = (hardLimit * 0.8).toInt();
 
     if (storageUsed < warningThreshold) return const SizedBox.shrink();
 

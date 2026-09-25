@@ -7,7 +7,7 @@ import '../../../shared/providers/supabase_providers.dart';
 /// Naap Card Widget — Matching Tailor's Exact Shapes & Simple Print Layout
 ///
 /// Features:
-///   1. Header: Token No., Shop info ("SaifurRahman Tailors"), Scissors icon.
+///   1. Header: Token No., Shop info, Scissors icon.
 ///   2. Date bar: Booking Date, Delivery Date (red), Qty, Customer No.
 ///   3. Customer bar: Phone & large Urdu customer name.
 ///   4. Main Content (Pure white background, no card frames around shapes):
@@ -121,7 +121,7 @@ class NaapCardWidget extends ConsumerWidget {
     final shop = shopAsync.valueOrNull;
     final shopName = (shop?['name'] as String?)?.trim().isNotEmpty == true
         ? shop!['name'] as String
-        : 'Tailor Shop';
+        : '';
     final shopPhone = (shop?['phone'] as String?)?.trim().isNotEmpty == true
         ? shop!['phone'] as String
         : (shop?['contact'] as String?)?.trim().isNotEmpty == true
@@ -438,7 +438,7 @@ class NaapCardWidget extends ConsumerWidget {
               const Icon(Icons.phone_android_rounded, size: 14, color: Color(0xFF6B7280)),
               const SizedBox(width: 4),
               Text(
-                phone.isNotEmpty ? phone : '0312-3456789',
+                phone.isNotEmpty ? phone : '-',
                 style: _en(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,

@@ -11,6 +11,7 @@ import '../../core/constants/app_enums.dart';
 import '../../core/widgets/app_modal.dart';
 import '../../shared/models/models.dart';
 import '../../shared/providers/app_providers.dart';
+import '../../shared/providers/supabase_providers.dart';
 import '../customers/add_customer_modal.dart';
 import '../printing/pdf_builder.dart';
 import '../../core/utils/share_helper.dart';
@@ -352,7 +353,15 @@ class _NewOrderModalState extends ConsumerState<NewOrderModal> {
 
   Future<void> _sendWhatsApp(OrderModel order, CustomerModel? customer) async {
     try {
-      final bytes = await DarziPdfBuilder.buildThermal(order, customer, isUrdu: false);
+      final shop = ref.read(currentShopProvider).value;
+      final bytes = await DarziPdfBuilder.buildThermal(
+        order,
+        customer,
+        isUrdu: false,
+        shopName: shop?['name'] as String?,
+        shopPhone: shop?['phone'] as String?,
+        shopAddress: shop?['address'] as String?,
+      );
       final msg = '🧵 *Darzi Pro — Token ${order.tokenNumber}*\n\n'
           'Aapka order ready hone ka waqt:\n'
           '📅 Delivery: ${DateFormat('dd MMM yyyy').format(order.deliveryDate ?? DateTime.now())}\n'

@@ -40,12 +40,20 @@ class _TokenCardScreenState extends ConsumerState<TokenCardScreen> {
     if (isThermal && _cachedThermalPdf != null) return _cachedThermalPdf!;
     if (!isThermal && _cachedA4Pdf != null) return _cachedA4Pdf!;
 
+    final shop = ref.read(currentShopProvider).value;
+    final sName = shop?['name'] as String? ?? '';
+    final sPhone = shop?['phone'] as String? ?? '';
+    final sAddress = shop?['address'] as String? ?? '';
+
     final pngBytes = await CardImageCapturer.captureOnDemand(
       context,
       cardWidget: TokenCardWidget(
         order: order,
         customer: customer,
         isThermal: isThermal,
+        shopName: sName,
+        shopPhone: sPhone,
+        shopAddress: sAddress,
       ),
     );
     final format = isThermal
@@ -140,9 +148,9 @@ class _TokenCardScreenState extends ConsumerState<TokenCardScreen> {
     final text1 = isDark ? const Color(0xFFEDF4FF) : const Color(0xFF0A0F1C);
     final textMuted = isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8);
 
-    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
-    final shopPhone = shopAsync.value?['phone'] as String? ?? '0300-1234567';
-    final shopAddress = shopAsync.value?['address'] as String? ?? 'Saddar, Peshawar';
+    final shopName = shopAsync.value?['name'] as String? ?? '';
+    final shopPhone = shopAsync.value?['phone'] as String? ?? '';
+    final shopAddress = shopAsync.value?['address'] as String? ?? '';
 
     final orders = ordersAsync.valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
@@ -409,17 +417,17 @@ class _TokenCardScreenState extends ConsumerState<TokenCardScreen> {
                                               color: const Color(0xFF060E1C),
                                             ),
                                           ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            customer?.phone.isNotEmpty == true
-                                                ? '📱 ${customer!.phone}'
-                                                : '📱 0300-1234567',
-                                            style: GoogleFonts.jetBrainsMono(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF6B7E96),
+                                          if (customer?.phone.isNotEmpty == true) ...[
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              '📱 ${customer!.phone}',
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: const Color(0xFF6B7E96),
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ],
                                       ),
                                     ),
