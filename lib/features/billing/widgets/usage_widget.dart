@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/providers/subscription_provider.dart';
+import '../../../shared/providers/supabase_providers.dart';
 
 /// Compact usage widget for the Dashboard.
 /// Full version for the Subscription Plan screen.
@@ -15,6 +16,9 @@ class UsageWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final subAsync = ref.watch(subscriptionStateProvider);
+    final shopAsync = ref.watch(currentShopProvider);
+    final storageLimitMb =
+        ref.watch(shopStorageAllowanceProvider).valueOrNull ?? 0;
 
     return subAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -24,9 +28,21 @@ class UsageWidget extends ConsumerWidget {
         if (sub.isLifetime) return const SizedBox.shrink();
 
         final isUrdu = Localizations.localeOf(context).languageCode == 'ur';
+        final storageUsedBytes =
+            (shopAsync.value?['storage_used_bytes'] as int?) ?? 0;
         return compact
-            ? _CompactUsage(sub: sub, isUrdu: isUrdu)
-            : _FullUsage(sub: sub, isUrdu: isUrdu);
+            ? _CompactUsage(
+                sub: sub,
+                isUrdu: isUrdu,
+                storageUsedBytes: storageUsedBytes,
+                storageLimitMb: storageLimitMb,
+              )
+            : _FullUsage(
+                sub: sub,
+                isUrdu: isUrdu,
+                storageUsedBytes: storageUsedBytes,
+                storageLimitMb: storageLimitMb,
+              );
       },
     );
   }
@@ -37,7 +53,14 @@ class UsageWidget extends ConsumerWidget {
 class _CompactUsage extends StatelessWidget {
   final SubscriptionState sub;
   final bool isUrdu;
-  const _CompactUsage({required this.sub, required this.isUrdu});
+  final int storageUsedBytes;
+  final int storageLimitMb;
+  const _CompactUsage({
+    required this.sub,
+    required this.isUrdu,
+    required this.storageUsedBytes,
+    required this.storageLimitMb,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +142,17 @@ class _CompactUsage extends StatelessWidget {
             ),
           ],
 
+          // Storage progress
+          if (storageLimitMb > 0) ...[
+            const SizedBox(height: 6),
+            _StorageMiniRow(
+              usedBytes: storageUsedBytes,
+              limitMb: storageLimitMb,
+              isUrdu: isUrdu,
+              text1: text1,
+            ),
+          ],
+
           // 85% warning
           if (isApproaching) ...[
             const SizedBox(height: 8),
@@ -151,7 +185,14 @@ class _CompactUsage extends StatelessWidget {
 class _FullUsage extends StatelessWidget {
   final SubscriptionState sub;
   final bool isUrdu;
-  const _FullUsage({required this.sub, required this.isUrdu});
+  final int storageUsedBytes;
+  final int storageLimitMb;
+  const _FullUsage({
+    required this.sub,
+    required this.isUrdu,
+    required this.storageUsedBytes,
+    required this.storageLimitMb,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +245,11 @@ class _FullUsage extends StatelessWidget {
                         const SizedBox(width: 8),
                         if (sub.planPricePkr > 0)
                           Text(
-                            'Rs ${NumberFormat('#,###').format(sub.planPricePkr)}/mahina',
+                            sub.isFounding
+                                ? 'Rs ${NumberFormat('#,###').format(sub.planPricePkr)} one-time'
+                                : (isUrdu
+                                    ? 'Rs ${NumberFormat('#,###').format(sub.planPricePkr)}/mahina'
+                                    : 'Rs ${NumberFormat('#,###').format(sub.planPricePkr)}/mo'),
                             style: GoogleFonts.inter(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.w600),
                           ),
                       ],
@@ -260,6 +305,18 @@ class _FullUsage extends StatelessWidget {
             _UnlimitedRow(
               label: isUrdu ? 'Active customers' : 'Active customers',
               value: sub.activeCustomers,
+              text1: text1,
+              text2: text2,
+            ),
+          ],
+
+          // Storage progress
+          if (storageLimitMb > 0) ...[
+            const SizedBox(height: 16),
+            _StorageFullRow(
+              usedBytes: storageUsedBytes,
+              limitMb: storageLimitMb,
+              isUrdu: isUrdu,
               text1: text1,
               text2: text2,
             ),
@@ -556,6 +613,137 @@ class _TrialInfo extends StatelessWidget {
                 ? 'Trial: ${ordersLeft != null ? "$ordersLeft orders" : ""} ${daysLeft != null ? "ya $daysLeft din" : ""} baaqi'
                 : 'Trial: ${ordersLeft != null ? "$ordersLeft orders" : ""} ${daysLeft != null ? "or $daysLeft days" : ""} remaining',
             style: GoogleFonts.inter(fontSize: 12, color: text2),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Storage progress helpers ────────────────────────────────────────────────
+
+/// Formats raw bytes → human-readable string: "X.X MB" or "X.X GB".
+String _fmtBytes(int bytes) {
+  final mb = bytes / (1024 * 1024);
+  if (mb >= 1024) return '${(mb / 1024).toStringAsFixed(1)} GB';
+  return '${mb.toStringAsFixed(1)} MB';
+}
+
+/// Formats a limit in MB → "X GB" or "X MB" (clean integer where possible).
+String _fmtLimitMb(int mb) {
+  if (mb >= 1024 && mb % 1024 == 0) return '${mb ~/ 1024} GB';
+  if (mb >= 1000 && mb % 1000 == 0) return '${mb ~/ 1000} GB';
+  return '$mb MB';
+}
+
+class _StorageMiniRow extends StatelessWidget {
+  final int usedBytes;
+  final int limitMb;
+  final bool isUrdu;
+  final Color text1;
+
+  const _StorageMiniRow({
+    required this.usedBytes,
+    required this.limitMb,
+    required this.isUrdu,
+    required this.text1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final limitBytes = limitMb * 1024 * 1024;
+    final progress = limitBytes > 0
+        ? (usedBytes / limitBytes).clamp(0.0, 1.0)
+        : 0.0;
+    final color = progress >= 0.9
+        ? AppColors.accent
+        : const Color(0xFF7C6AFF); // indigo-ish
+    final label = isUrdu ? 'اسٹوریج' : 'Storage';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label: ${_fmtBytes(usedBytes)} / ${_fmtLimitMb(limitMb)}',
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            color: text1,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: color.withValues(alpha: 0.12),
+            color: color,
+            minHeight: 4,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StorageFullRow extends StatelessWidget {
+  final int usedBytes;
+  final int limitMb;
+  final bool isUrdu;
+  final Color text1;
+  final Color text2;
+
+  const _StorageFullRow({
+    required this.usedBytes,
+    required this.limitMb,
+    required this.isUrdu,
+    required this.text1,
+    required this.text2,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final limitBytes = limitMb * 1024 * 1024;
+    final progress = limitBytes > 0
+        ? (usedBytes / limitBytes).clamp(0.0, 1.0)
+        : 0.0;
+    final color = progress >= 0.9
+        ? AppColors.accent
+        : const Color(0xFF7C6AFF);
+    final label = isUrdu ? 'اسٹوریج' : 'Storage';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: text2,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '${_fmtBytes(usedBytes)} / ${_fmtLimitMb(limitMb)}',
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: text1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: color.withValues(alpha: 0.10),
+            color: progress >= 0.9 ? AppColors.accent : color,
+            minHeight: 8,
           ),
         ),
       ],

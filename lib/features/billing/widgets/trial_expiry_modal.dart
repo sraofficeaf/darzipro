@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/payments/payment_provider.dart';
 import '../../../core/services/subscription_service.dart';
+import '../../../core/utils/plan_price_formatter.dart';
 import '../../../shared/providers/subscription_provider.dart';
 
 /// FutureProvider: loads founding offer settings from app_settings.
@@ -153,10 +156,11 @@ class TrialExpiryModal extends ConsumerWidget {
                           text2: text2,
                           onTap: () {
                             Navigator.of(context).pop();
-                            Navigator.of(context).pushNamed(
-                              '/subscription/founding-apply',
-                              arguments: settings,
-                            );
+                            context.push('/subscription/pay', extra: {
+                              'purpose': PaymentPurpose.foundingActivation,
+                              'planData': {'code': 'founding', 'name_en': 'Founding Member'},
+                              'extraData': settings,
+                            });
                           },
                         );
                       },
@@ -173,10 +177,10 @@ class TrialExpiryModal extends ConsumerWidget {
                         text2: text2,
                         onTap: () {
                           Navigator.of(context).pop();
-                          Navigator.of(context).pushNamed(
-                            '/subscription/pay',
-                            arguments: plan,
-                          );
+                          context.push('/subscription/pay', extra: {
+                            'purpose': PaymentPurpose.subscriptionMonthly,
+                            'planData': plan,
+                          });
                         },
                       );
                     }),
@@ -226,8 +230,6 @@ class _PlanOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPopular = plan['code'] == 'standard';
-    final maxOrders = plan['max_orders_per_month'] as int?;
-    final maxCustomers = plan['max_active_customers'] as int?;
     final price = (plan['price_pkr'] as int?) ?? 0;
 
     return GestureDetector(
@@ -288,10 +290,7 @@ class _PlanOptionTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    [
-                      if (maxOrders != null) '$maxOrders orders/cycle',
-                      if (maxCustomers != null) '$maxCustomers customers',
-                    ].join(' · '),
+                    PlanPriceFormatter.description(plan, isUrdu: isUrdu),
                     style: GoogleFonts.inter(fontSize: 11, color: text2),
                   ),
                 ],
@@ -309,7 +308,7 @@ class _PlanOptionTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '/mahina',
+                  PlanPriceFormatter.priceSuffix(plan, isUrdu: isUrdu),
                   style: GoogleFonts.inter(fontSize: 10, color: text2),
                 ),
               ],

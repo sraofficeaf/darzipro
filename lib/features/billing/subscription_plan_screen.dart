@@ -3,9 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/payments/payment_provider.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/utils/plan_price_formatter.dart';
 import '../../shared/providers/subscription_provider.dart';
+import '../../shared/providers/supabase_providers.dart';
+import '../storage/storage_addon_modal.dart';
 import 'widgets/usage_widget.dart';
 
 /// Full "Plan & Billing" screen accessible from Settings → Plan & Billing.
@@ -36,18 +41,13 @@ class _SubscriptionPlanScreenState
     final subAsync = ref.watch(subscriptionStateProvider);
     final plansAsync = ref.watch(subscriptionPlansProvider);
 
+    final sub = subAsync.valueOrNull;
+
     return Scaffold(
       backgroundColor: bg,
       body: SafeArea(
-        child: subAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-          error: (e, _) => Center(
-              child: Text('Error: $e',
-                  style: TextStyle(color: AppColors.red))),
-          data: (sub) => _buildContent(context, ref, sub, plansAsync, isUrdu,
-              isDark, text1, text2, text3),
-        ),
+        child: _buildContent(context, ref, sub, plansAsync, isUrdu,
+            isDark, text1, text2, text3),
       ),
     );
   }
@@ -55,7 +55,7 @@ class _SubscriptionPlanScreenState
   Widget _buildContent(
     BuildContext context,
     WidgetRef ref,
-    SubscriptionState sub,
+    SubscriptionState? sub,
     AsyncValue<List<Map<String, dynamic>>> plansAsync,
     bool isUrdu,
     bool isDark,
@@ -127,18 +127,26 @@ class _SubscriptionPlanScreenState
               const SizedBox(height: 24),
 
               // ── Current Usage (Full Widget) ──
-              if (!sub.isLifetime) ...[
+              if (sub != null && !sub.isLifetime) ...[
                 UsageWidget(compact: false),
                 const SizedBox(height: 24),
-              ] else ...[
+              ] else if (sub != null && sub.isLifetime) ...[
                 _LifetimeBadge(isUrdu: isUrdu),
                 const SizedBox(height: 24),
               ],
 
-              // ── Pay Now (if payment due) ──
-              if (sub.paymentStatus == 'pending' &&
-                  sub.planPricePkr > 0 &&
-                  !sub.isLifetime) ...[
+              // ── Pay Now (only if payment is actually due) ──
+              if (sub != null &&
+                  !sub.isLifetime &&
+                  !sub.isFoundingFree &&
+                  !sub.isTrial &&
+                  sub.amountDuePkr > 0 &&
+                  (sub.isGrace ||
+                      sub.isReadOnly ||
+                      sub.isExpiring ||
+                      (sub.paymentStatus == 'pending' &&
+                          (sub.cycleEnd == null ||
+                              !sub.cycleEnd!.isAfter(DateTime.now()))))) ...[
                 _PayNowCard(
                   sub: sub,
                   isUrdu: isUrdu,
@@ -150,7 +158,7 @@ class _SubscriptionPlanScreenState
               ],
 
               // ── Available Plans ──
-              if (!sub.isLifetime) ...[
+              if (sub == null || !sub.isLifetime) ...[
                 Text(
                   isUrdu ? 'Plan Badlein' : 'Change Plan',
                   style: GoogleFonts.outfit(
@@ -198,12 +206,14 @@ class _SubscriptionPlanScreenState
                     return Column(
                       children: displayPlans.map((plan) {
                         final isCurrentPlan =
-                            plan['code'] == sub.planCode;
+                            sub != null && plan['code'] == sub.planCode;
                         return _PlanCard(
                           plan: plan,
                           isCurrentPlan: isCurrentPlan,
-                          currentSortOrder: plans.indexWhere(
-                              (p) => p['code'] == sub.planCode),
+                          currentSortOrder: sub != null
+                              ? plans.indexWhere(
+                                  (p) => p['code'] == sub.planCode)
+                              : -1,
                           planSortOrder: plans.indexOf(plan),
                           isUrdu: isUrdu,
                           isDark: isDark,
@@ -216,6 +226,17 @@ class _SubscriptionPlanScreenState
                   },
                 ),
               ],
+
+              const SizedBox(height: 24),
+
+              // ── Extra Cloud Storage Add-on ──
+              _StorageAddonSection(
+                isUrdu: isUrdu,
+                isDark: isDark,
+                text1: text1,
+                text2: text2,
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -225,7 +246,7 @@ class _SubscriptionPlanScreenState
 
   Future<void> _handlePlanChange(
     WidgetRef ref,
-    SubscriptionState sub,
+    SubscriptionState? sub,
     Map<String, dynamic> plan,
     bool isUrdu,
   ) async {
@@ -262,7 +283,10 @@ class _SubscriptionPlanScreenState
 
     // Navigate to payment screen
     if (mounted) {
-      Navigator.of(context).pushNamed('/subscription/pay', arguments: plan);
+      context.push('/subscription/pay', extra: {
+        'purpose': PaymentPurpose.subscriptionMonthly,
+        'planData': plan,
+      });
     }
   }
 
@@ -315,10 +339,9 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final price = (plan['price_pkr'] as int?) ?? 0;
-    final maxOrders = plan['max_orders_per_month'] as int?;
-    final maxCustomers = plan['max_active_customers'] as int?;
+    final planCode = plan['code'] as String? ?? '';
     final isUpgrade = planSortOrder > currentSortOrder;
-    final isPopular = plan['code'] == 'standard';
+    final isPopular = planCode == 'standard';
 
     Color accentColor;
     if (isCurrentPlan) {
@@ -419,16 +442,7 @@ class _PlanCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  [
-                    if (maxOrders != null)
-                      '$maxOrders orders'
-                    else
-                      'Unlimited orders',
-                    if (maxCustomers != null)
-                      '$maxCustomers customers'
-                    else
-                      'Unlimited customers',
-                  ].join(' · '),
+                  PlanPriceFormatter.description(plan, isUrdu: isUrdu),
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     color: isDark
@@ -453,7 +467,7 @@ class _PlanCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '/mahina',
+                PlanPriceFormatter.priceSuffix(plan, isUrdu: isUrdu),
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   color: isDark
@@ -618,9 +632,16 @@ class _PayNowCard extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              // Navigate to payment screen
-              // Plan data passed as argument
-              Navigator.of(context).pushNamed('/subscription/pay');
+              // Navigate to payment screen with pending sub details
+              context.push('/subscription/pay', extra: {
+                'purpose': PaymentPurpose.subscriptionMonthly,
+                'planData': {
+                  'code': sub.planCode,
+                  'name_en': sub.planNameEn,
+                  'name_ur': sub.planNameUr,
+                  'price_pkr': sub.amountDuePkr,
+                },
+              });
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accent,
@@ -640,3 +661,272 @@ class _PayNowCard extends StatelessWidget {
     );
   }
 }
+
+// ── Cloud Storage Add-on Section ───────────────────────────────────────────
+
+class _StorageAddonSection extends ConsumerWidget {
+  final bool isUrdu;
+  final bool isDark;
+  final Color text1;
+  final Color text2;
+
+  const _StorageAddonSection({
+    required this.isUrdu,
+    required this.isDark,
+    required this.text1,
+    required this.text2,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shopAsync = ref.watch(currentShopProvider);
+    final shop = shopAsync.valueOrNull;
+    final isAddonActive = shop?['storage_addon_active'] == true;
+    final expiresStr = shop?['storage_addon_expires_at'] as String?;
+    final expires = expiresStr != null ? DateTime.tryParse(expiresStr) : null;
+    final storageAllowanceMb =
+        ref.watch(shopStorageAllowanceProvider).valueOrNull ?? 0;
+    final storageUsedBytes = (shop?['storage_used_bytes'] as int?) ?? 0;
+    final usedMb = storageUsedBytes / (1024 * 1024);
+
+    final allowanceStr = storageAllowanceMb >= 1024
+        ? '${(storageAllowanceMb / 1024).toStringAsFixed(storageAllowanceMb % 1024 == 0 ? 0 : 2)} GB'
+        : '${storageAllowanceMb.toStringAsFixed(storageAllowanceMb % 1 == 0 ? 0 : 2)} MB';
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0x08FFFFFF) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isAddonActive
+              ? AppColors.teal.withValues(alpha: 0.4)
+              : (isDark ? const Color(0x1FFFFFFF) : const Color(0xFFE2E8F0)),
+          width: isAddonActive ? 1.5 : 1,
+        ),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF0EA5E9).withValues(alpha: 0.16),
+                      AppColors.teal.withValues(alpha: 0.16),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.teal.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.cloud_upload_rounded,
+                  color: AppColors.teal,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            isUrdu
+                                ? 'اضافی کلاؤڈ اسٹوریج ایڈ آن'
+                                : 'Extra Cloud Storage Add-on',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: text1,
+                            ),
+                          ),
+                        ),
+                        if (isAddonActive) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.teal.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: AppColors.teal.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.check_circle_rounded,
+                                    size: 11, color: AppColors.teal),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isUrdu ? 'فعال' : 'ACTIVE (+1 GB)',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9.5,
+                                    color: AppColors.teal,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      isUrdu
+                          ? 'گارمنٹ ڈیزائنز، کپڑوں کی تصاویر اور کسٹمر فائلز کے لیے اضافی جگہ'
+                          : 'High-speed cloud space for customer cloth photos, sketches & audio notes',
+                      style: GoogleFonts.inter(fontSize: 12, color: text2),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Details & Benefits Badges
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x05FFFFFF) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? const Color(0x10FFFFFF) : const Color(0xFFEEF2F6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isUrdu ? 'موجودہ صلاحیت' : 'CURRENT TOTAL CAPACITY',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: text2,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$allowanceStr (${usedMb.toStringAsFixed(1)} MB used)',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: text1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 30,
+                  width: 1,
+                  color: isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isUrdu ? 'ایڈ آن پیکج' : 'ADD-ON PRICING',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: text2,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Rs 250/mo or Rs 2,500/yr',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFF5A623),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (isAddonActive && expires != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: text2),
+                const SizedBox(width: 6),
+                Text(
+                  isUrdu
+                      ? 'ایڈ آن کی میعاد: ${DateFormat('d MMMM y').format(expires)}'
+                      : 'Add-on active until ${DateFormat('d MMMM y').format(expires)}',
+                  style: GoogleFonts.inter(fontSize: 11.5, color: text2),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // Primary Call to Action Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => StorageAddonModal.show(context),
+              icon: Icon(
+                isAddonActive ? Icons.refresh_rounded : Icons.add_to_photos_rounded,
+                size: 18,
+              ),
+              label: Text(
+                isAddonActive
+                    ? (isUrdu ? 'اسٹوریج میں اضافہ یا تجدید کریں' : 'Extend / Manage Storage Add-on')
+                    : (isUrdu ? 'اضافی +1 GB اسٹوریج حاصل کریں (Rs 250)' : 'Get +1 GB Extra Storage (Rs 250/mo)'),
+                style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teal,
+                foregroundColor: const Color(0xFF032219),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
