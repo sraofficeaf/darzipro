@@ -23,6 +23,7 @@ class ReportsPdfBuilder {
     required List<Map<String, dynamic>> topEarners,
     required List<Map<String, dynamic>> transactions,
   }) async {
+    final safeTransactions = transactions.where((t) => t['is_test'] != true).toList();
     final pdf = pw.Document();
 
     final dateRangeStr = '${_dateFmt.format(startDate)} – ${_dateFmt.format(endDate)}';
@@ -37,6 +38,7 @@ class ReportsPdfBuilder {
 
     final byType = breakdown['by_type'] as Map<String, dynamic>? ?? {};
     final byTier = breakdown['by_tier'] as Map<String, dynamic>? ?? {};
+    final byProvider = breakdown['by_provider'] as Map<String, dynamic>? ?? {};
 
     final recTotal = ((byType['subscription_monthly']?['amount'] ?? 0) as num).toInt() +
         ((byType['founding_monthly']?['amount'] ?? 0) as num).toInt() +
@@ -137,7 +139,7 @@ class ReportsPdfBuilder {
                   decoration: pw.BoxDecoration(color: lightBgColor),
                   children: [
                     _cellHeader('Total Revenue'),
-                    _cellHeader('Invite Payouts (Paid)'),
+                    _cellHeader('Agency Profit Payouts (Paid)'),
                     _cellHeader('Net Revenue'),
                     _cellHeader('Transactions'),
                   ],
@@ -220,6 +222,24 @@ class ReportsPdfBuilder {
                           _buildTierRow('Lifetime (Legacy)', byTier['lifetime']),
                         ],
                       ),
+                      pw.SizedBox(height: 10),
+                      pw.Text('By Payment Provider', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: textDark)),
+                      pw.SizedBox(height: 4),
+                      pw.Table(
+                        border: pw.TableBorder.all(color: borderColor, width: 1),
+                        children: [
+                          pw.TableRow(
+                            decoration: pw.BoxDecoration(color: lightBgColor),
+                            children: [
+                              _cellHeader('Provider'),
+                              _cellHeader('Txs'),
+                              _cellHeader('Total Revenue'),
+                            ],
+                          ),
+                          _buildTypeRow('Stripe / Cards', byProvider['stripe']),
+                          _buildTypeRow('Manual (Bank/Wallets)', byProvider['manual']),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -229,7 +249,7 @@ class ReportsPdfBuilder {
 
             // ── 3. TOP EARNERS ─────────────────────────────────────────────
             pw.Text(
-              '3. Top Inviter Earners',
+              '3. Top Agency Earners',
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primaryColor),
             ),
             pw.SizedBox(height: 8),
@@ -266,11 +286,11 @@ class ReportsPdfBuilder {
 
             // ── 4. FULL TRANSACTION LIST ───────────────────────────────────
             pw.Text(
-              '4. Full Transaction Ledger (${transactions.length} items)',
+              '4. Full Transaction Ledger (${safeTransactions.length} items)',
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primaryColor),
             ),
             pw.SizedBox(height: 8),
-            if (transactions.isEmpty)
+            if (safeTransactions.isEmpty)
               pw.Text('No transactions found in this date range.', style: pw.TextStyle(fontSize: 10, color: textMuted))
             else
               pw.Table(
@@ -287,7 +307,7 @@ class ReportsPdfBuilder {
                       _cellHeader('Status'),
                     ],
                   ),
-                  ...transactions.map((tx) {
+                  ...safeTransactions.map((tx) {
                     final isOut = tx['direction'] == 'Out';
                     final dateStr = tx['date'] != null ? _dateFmt.format(DateTime.parse(tx['date'].toString())) : '-';
                     return pw.TableRow(

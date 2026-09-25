@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/services/admin_service.dart';
-import '../../core/utils/plan_utils.dart';
 import 'widgets/admin_ui_kit.dart';
 
 class AdminVpsResourcesScreen extends StatefulWidget {
@@ -339,8 +338,10 @@ class _ShopResourceCard extends StatelessWidget {
     final phone = shop['phone'] ?? 'N/A';
 
     final bytes = (shop['storage_used_bytes'] as int? ?? 0);
-    final quotaMb = PlanUtils.getStorageQuotaMb(plan);
-    final quotaBytes = quotaMb * 1024 * 1024;
+    final quotaBytes = (shop['storage_allowance_bytes'] as int?) ??
+        (shop['founding_storage_limit_bytes'] as int?) ??
+        (shop['lifetime_storage_limit_bytes'] as int?) ??
+        1;
     final pctUsed = (bytes / quotaBytes).clamp(0.0, 1.0);
 
     final dbOps = shop['est_db_ops'] as int? ?? 0;
@@ -387,7 +388,7 @@ class _ShopResourceCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Storage Quota', style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                        Text('${fmtBytes(bytes)} / ${quotaMb}MB', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: text1)),
+                        Text('${fmtBytes(bytes)} / ${fmtBytes(quotaBytes)}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: text1)),
                       ],
                     ),
                     const SizedBox(height: 4),

@@ -478,7 +478,14 @@ class AdminService {
     try {
       final List<Map<String, dynamic>> shopsList = [];
 
-      // 1. Fetch all real shops from shops table with owner profiles and licenses
+      // 1. Fetch real client shops via get_admin_shops_data RPC (SECURITY DEFINER)
+      final rpcRes = await _callAdminRpc('get_admin_shops_data');
+      if (rpcRes != null && rpcRes is List) {
+        final list = List<Map<String, dynamic>>.from(rpcRes);
+        return list.where((s) => s['id'] != 'bb800b6f-fd70-4ca7-8b51-3b934d3c18c1').toList();
+      }
+
+      // Fallback: Fetch from shops table directly
       final shopsRes = await http.get(
         _restUri('/shops?select=*,profiles(full_name,role),licenses(email,plan,status)&order=created_at.desc'),
         headers: _adminHeaders,
@@ -488,6 +495,7 @@ class AdminService {
         final rawShops = jsonDecode(shopsRes.body) as List;
         for (final item in rawShops) {
           final s = Map<String, dynamic>.from(item as Map);
+          if (s['id'] == 'bb800b6f-fd70-4ca7-8b51-3b934d3c18c1') continue;
           final profiles = s['profiles'] as List?;
           String ownerName = 'N/A';
           if (profiles != null && profiles.isNotEmpty) {
@@ -889,24 +897,7 @@ class AdminService {
   }
 
   Future<bool> setMinPayoutThreshold(int threshold) async {
-    try {
-      final res = await http.post(
-        _restUri('/app_settings'),
-        headers: {
-          ..._adminHeaders,
-          'Prefer': 'resolution=merge-duplicates',
-        },
-        body: jsonEncode({
-          'key': 'minimum_payout_threshold',
-          'value': threshold.toString(),
-          'updated_at': DateTime.now().toIso8601String(),
-        }),
-      );
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (e) {
-      debugPrint('Error saving min payout threshold: $e');
-      return false;
-    }
+    return updateAppSetting('minimum_payout_threshold', threshold.toString());
   }
 
   Future<int> getPayoutDelayDays() async {
@@ -928,79 +919,55 @@ class AdminService {
   }
 
   Future<bool> setPayoutDelayDays(int days) async {
-    try {
-      final res = await http.post(
-        _restUri('/app_settings'),
-        headers: {
-          ..._adminHeaders,
-          'Prefer': 'resolution=merge-duplicates',
-        },
-        body: jsonEncode({
-          'key': 'payout_delay_days',
-          'value': days.toString(),
-          'updated_at': DateTime.now().toIso8601String(),
-        }),
-      );
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (e) {
-      debugPrint('Error saving payout delay days: $e');
-      return false;
-    }
+    return updateAppSetting('payout_delay_days', days.toString());
   }
 
   Future<Map<String, dynamic>> getStorageAddonConfig() async {
-    final Map<String, dynamic> config = {
-      'storage_monthly_price': '1200',
+    final defaultConfig = {
+      'storage_monthly_price': 250,
       'storage_monthly_active': true,
-      'storage_annual_price': '10000',
+      'storage_annual_price': 2500,
       'storage_annual_active': true,
-      'storage_profit': '0',
+      'storage_addon_gb': 1,
+      'storage_profit_percent': 0.0,
     };
     try {
       final res = await http.get(
-        _restUri('/app_settings?key=in.(storage_addon_price_monthly,storage_active_monthly,storage_addon_price_annual,storage_active_annual,storage_addon_commission_percent)'),
+        _restUri('/app_settings?key=in.(storage_addon_price_monthly,storage_active_monthly,storage_addon_price_annual,storage_active_annual,storage_addon_profit_percent,storage_addon_gb)'),
         headers: _restHeaders,
       );
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List;
-        for (final item in list) {
-          final k = item['key'] as String?;
-          final v = item['value'] as String?;
-          if (v == null) continue;
-          if (k == 'storage_addon_price_monthly') config['storage_monthly_price'] = v;
-          if (k == 'storage_active_monthly') config['storage_monthly_active'] = v == 'true';
-          if (k == 'storage_addon_price_annual') config['storage_annual_price'] = v;
-          if (k == 'storage_active_annual') config['storage_annual_active'] = v == 'true';
-        }
+        final map = {for (var item in list) item['key']: item['value']};
+        return {
+          'storage_monthly_price': int.tryParse(map['storage_addon_price_monthly']?.toString() ?? '') ?? 250,
+          'storage_monthly_active': map['storage_active_monthly'] == 'true',
+          'storage_annual_price': int.tryParse(map['storage_addon_price_annual']?.toString() ?? '') ?? 2500,
+          'storage_annual_active': map['storage_active_annual'] == 'true',
+          'storage_addon_gb': int.tryParse(map['storage_addon_gb']?.toString() ?? '') ?? 1,
+          'storage_profit_percent': double.tryParse(map['storage_addon_profit_percent']?.toString() ?? '') ?? 0.0,
+        };
       }
     } catch (e) {
-      debugPrint('Error loading storage add-on config: $e');
+      debugPrint('Error reading storage add-on config: $e');
     }
-    return config;
+    return defaultConfig;
   }
 
   Future<bool> setStorageAddonConfig(Map<String, dynamic> config) async {
     try {
       final entries = [
-        {'key': 'storage_addon_price_monthly', 'value': config['storage_monthly_price']?.toString() ?? '1200'},
+        {'key': 'storage_addon_price_monthly', 'value': config['storage_monthly_price']?.toString() ?? '250'},
         {'key': 'storage_active_monthly', 'value': (config['storage_monthly_active'] ?? true).toString()},
-        {'key': 'storage_addon_price_annual', 'value': config['storage_annual_price']?.toString() ?? '10000'},
-        {'key': 'storage_active_annual', 'value': (config['storage_annual_active'] ?? true).toString()},
-        {'key': 'storage_addon_commission_percent', 'value': '0'},
+        {'key': 'storage_addon_price_annual', 'value': config['storage_annual_price']?.toString() ?? '2500'},
+        {'key': 'storage_active_annual', 'value': (config['storage_active_annual'] ?? true).toString()},
+        {'key': 'storage_addon_gb', 'value': (config['storage_addon_gb'] ?? 1).toString()},
+        {'key': 'storage_addon_profit_percent', 'value': '0'},
       ];
 
       for (final entry in entries) {
-        await http.post(
-          _restUri('/app_settings'),
-          headers: {
-            ..._adminHeaders,
-            'Prefer': 'resolution=merge-duplicates',
-          },
-          body: jsonEncode({
-            ...entry,
-            'updated_at': DateTime.now().toIso8601String(),
-          }),
-        );
+        final ok = await updateAppSetting(entry['key']!, entry['value']!);
+        if (!ok) return false;
       }
       return true;
     } catch (e) {
@@ -1331,21 +1298,49 @@ class AdminService {
       final upgradesList = (rpcRes != null && rpcRes is Map) ? (rpcRes['upgrades'] as List? ?? []) : [];
       final storageList = (rpcRes != null && rpcRes is Map) ? (rpcRes['storage_payments'] as List? ?? []) : [];
       final licsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['licenses'] as List? ?? []) : [];
-      final payoutsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['payouts'] as List? ?? []) : [];
-      final earningsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['earnings'] as List? ?? []) : [];
+      final payoutsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['agency_payouts'] ?? rpcRes['payouts'] as List? ?? []) : [];
+      final earningsList = (rpcRes != null && rpcRes is Map) ? (rpcRes['agency_earnings'] ?? rpcRes['earnings'] as List? ?? []) : [];
 
-      // Fetch approved / confirmed subscription payments
+      // Fetch succeeded unified payments (Core Multi-Provider Architecture)
       List<Map<String, dynamic>> subPaymentsList = [];
-      try {
-        final subRes = await http.get(
-          _restUri('/subscription_payments?status=in.(approved,confirmed)&select=*,shops(name)&order=created_at.desc'),
-          headers: _adminHeaders,
-        );
-        if (subRes.statusCode == 200) {
-          subPaymentsList = List<Map<String, dynamic>>.from(jsonDecode(subRes.body));
+      if (rpcRes != null && rpcRes is Map && rpcRes['unified_payments'] is List) {
+        subPaymentsList = List<Map<String, dynamic>>.from(rpcRes['unified_payments']);
+      } else {
+        try {
+          final subRes = await http.get(
+            _restUri('/unified_payments?status=eq.succeeded&is_test=eq.false&select=*,shops(name)&order=created_at.desc'),
+            headers: _adminHeaders,
+          );
+          if (subRes.statusCode == 200) {
+            subPaymentsList = List<Map<String, dynamic>>.from(jsonDecode(subRes.body));
+          }
+        } catch (e) {
+          debugPrint('Error fetching unified payments for reports: $e');
         }
-      } catch (e) {
-        debugPrint('Error fetching subscription payments for reports: $e');
+      }
+
+      // Fallback: If unified_payments had no rows (during initial migration), check legacy subscription_payments
+      if (subPaymentsList.isEmpty) {
+        try {
+          final legacyRes = await http.get(
+            _restUri('/subscription_payments?status=in.(approved,confirmed)&select=*,shops(name)&order=created_at.desc'),
+            headers: _adminHeaders,
+          );
+          if (legacyRes.statusCode == 200) {
+            final legacyList = List<Map<String, dynamic>>.from(jsonDecode(legacyRes.body));
+            subPaymentsList = legacyList.map((l) {
+              final amt = (l['amount_pkr'] as num?)?.toInt() ?? 0;
+              return {
+                ...l,
+                'amount_minor': amt * 100,
+                'provider_code': 'manual',
+                'purpose': l['payment_type'] == 'founding_activation'
+                    ? 'foundingActivation'
+                    : 'subscriptionMonthly',
+              };
+            }).toList();
+          }
+        } catch (_) {}
       }
 
       List<Map<String, dynamic>> allTransactions = [];
@@ -1368,15 +1363,20 @@ class AdminService {
         'upgrades':             {'amount': 0, 'count': 0, 'group': 'onetime'},
       };
 
-      // byTier uses the new subscription plan codes.
-      // Legacy codes (mobile_only / full_access / full_access_3yr) map to 'lifetime'.
+      // By Payment Provider Breakdown
+      Map<String, Map<String, dynamic>> byProvider = {
+        'stripe': {'amount': 0, 'count': 0, 'displayName': 'Card / Stripe'},
+        'manual': {'amount': 0, 'count': 0, 'displayName': 'Bank / Easypaisa / JazzCash'},
+      };
+
+      // byTier uses the subscription plan codes
       Map<String, Map<String, dynamic>> byTier = {
         'trial':     {'amount': 0, 'count': 0},
         'basic':     {'amount': 0, 'count': 0},
         'standard':  {'amount': 0, 'count': 0},
         'unlimited': {'amount': 0, 'count': 0},
         'founding':  {'amount': 0, 'count': 0},
-        'lifetime':  {'amount': 0, 'count': 0}, // grandfathered legacy shops
+        'lifetime':  {'amount': 0, 'count': 0},
       };
 
       // Helper: normalise old plan codes to subscription plan bucket keys
@@ -1387,7 +1387,6 @@ class AdminService {
         if (p == 'standard') return 'standard';
         if (p == 'unlimited') return 'unlimited';
         if (p == 'founding') return 'founding';
-        // Legacy one-time codes → lifetime bucket
         return 'lifetime';
       }
 
@@ -1403,27 +1402,40 @@ class AdminService {
         debugPrint('Error fetching founding settings in reports: $e');
       }
 
-      // ── Process Approved Subscription Payments (Core Model) ──
+      // ── Process Succeeded Unified Payments (Core Model) ──
       for (final sp in subPaymentsList) {
         final spMap = Map<String, dynamic>.from(sp);
-        final dateStr = (spMap['reviewed_at'] ?? spMap['created_at']) as String?;
+        // Exclude test payments
+        if (spMap['is_test'] == true) {
+          continue;
+        }
+        final dateStr = (spMap['completed_at'] ?? spMap['reviewed_at'] ?? spMap['created_at']) as String?;
         if (dateStr == null) continue;
         final date = DateTime.tryParse(dateStr)?.toLocal();
         if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 
-        int amount = (spMap['amount_pkr'] as num?)?.toInt() ?? 0;
-        final planCode = (spMap['plan_code'] ?? '').toString().toLowerCase();
-        final paymentType = (spMap['payment_type'] ?? '').toString().toLowerCase();
+        final rawMinor = spMap['amount_minor'];
+        int amount = 0;
+        if (rawMinor != null) {
+          amount = ((rawMinor as num).toInt() / 100.0).round();
+        } else {
+          amount = (spMap['amount_pkr'] as num?)?.toInt() ?? 0;
+        }
+
+        final purpose = (spMap['purpose'] ?? '').toString();
+        final planCode = (spMap['metadata'] is Map
+                ? spMap['metadata']['plan_code']
+                : spMap['plan_code'] ?? '')
+            .toString()
+            .toLowerCase();
+        final providerCode = (spMap['provider_code'] ?? 'manual').toString().toLowerCase();
         final shopName = (spMap['shops'] as Map?)?['name']?.toString() ?? 'Shop';
 
-        final isFoundingActivation = paymentType == 'founding_activation' ||
+        final isFoundingActivation = purpose == 'foundingActivation' ||
             (planCode == 'founding' && foundingActivationFeeSetting > 0 && amount >= (foundingActivationFeeSetting * 0.7));
         final isFoundingMonthly = planCode == 'founding' && !isFoundingActivation;
-
-        // If amount was missing or 0 on a founding activation payment, use runtime setting
-        if (isFoundingActivation && amount == 0) {
-          amount = foundingActivationFeeSetting;
-        }
+        final isStorageMonthly = purpose == 'storageMonthly';
+        final isStorageAnnual = purpose == 'storageAnnual';
 
         final String typeKey;
         final String displayType;
@@ -1433,6 +1445,12 @@ class AdminService {
         } else if (isFoundingMonthly) {
           typeKey = 'founding_monthly';
           displayType = 'Founding Monthly';
+        } else if (isStorageMonthly) {
+          typeKey = 'storage_monthly';
+          displayType = 'Storage (Monthly)';
+        } else if (isStorageAnnual) {
+          typeKey = 'storage_annual';
+          displayType = 'Storage (Annual)';
         } else {
           typeKey = 'subscription_monthly';
           displayType = 'Subscription (Monthly)';
@@ -1441,7 +1459,18 @@ class AdminService {
         byType[typeKey]!['amount'] = (byType[typeKey]!['amount'] as int) + amount;
         byType[typeKey]!['count'] = (byType[typeKey]!['count'] as int) + 1;
 
-        final tierKey = normalisePlanTier(planCode);
+        // Provider breakdown
+        if (!byProvider.containsKey(providerCode)) {
+          byProvider[providerCode] = {
+            'amount': 0,
+            'count': 0,
+            'displayName': providerCode == 'stripe' ? 'Card / Stripe' : providerCode,
+          };
+        }
+        byProvider[providerCode]!['amount'] = (byProvider[providerCode]!['amount'] as int) + amount;
+        byProvider[providerCode]!['count'] = (byProvider[providerCode]!['count'] as int) + 1;
+
+        final tierKey = normalisePlanTier(planCode.isNotEmpty ? planCode : (isFoundingActivation ? 'founding' : 'basic'));
         byTier[tierKey]!['amount'] = (byTier[tierKey]!['amount'] as int) + amount;
         byTier[tierKey]!['count'] = (byTier[tierKey]!['count'] as int) + 1;
 
@@ -1455,9 +1484,10 @@ class AdminService {
           'shop_name': shopName,
           'amount': amount,
           'direction': 'In',
-          'status': spMap['status'] ?? 'approved',
-          'payment_method': spMap['payment_method'] ?? 'Easypaisa',
-          'transaction_id': spMap['transaction_id'] ?? spMap['id'] ?? '',
+          'status': spMap['status'] ?? 'succeeded',
+          'provider_code': providerCode,
+          'payment_method': providerCode == 'stripe' ? 'Stripe Card' : (spMap['metadata']?['payment_method'] ?? 'Bank/Manual'),
+          'transaction_id': spMap['provider_reference'] ?? spMap['manual_transaction_id'] ?? spMap['id'] ?? '',
         });
       }
 
@@ -1535,9 +1565,13 @@ class AdminService {
         });
       }
 
-      // Process Storage Addon Payments
+      // Process Storage Addon Payments (deduplicated against unified_payments to prevent double counting)
+      final processedTxIds = allTransactions.map((t) => t['id'].toString()).toSet();
       for (final s in storageList) {
         final sMap = Map<String, dynamic>.from(s as Map);
+        final sid = (sMap['id'] ?? '').toString();
+        if (processedTxIds.contains(sid)) continue; // Already counted via unified_payments!
+
         final status = (sMap['status'] ?? '').toString();
         if (status != 'approved' && status != 'confirmed') continue;
 
@@ -1630,33 +1664,35 @@ class AdminService {
 
 
 
-      // Process Payouts OUT
+      // Process Agency Payouts OUT
       for (final po in payoutsList) {
         final poMap = Map<String, dynamic>.from(po as Map);
-        final dateStr = poMap['created_at'] as String?;
+        final dateStr = (poMap['processed_at'] ?? poMap['requested_at'] ?? poMap['created_at']) as String?;
         if (dateStr == null) continue;
         final date = DateTime.tryParse(dateStr)?.toLocal();
         if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 
-        final amount = (poMap['amount'] as num?)?.toInt() ?? 0;
-        final shopName = (poMap['inviter_shop'] as Map?)?['name'] ?? 'Inviter Shop';
+        final amount = poMap['amount_minor'] != null
+            ? ((poMap['amount_minor'] as num).toInt() / 100.0).round()
+            : (poMap['amount'] as num?)?.toInt() ?? 0;
+        final shopName = (poMap['agency_shop'] as Map?)?['name'] ?? (poMap['inviter_shop'] as Map?)?['name'] ?? 'Agency Shop';
 
         totalPayouts += amount;
 
         allTransactions.add({
           'id': poMap['id'] ?? '',
           'date': date.toIso8601String(),
-          'type': 'Payout',
+          'type': 'Agency Payout',
           'shop_name': shopName,
           'amount': amount,
           'direction': 'Out',
           'status': poMap['status'] ?? 'paid',
-          'payment_method': 'Payout Direct',
-          'transaction_id': poMap['id'] ?? '',
+          'payment_method': poMap['method'] ?? 'Payout Direct',
+          'transaction_id': poMap['reference'] ?? poMap['id'] ?? '',
         });
       }
 
-      // Process Top Earners in range
+      // Process Top Agencies in range
       Map<String, Map<String, dynamic>> topEarnersMap = {};
       for (final e in earningsList) {
         final eMap = Map<String, dynamic>.from(e as Map);
@@ -1665,22 +1701,24 @@ class AdminService {
         final date = DateTime.tryParse(dateStr)?.toLocal();
         if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 
-        final shopId = eMap['inviter_shop_id'] as String? ?? 'unknown';
-        final shopName = (eMap['inviter_shop'] as Map?)?['name'] ?? 'Inviter';
-        final amount = (eMap['amount'] as num?)?.toInt() ?? 0;
+        final shopId = (eMap['agency_shop_id'] ?? eMap['inviter_shop_id']) as String? ?? 'unknown';
+        final shopName = (eMap['agency_shop'] as Map?)?['name'] ?? (eMap['inviter_shop'] as Map?)?['name'] ?? 'Agency';
+        final amount = eMap['earning_minor'] != null
+            ? ((eMap['earning_minor'] as num).toInt() / 100.0).round()
+            : (eMap['amount'] as num?)?.toInt() ?? 0;
 
-          if (topEarnersMap.containsKey(shopId)) {
-            topEarnersMap[shopId]!['total_earned'] = (topEarnersMap[shopId]!['total_earned'] as int) + amount;
-            topEarnersMap[shopId]!['events_count'] = (topEarnersMap[shopId]!['events_count'] as int) + 1;
-          } else {
-            topEarnersMap[shopId] = {
-              'shop_id': shopId,
-              'shop_name': shopName,
-              'total_earned': amount,
-              'events_count': 1,
-            };
-          }
+        if (topEarnersMap.containsKey(shopId)) {
+          topEarnersMap[shopId]!['total_earned'] = (topEarnersMap[shopId]!['total_earned'] as int) + amount;
+          topEarnersMap[shopId]!['events_count'] = (topEarnersMap[shopId]!['events_count'] as int) + 1;
+        } else {
+          topEarnersMap[shopId] = {
+            'shop_id': shopId,
+            'shop_name': shopName,
+            'total_earned': amount,
+            'events_count': 1,
+          };
         }
+      }
 
       final topEarnersList = topEarnersMap.values.toList()
         ..sort((a, b) => (b['total_earned'] as int).compareTo(a['total_earned'] as int));
@@ -1723,6 +1761,7 @@ class AdminService {
         'breakdown': {
           'by_type': byType,
           'by_tier': byTier,
+          'by_provider': byProvider,
         },
         'top_earners': topEarnersList,
         'transactions': allTransactions,
@@ -1788,7 +1827,7 @@ class AdminService {
       final prevMonth = prevMonthDate.month;
 
       final res = await http.get(
-        _restUri('/profit_payouts?status=eq.paid&select=*,inviter_shop:inviter_shop_id(id,name)&order=created_at.desc'),
+        _restUri('/agency_payouts?status=eq.paid&select=*,agency_shop:agency_shop_id(id,name)&order=processed_at.desc'),
         headers: _adminHeaders,
       );
 
@@ -1799,11 +1838,13 @@ class AdminService {
 
       for (final item in list) {
         final po = Map<String, dynamic>.from(item as Map);
-        final shopId = po['inviter_shop_id'] as String? ?? 'unknown';
-        final shopName = (po['inviter_shop'] as Map?)?['name'] as String? ?? 'Unknown Shop';
-        final amount = (po['amount'] as num?)?.toInt() ?? 0;
+        final shopId = po['agency_shop_id'] as String? ?? 'unknown';
+        final shopName = (po['agency_shop'] as Map?)?['name'] as String? ?? 'Unknown Agency';
+        final amount = po['amount_minor'] != null
+            ? ((po['amount_minor'] as num).toInt() / 100.0).round()
+            : (po['amount'] as num?)?.toInt() ?? 0;
 
-        final dateStr = po['created_at'] as String?;
+        final dateStr = (po['processed_at'] ?? po['requested_at']) as String?;
         final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
 
         if (!map.containsKey(shopId)) {
@@ -1942,14 +1983,27 @@ class AdminService {
   // ── SUBSCRIPTION MANAGEMENT ──────────────────────────────────────────────
   // =========================================================================
 
-  Future<List<Map<String, dynamic>>> fetchSubscriptionPayments({String status = 'pending_admin_review'}) async {
+  Future<List<Map<String, dynamic>>> fetchSubscriptionPayments({String status = 'awaitingReview'}) async {
     try {
+      final effectiveStatus = status == 'pending_admin_review' ? 'awaitingReview' : status;
+
+      // 1. If checking awaiting review, use get_admin_approvals_data RPC (SECURITY DEFINER)
+      if (effectiveStatus == 'awaitingReview') {
+        final approvalsRes = await _callAdminRpc('get_admin_approvals_data');
+        if (approvalsRes != null && approvalsRes is Map && approvalsRes['pending_payments'] is List) {
+          final list = List<Map<String, dynamic>>.from(approvalsRes['pending_payments']);
+          return list.where((p) => p['shop_id'] != 'bb800b6f-fd70-4ca7-8b51-3b934d3c18c1').toList();
+        }
+      }
+
+      // 2. Fetch from unified_payments (Single authoritative ledger)
       final res = await http.get(
-        _restUri('/subscription_payments?status=eq.$status&order=created_at.desc'),
+        _restUri('/unified_payments?status=eq.$effectiveStatus&order=created_at.desc&select=*,shops(id,name,phone,city,invite_code,invited_by_code)'),
         headers: _adminHeaders,
       );
       if (res.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+        final list = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+        return list.where((p) => p['shop_id'] != 'bb800b6f-fd70-4ca7-8b51-3b934d3c18c1').toList();
       }
     } catch (e) {
       debugPrint('Error fetching subscription payments: $e');
@@ -1961,51 +2015,91 @@ class AdminService {
     required String paymentId,
     required String shopId,
     String? cycleId,
+    bool? isTest,
   }) async {
     try {
-      // 1. Mark payment as approved
+      // 1. Call atomic, shared fulfill_payment RPC
+      final Map<String, dynamic> rpcBody = {'p_payment_id': paymentId};
+      if (isTest != null) rpcBody['p_is_test'] = isTest;
+      final rpcRes = await http.post(
+        _restUri('/rpc/fulfill_payment'),
+        headers: _restHeaders,
+        body: jsonEncode(rpcBody),
+      );
+
+      if (rpcRes.statusCode == 200) {
+        final data = jsonDecode(rpcRes.body);
+        if (data is Map && data['success'] == true) return true;
+      }
+
+      // 2. Fallback: If legacy payment row, perform direct approval
       final payRes = await http.patch(
         _restUri('/subscription_payments?id=eq.$paymentId'),
         headers: _restHeaders,
         body: jsonEncode({'status': 'approved', 'reviewed_at': DateTime.now().toUtc().toIso8601String()}),
       );
-      if (payRes.statusCode != 200 && payRes.statusCode != 204) return false;
-
-      // 2. Update usage cycle to paid
-      if (cycleId != null) {
+      if (payRes.statusCode == 200 || payRes.statusCode == 204) {
+        if (cycleId != null) {
+          await http.patch(
+            _restUri('/shop_usage_cycles?id=eq.$cycleId'),
+            headers: _restHeaders,
+            body: jsonEncode({'payment_status': 'paid', 'paid_at': DateTime.now().toUtc().toIso8601String()}),
+          );
+        }
         await http.patch(
-          _restUri('/shop_usage_cycles?id=eq.$cycleId'),
+          _restUri('/shops?id=eq.$shopId'),
           headers: _restHeaders,
-          body: jsonEncode({'payment_status': 'paid', 'paid_at': DateTime.now().toUtc().toIso8601String()}),
+          body: jsonEncode({'subscription_status': 'active'}),
         );
+        return true;
       }
 
-      // 3. Activate shop subscription
-      await http.patch(
-        _restUri('/shops?id=eq.$shopId'),
-        headers: _restHeaders,
-        body: jsonEncode({'subscription_status': 'active'}),
-      );
-
-      return true;
+      return false;
     } catch (e) {
       debugPrint('Error approving subscription payment: $e');
       return false;
     }
   }
 
-  /// Approves a founding activation payment by calling the
-  /// activate_founding_membership Postgres RPC.
-  /// This sets founding dates, storage limit, plan_code = 'founding', and
-  /// creates the free-period usage cycle in one atomic transaction.
+  Future<List<Map<String, dynamic>>> fetchAuditAlerts() async {
+    try {
+      final res = await http.get(
+        _restUri('/admin_audit_logs?is_resolved=eq.false&order=created_at.desc'),
+        headers: _adminHeaders,
+      );
+      if (res.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      }
+    } catch (e) {
+      debugPrint('Error fetching admin audit alerts: $e');
+    }
+    return [];
+  }
+
+  /// Approves a founding activation payment using the shared fulfill_payment RPC.
   Future<Map<String, dynamic>> approveFoundingActivationPayment({
     required String paymentId,
     required String shopId,
     required int freeMonths,
     required double storageGb,
+    bool? isTest,
   }) async {
     try {
+      // Shared fulfillment function handles founding activation atomically
+      final Map<String, dynamic> rpcBody = {'p_payment_id': paymentId};
+      if (isTest != null) rpcBody['p_is_test'] = isTest;
       final res = await http.post(
+        _restUri('/rpc/fulfill_payment'),
+        headers: _restHeaders,
+        body: jsonEncode(rpcBody),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map<String, dynamic> && data['success'] == true) return data;
+      }
+
+      // Fallback: Legacy activate_founding_membership RPC
+      final legacyRes = await http.post(
         _restUri('/rpc/activate_founding_membership'),
         headers: _restHeaders,
         body: jsonEncode({
@@ -2015,10 +2109,11 @@ class AdminService {
           'p_storage_limit_gb': storageGb,
         }),
       );
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+      if (legacyRes.statusCode == 200) {
+        final data = jsonDecode(legacyRes.body);
         if (data is Map<String, dynamic>) return data;
       }
+
       return {'success': false, 'error': 'Server error ${res.statusCode}'};
     } catch (e) {
       debugPrint('AdminService.approveFoundingActivationPayment error: $e');
@@ -2026,9 +2121,61 @@ class AdminService {
     }
   }
 
+  /// Sets or updates the is_test flag on any unified_payments record via admin RPC.
+  Future<bool> setPaymentTestFlag({
+    required String paymentId,
+    required bool isTest,
+  }) async {
+    try {
+      final res = await http.post(
+        _restUri('/rpc/admin_set_payment_test_flag'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'p_payment_id': paymentId,
+          'p_is_test': isTest,
+        }),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data is Map && data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error setting payment test flag: $e');
+      return false;
+    }
+  }
+
   Future<bool> rejectSubscriptionPayment({required String paymentId, required String reason}) async {
     try {
-      final res = await http.patch(
+      // 1. Call reject_unified_payment RPC
+      final res = await http.post(
+        _restUri('/rpc/reject_unified_payment'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'p_payment_id': paymentId,
+          'p_reason': reason,
+        }),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map && data['success'] == true) return true;
+      }
+
+      // 2. Direct unified_payments patch
+      final patchUnified = await http.patch(
+        _restUri('/unified_payments?id=eq.$paymentId'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'status': 'failed',
+          'failure_reason': reason,
+          'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+        }),
+      );
+      if (patchUnified.statusCode == 200 || patchUnified.statusCode == 204) return true;
+
+      // 3. Fallback: legacy subscription_payments patch
+      final resLegacy = await http.patch(
         _restUri('/subscription_payments?id=eq.$paymentId'),
         headers: _restHeaders,
         body: jsonEncode({
@@ -2037,7 +2184,7 @@ class AdminService {
           'reviewed_at': DateTime.now().toUtc().toIso8601String(),
         }),
       );
-      return res.statusCode == 200 || res.statusCode == 204;
+      return resLegacy.statusCode == 200 || resLegacy.statusCode == 204;
     } catch (e) {
       debugPrint('Error rejecting subscription payment: $e');
       return false;
@@ -2059,21 +2206,129 @@ class AdminService {
     return [];
   }
 
-  Future<bool> upsertSubscriptionPlan(Map<String, dynamic> plan) async {
+  // ── PAYMENT PROVIDERS MANAGEMENT ─────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchPaymentProviders() async {
     try {
-      final res = await http.post(
-        _restUri('/subscription_plans'),
-        headers: {
-          ..._restHeaders,
-          'Prefer': 'resolution=merge-duplicates',
-        },
-        body: jsonEncode(plan),
+      final res = await http.get(
+        _restUri('/payment_providers?order=priority.asc'),
+        headers: _adminHeaders,
       );
-      return res.statusCode == 200 || res.statusCode == 201;
+      if (res.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      }
+      debugPrint('fetchPaymentProviders failed: ${res.statusCode} ${res.body}');
     } catch (e) {
-      debugPrint('Error upserting subscription plan: $e');
-      return false;
+      debugPrint('Error fetching payment providers: $e');
     }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> updatePaymentProvider({
+    required String code,
+    bool? enabled,
+    List<String>? supportedCurrencies,
+    List<String>? allowedCountries,
+    int? priority,
+    String? displayName,
+  }) async {
+    final params = <String, dynamic>{'p_code': code};
+    if (enabled != null) params['p_enabled'] = enabled;
+    if (supportedCurrencies != null) params['p_supported_currencies'] = supportedCurrencies;
+    if (allowedCountries != null) params['p_allowed_countries'] = allowedCountries;
+    if (priority != null) params['p_priority'] = priority;
+    if (displayName != null) params['p_display_name'] = displayName;
+
+    final result = await _callAdminRpc('admin_update_payment_provider', params);
+    if (result == null) {
+      throw Exception('Failed to update payment provider "$code": Empty response or unauthorized.');
+    }
+    if (result is! Map) {
+      throw Exception('Failed to update payment provider "$code": Unexpected server response.');
+    }
+    final map = Map<String, dynamic>.from(result);
+    if (map.isEmpty) {
+      throw Exception('Failed to update payment provider "$code": Empty record returned.');
+    }
+    return map;
+  }
+
+  // ── MULTI-CURRENCY PLAN PRICING ──────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchPlanPrices({String? planCode}) async {
+    try {
+      final endpoint = planCode != null && planCode.isNotEmpty
+          ? '/plan_prices?plan_code=eq.$planCode&order=currency.asc'
+          : '/plan_prices?order=plan_code.asc,currency.asc';
+
+      final res = await http.get(_restUri(endpoint), headers: _adminHeaders);
+      if (res.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      }
+    } catch (e) {
+      debugPrint('Error fetching plan prices: $e');
+    }
+    return [];
+  }
+
+  Future<bool> upsertPlanPrice({
+    required String planCode,
+    required String currency,
+    required int amountMinor,
+  }) async {
+    final result = await _callAdminRpc('admin_upsert_plan_price', {
+      'p_plan_code': planCode,
+      'p_currency': currency,
+      'p_amount_minor': amountMinor,
+    });
+    if (result == null) {
+      throw Exception('Failed to upsert plan price for $planCode ($currency): Empty or null response.');
+    }
+    return true;
+  }
+
+  Future<bool> deletePlanPrice({
+    required String planCode,
+    required String currency,
+  }) async {
+    final result = await _callAdminRpc('admin_delete_plan_price', {
+      'p_plan_code': planCode,
+      'p_currency': currency,
+    });
+    if (result == null) {
+      throw Exception('Failed to delete plan price for $planCode ($currency): Empty or null response.');
+    }
+    return true;
+  }
+
+  Future<bool> upsertSubscriptionPlan(Map<String, dynamic> plan) async {
+    final result = await _callAdminRpc('admin_upsert_subscription_plan', {
+      'p_code': plan['code'],
+      'p_name_en': plan['name_en'],
+      'p_name_ur': plan['name_ur'],
+      'p_price_pkr': plan['price_pkr'],
+      'p_max_orders_per_month': plan['max_orders_per_month'],
+      'p_max_active_customers': plan['max_active_customers'],
+      'p_trial_days': plan['trial_days'],
+      'p_sort_order': plan['sort_order'],
+      'p_is_active': plan['is_active'],
+      'p_storage_allowance_bytes': plan['storage_allowance_bytes'],
+    });
+
+    if (result == null) {
+      throw Exception('Failed to upsert subscription plan: Empty or null response.');
+    }
+
+    if (plan.containsKey('code') && plan.containsKey('price_pkr')) {
+      // Sync PKR price to plan_prices in minor units
+      final pkrPrice = (plan['price_pkr'] as num?)?.toInt() ?? 0;
+      await upsertPlanPrice(
+        planCode: plan['code'],
+        currency: 'PKR',
+        amountMinor: pkrPrice * 100,
+      );
+    }
+    return true;
   }
 
   Future<bool> grantLifetimeAccess(String shopId, {double storageGb = 5.0}) async {
@@ -2097,14 +2352,21 @@ class AdminService {
 
   Future<Map<String, dynamic>> fetchSubscriptionStats() async {
     try {
-      // Fetch all shops with subscription columns (including founding fields)
+      // 1. Primary: Server-side atomic SECURITY DEFINER RPC (excludes platform shop)
+      final rpcRes = await _callAdminRpc('get_admin_subscription_stats');
+      if (rpcRes != null && rpcRes is Map) {
+        return Map<String, dynamic>.from(rpcRes);
+      }
+
+      // 2. Fallback: Fetch all shops with subscription columns (excluding platform shop bb800b6f)
       final res = await http.get(
-        _restUri('/shops?select=plan_code,subscription_status,billing_cycle_end,founding_free_until&status=neq.deleted'),
+        _restUri('/shops?select=id,plan_code,subscription_status,billing_cycle_end,founding_free_until&status=neq.deleted'),
         headers: _adminHeaders,
       );
       if (res.statusCode != 200) return {};
 
-      final shops = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      final allShops = List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      final shops = allShops.where((s) => s['id'] != 'bb800b6f-fd70-4ca7-8b51-3b934d3c18c1').toList();
 
       // Calculate plan prices from subscription_plans table
       final plansRes = await http.get(
@@ -2225,22 +2487,16 @@ class AdminService {
     return {};
   }
 
-  /// Upserts a single app_setting key/value pair.
+  /// Upserts a single app_setting key/value pair via admin RPC.
   Future<bool> updateAppSetting(String key, String value) async {
-    try {
-      final res = await http.post(
-        _restUri('/app_settings'),
-        headers: {
-          ..._restHeaders,
-          'Prefer': 'resolution=merge-duplicates',
-        },
-        body: jsonEncode({'key': key, 'value': value, 'updated_at': DateTime.now().toUtc().toIso8601String()}),
-      );
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (e) {
-      debugPrint('AdminService.updateAppSetting error: $e');
-      return false;
+    final result = await _callAdminRpc('admin_update_app_setting', {
+      'p_key': key,
+      'p_value': value,
+    });
+    if (result == null) {
+      throw Exception('Failed to update app setting "$key": Empty or null response from server.');
     }
+    return true;
   }
 }
 

@@ -170,18 +170,18 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                     content: Column(
                       children: const [
                         _DetailRowItem(
-                          title: '📦 Free Base Allowance (1.5 MB)',
-                          detail: 'Every base license gets 1.5 MB free storage for suit designs & customer media.',
+                          title: '📦 Plan Storage Allowance (Configurable per Plan)',
+                          detail: 'Every plan receives its own storage allowance configured in Subscription Plans (Trial 100 MB, Basic 250 MB, Standard 1 GB, Unlimited 3 GB, Founding 5 GB).',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: '💳 Monthly Add-on (Rs 1,200/mo)',
-                          detail: 'Provides extra storage for 30 days. Triggers Level 1 profit of Rs 180 (15%) for inviter.',
+                          title: '💳 Monthly Add-on (+1 GB @ Rs 250/mo)',
+                          detail: 'Adds +1 GB storage to the plan allowance for 30 days. Configurable in App Settings.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
-                          title: '📅 Annual Add-on (Rs 10,000/yr)',
-                          detail: 'Provides extra storage for 365 days. Triggers Level 1 profit of Rs 1,500 (15%) for inviter.',
+                          title: '📅 Annual Add-on (+1 GB @ Rs 2,500/yr)',
+                          detail: 'Adds +1 GB storage to the plan allowance for 365 days. Configurable in App Settings.',
                         ),
                         SizedBox(height: 8),
                         _DetailRowItem(
@@ -215,9 +215,9 @@ class _AdminSupportScreenState extends State<AdminSupportScreen> {
                           const SizedBox(height: 6),
                           Text('1. License Status & Dates: License status becomes active, plan tier updated, and expiration date set.', style: GoogleFonts.inter(fontSize: 11.5, color: context.text2)),
                           const SizedBox(height: 4),
-                          Text('2. Upline Chain Scan: System checks invited_by_code up to 4 levels up.', style: GoogleFonts.inter(fontSize: 11.5, color: context.text2)),
+                          Text('2. Agency Attribution: System checks whether the shop is registered under an active Agency (agency_shop_id).', style: GoogleFonts.inter(fontSize: 11.5, color: context.text2)),
                           const SizedBox(height: 4),
-                          Text('3. Profit Calculation: For each qualified upline shop (invite_level_unlocked >= current_level), 15%/2.5%/1.5%/1.0% profit is calculated and added to profit_earnings as pending.', style: GoogleFonts.inter(fontSize: 11.5, color: context.text2)),
+                          Text('3. Agency Profit Calculation: The agency earns their assigned percentage on the payment, recorded into agency_earnings.', style: GoogleFonts.inter(fontSize: 11.5, color: context.text2)),
                         ],
                       ),
                     ),

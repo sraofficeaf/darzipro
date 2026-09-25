@@ -364,18 +364,18 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                     subtitle: 'Subscriptions + Add-ons + Legacy History',
                                   ),
                                   AdminStatCard(
-                                    title: 'Invite Payouts',
+                                    title: 'Agency Profit Payouts',
                                     value: _fmt(_summaryData['total_payouts'] ?? 0),
                                     icon: Icons.payments_rounded,
                                     color: AdminColors.rose,
-                                    subtitle: 'Money sent out to inviters (Paid)',
+                                    subtitle: 'Money sent out to agencies (Paid)',
                                   ),
                                   AdminStatCard(
                                     title: 'Net Revenue',
                                     value: _fmt(_summaryData['net_revenue'] ?? 0),
                                     icon: Icons.trending_up_rounded,
                                     color: AdminColors.blue,
-                                    subtitle: 'Total Revenue - Invite Payouts',
+                                    subtitle: 'Total Revenue - Agency Payouts',
                                   ),
                                   AdminStatCard(
                                     title: 'Transaction Count',
@@ -397,7 +397,6 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                         RepaintBoundary(
                           child: LayoutBuilder(
                             builder: (context, constraints) {
-                              final isDesktop = constraints.maxWidth >= 720;
                               final byType = _breakdownData['by_type'] as Map<String, dynamic>? ?? {};
                               final byTier = _breakdownData['by_tier'] as Map<String, dynamic>? ?? {};
 
@@ -446,13 +445,36 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                 ],
                               );
 
-                              if (isDesktop) {
+                              final byProvider = _breakdownData['by_provider'] as Map<String, dynamic>? ?? {};
+                              final stripeData = byProvider['stripe'] as Map<String, dynamic>? ?? {};
+                              final manualData = byProvider['manual'] as Map<String, dynamic>? ?? {};
+
+                              final providerWidget = _buildBreakdownCard(
+                                title: 'By Payment Provider',
+                                icon: Icons.payment_rounded,
+                                children: [
+                                  _BreakdownRow(
+                                    'Stripe / Cards',
+                                    _fmt(stripeData['amount'] ?? 0),
+                                    '${stripeData['count'] ?? 0} txs',
+                                  ),
+                                  _BreakdownRow(
+                                    'Manual (Bank/Wallets)',
+                                    _fmt(manualData['amount'] ?? 0),
+                                    '${manualData['count'] ?? 0} txs',
+                                  ),
+                                ],
+                              );
+
+                              if (constraints.maxWidth >= 960) {
                                 return Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(child: typeWidget),
+                                    Expanded(flex: 3, child: typeWidget),
                                     const SizedBox(width: 14),
-                                    Expanded(child: tierWidget),
+                                    Expanded(flex: 2, child: tierWidget),
+                                    const SizedBox(width: 14),
+                                    Expanded(flex: 2, child: providerWidget),
                                   ],
                                 );
                               } else {
@@ -461,6 +483,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                     typeWidget,
                                     const SizedBox(height: 14),
                                     tierWidget,
+                                    const SizedBox(height: 14),
+                                    providerWidget,
                                   ],
                                 );
                               }
@@ -470,7 +494,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                         const SizedBox(height: 20),
 
                         // 3. TOP EARNERS TABLE
-                        Text('Top Inviter Earners', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: text1)),
+                        Text('Top Agency Earners', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: text1)),
                         const SizedBox(height: 12),
                         RepaintBoundary(
                           child: Container(

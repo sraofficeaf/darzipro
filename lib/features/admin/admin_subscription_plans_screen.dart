@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/services/admin_service.dart';
 import '../../core/services/subscription_service.dart';
+import '../../core/payments/currency_utils.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../shared/providers/admin_providers.dart';
 import 'widgets/admin_ui_kit.dart';
@@ -24,6 +25,7 @@ class _AdminSubscriptionPlansScreenState
   final Map<String, TextEditingController> _priceControllers = {};
   final Map<String, TextEditingController> _maxOrdersControllers = {};
   final Map<String, TextEditingController> _maxCustomersControllers = {};
+  final Map<String, TextEditingController> _storageMbControllers = {};
   bool _isSaving = false;
   String? _saveError;
 
@@ -73,6 +75,7 @@ class _AdminSubscriptionPlansScreenState
     for (final c in _priceControllers.values) { c.dispose(); }
     for (final c in _maxOrdersControllers.values) { c.dispose(); }
     for (final c in _maxCustomersControllers.values) { c.dispose(); }
+    for (final c in _storageMbControllers.values) { c.dispose(); }
     _feeCtrl.dispose();
     _freeMonthsCtrl.dispose();
     _monthlyFixedCtrl.dispose();
@@ -92,6 +95,9 @@ class _AdminSubscriptionPlansScreenState
           text: plan['max_orders_per_month'] != null ? '${plan['max_orders_per_month']}' : '');
       _maxCustomersControllers[id] = TextEditingController(
           text: plan['max_active_customers'] != null ? '${plan['max_active_customers']}' : '');
+      final allowanceBytes = (plan['storage_allowance_bytes'] as num?)?.toInt();
+      final allowanceMb = allowanceBytes != null ? (allowanceBytes ~/ (1024 * 1024)) : 0;
+      _storageMbControllers[id] = TextEditingController(text: '$allowanceMb');
     }
   }
 
@@ -180,12 +186,14 @@ class _AdminSubscriptionPlansScreenState
                                     priceCtrl: _priceControllers[id]!,
                                     maxOrdersCtrl: _maxOrdersControllers[id]!,
                                     maxCustomersCtrl: _maxCustomersControllers[id]!,
+                                    storageMbCtrl: _storageMbControllers[id]!,
                                     onEdit: () => setState(() {
                                       _editingPlanId = isEditing ? null : id;
                                       _saveError = null;
                                     }),
                                     onSave: () => _savePlan(plan, id),
                                     onToggleActive: (val) => _toggleActive(plan, val),
+                                    onManageCurrencies: () => _showCurrencyPricesDialog(plan),
                                   ),
                                 );
                               }).toList(),
@@ -236,6 +244,8 @@ class _AdminSubscriptionPlansScreenState
     final price = int.tryParse(_priceControllers[id]!.text.trim()) ?? 0;
     final maxOrders = int.tryParse(_maxOrdersControllers[id]!.text.trim());
     final maxCustomers = int.tryParse(_maxCustomersControllers[id]!.text.trim());
+    final storageMb = int.tryParse(_storageMbControllers[id]!.text.trim()) ?? 0;
+    final storageBytes = storageMb * 1024 * 1024;
 
     final updatedPlan = {
       'id': id,
@@ -245,6 +255,7 @@ class _AdminSubscriptionPlansScreenState
       'price_pkr': price,
       'max_orders_per_month': maxOrders,
       'max_active_customers': maxCustomers,
+      'storage_allowance_bytes': storageBytes,
       'sort_order': originalPlan['sort_order'],
       'is_active': originalPlan['is_active'],
       'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -303,6 +314,14 @@ class _AdminSubscriptionPlansScreenState
     });
     ref.invalidate(adminSubscriptionPlansProvider);
   }
+
+  void _showCurrencyPricesDialog(Map<String, dynamic> plan) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _PlanCurrencyPricesDialog(plan: plan),
+    );
+  }
 }
 
 // ── Stats Row ───────────────────────────────────────────────────────────────
@@ -346,6 +365,17 @@ class _StatsRow extends StatelessWidget {
   }
 }
 
+String _formatPlanStorage(dynamic raw) {
+  if (raw == null) return '0 MB storage';
+  final num val = raw as num;
+  final int bytes = val > 100000 ? val.toInt() : (val.toInt() * 1024 * 1024);
+  final int mb = bytes ~/ (1024 * 1024);
+  if (mb >= 1024 && mb % 1024 == 0) {
+    return '${mb ~/ 1024} GB storage';
+  }
+  return '$mb MB storage';
+}
+
 // ── Plan Edit Card ──────────────────────────────────────────────────────────
 
 class _PlanEditCard extends StatelessWidget {
@@ -357,9 +387,11 @@ class _PlanEditCard extends StatelessWidget {
   final TextEditingController priceCtrl;
   final TextEditingController maxOrdersCtrl;
   final TextEditingController maxCustomersCtrl;
+  final TextEditingController storageMbCtrl;
   final VoidCallback onEdit;
   final VoidCallback onSave;
   final ValueChanged<bool> onToggleActive;
+  final VoidCallback onManageCurrencies;
 
   const _PlanEditCard({
     required this.plan,
@@ -370,9 +402,11 @@ class _PlanEditCard extends StatelessWidget {
     required this.priceCtrl,
     required this.maxOrdersCtrl,
     required this.maxCustomersCtrl,
+    required this.storageMbCtrl,
     required this.onEdit,
     required this.onSave,
     required this.onToggleActive,
+    required this.onManageCurrencies,
   });
 
   @override
@@ -440,6 +474,17 @@ class _PlanEditCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: onManageCurrencies,
+                  icon: const Icon(Icons.currency_exchange_rounded, size: 14),
+                  label: const Text('Currencies'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AdminColors.indigo,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    textStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 TextButton(
                   onPressed: onEdit,
                   child: Text(
@@ -472,11 +517,19 @@ class _PlanEditCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Expanded(child: _TextField(ctrl: priceCtrl, label: 'Price (PKR)', isNumeric: true)),
+                      Expanded(
+                        child: _TextField(
+                          ctrl: priceCtrl,
+                          label: plan['code'] == 'founding' ? 'Activation Fee (PKR)' : 'Price (PKR)',
+                          isNumeric: true,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(child: _TextField(ctrl: maxOrdersCtrl, label: 'Max Orders (blank=∞)', isNumeric: true)),
                       const SizedBox(width: 10),
                       Expanded(child: _TextField(ctrl: maxCustomersCtrl, label: 'Max Customers (blank=∞)', isNumeric: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _TextField(ctrl: storageMbCtrl, label: 'Storage (MB)', isNumeric: true)),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -502,7 +555,9 @@ class _PlanEditCard extends StatelessWidget {
               child: Row(
                 children: [
                   AdminBadge(
-                    label: 'Rs ${NumberFormat('#,###').format(plan['price_pkr'] ?? 0)}/mo',
+                    label: plan['code'] == 'founding'
+                        ? 'Rs ${NumberFormat('#,###').format(plan['price_pkr'] ?? 0)} activation (one-time)'
+                        : 'Rs ${NumberFormat('#,###').format(plan['price_pkr'] ?? 0)}/mo',
                     color: accentColor,
                   ),
                   const SizedBox(width: 8),
@@ -518,6 +573,11 @@ class _PlanEditCard extends StatelessWidget {
                         ? '${plan['max_active_customers']} customers'
                         : '∞ customers',
                     color: AdminColors.emerald,
+                  ),
+                  const SizedBox(width: 8),
+                  AdminBadge(
+                    label: _formatPlanStorage(plan['storage_allowance_bytes'] ?? plan['storage_allowance_mb']),
+                    color: AdminColors.amber,
                   ),
                 ],
               ),
@@ -763,6 +823,386 @@ class _FoundingOfferSection extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Multi-Currency Prices Dialog ──────────────────────────────────────────
+
+class _PlanCurrencyPricesDialog extends StatefulWidget {
+  final Map<String, dynamic> plan;
+  const _PlanCurrencyPricesDialog({required this.plan});
+
+  @override
+  State<_PlanCurrencyPricesDialog> createState() => _PlanCurrencyPricesDialogState();
+}
+
+class _PlanCurrencyPricesDialogState extends State<_PlanCurrencyPricesDialog> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _prices = [];
+  String? _error;
+
+  final _currencyCtrl = TextEditingController(text: 'USD');
+  final _amountCtrl = TextEditingController();
+  bool _isSaving = false;
+  String? _editingCurrency;
+
+  static const _quickCurrencies = ['PKR', 'USD', 'AED', 'GBP', 'EUR', 'SAR', 'CAD'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrices();
+  }
+
+  @override
+  void dispose() {
+    _currencyCtrl.dispose();
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPrices() async {
+    setState(() => _isLoading = true);
+    final code = widget.plan['code'] as String? ?? '';
+    final list = await AdminService.instance.fetchPlanPrices(planCode: code);
+    if (!mounted) return;
+    setState(() {
+      _prices = list;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _savePrice() async {
+    final currency = _currencyCtrl.text.trim().toUpperCase();
+    final amtText = _amountCtrl.text.trim();
+    final major = double.tryParse(amtText);
+    if (currency.isEmpty || major == null || major < 0) {
+      setState(() => _error = 'Please enter a valid currency and positive amount');
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+
+    final minor = CurrencyUtils.toMinor(major);
+    final planCode = widget.plan['code'] as String;
+    final ok = await AdminService.instance.upsertPlanPrice(
+      planCode: planCode,
+      currency: currency,
+      amountMinor: minor,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    if (ok) {
+      _amountCtrl.clear();
+      _editingCurrency = null;
+      _loadPrices();
+    } else {
+      setState(() => _error = 'Failed to save price. Please retry.');
+    }
+  }
+
+  Future<void> _deletePrice(String currency) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Currency Price?'),
+        content: Text('Remove $currency price for "${widget.plan['name_en']}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AdminColors.rose),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final planCode = widget.plan['code'] as String;
+    final ok = await AdminService.instance.deletePlanPrice(planCode: planCode, currency: currency);
+    if (ok) {
+      _loadPrices();
+    }
+  }
+
+  void _startEditing(Map<String, dynamic> item) {
+    final currency = item['currency'] as String? ?? '';
+    final minor = (item['amount_minor'] as num?)?.toInt() ?? 0;
+    setState(() {
+      _editingCurrency = currency;
+      _currencyCtrl.text = currency;
+      _amountCtrl.text = CurrencyUtils.toMajor(minor).toStringAsFixed(2);
+      _error = null;
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _editingCurrency = null;
+      _currencyCtrl.text = 'USD';
+      _amountCtrl.clear();
+      _error = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text1 = context.text1;
+    final text2 = context.text2;
+    final surface = context.surface;
+    final border = context.border;
+    final planName = widget.plan['name_en'] as String? ?? widget.plan['code'] ?? 'Plan';
+    final planCode = widget.plan['code'] as String? ?? '';
+
+    return Dialog(
+      backgroundColor: surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AdminColors.indigo.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.currency_exchange_rounded, color: AdminColors.indigo, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Multi-Currency Pricing',
+                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: text1),
+                        ),
+                        Text(
+                          '$planName ($planCode) — dynamic currency rates',
+                          style: GoogleFonts.inter(fontSize: 12, color: text2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+
+              if (_error != null) ...[
+                AdminInfoBox.rose(text: _error!),
+                const SizedBox(height: 12),
+              ],
+
+              // Defined prices list
+              Text(
+                'Configured Currencies',
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: text1),
+              ),
+              const SizedBox(height: 8),
+
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator(color: AdminColors.indigo)),
+                )
+              else if (_prices.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: context.surface2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'No specific currency prices configured yet.\nDefault PKR price applies to all transactions.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(fontSize: 12, color: text2),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _prices.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final p = _prices[i];
+                      final cur = (p['currency'] as String? ?? '').toUpperCase();
+                      final minor = (p['amount_minor'] as num?)?.toInt() ?? 0;
+                      final isEditingThis = _editingCurrency == cur;
+
+                      return ListTile(
+                        dense: true,
+                        tileColor: isEditingThis ? AdminColors.indigo.withValues(alpha: 0.08) : null,
+                        leading: AdminBadge(label: cur, color: AdminColors.indigo),
+                        title: Text(
+                          CurrencyUtils.formatMinor(minor, cur),
+                          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: text1),
+                        ),
+                        subtitle: Text(
+                          '$minor minor units (${cur == 'PKR' ? 'paisa' : 'cents'})',
+                          style: GoogleFonts.inter(fontSize: 11, color: text2),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              tooltip: 'Edit Price',
+                              onPressed: () => _startEditing(p),
+                            ),
+                            if (cur != 'PKR') // PKR is base currency
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminColors.rose),
+                                tooltip: 'Delete',
+                                onPressed: () => _deletePrice(cur),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+              const SizedBox(height: 20),
+
+              // Add / Edit form
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.surface2,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _editingCurrency != null
+                              ? 'Edit Price for $_editingCurrency'
+                              : 'Add / Update Currency Price',
+                          style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: text1),
+                        ),
+                        if (_editingCurrency != null)
+                          GestureDetector(
+                            onTap: _cancelEditing,
+                            child: Text(
+                              'Cancel Edit',
+                              style: GoogleFonts.inter(fontSize: 11.5, color: AdminColors.rose, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Quick Currency Chips
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _quickCurrencies.map((c) {
+                        final isSel = _currencyCtrl.text.toUpperCase() == c;
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              _currencyCtrl.text = c;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isSel ? AdminColors.indigo : surface,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: isSel ? AdminColors.indigo : border),
+                            ),
+                            child: Text(
+                              c,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isSel ? Colors.white : text2,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: _TextField(
+                            ctrl: _currencyCtrl,
+                            label: 'Currency',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _TextField(
+                            ctrl: _amountCtrl,
+                            label: 'Amount (${_currencyCtrl.text.toUpperCase()})',
+                            isNumeric: true,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        AdminButton.primary(
+                          label: _isSaving ? '...' : (_editingCurrency != null ? 'Update' : 'Add Price'),
+                          icon: _isSaving ? null : Icons.check_rounded,
+                          onPressed: _isSaving ? null : _savePrice,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

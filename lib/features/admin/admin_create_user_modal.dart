@@ -148,7 +148,7 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                     _buildField(
                       controller: _shopCtrl,
                       label: 'Shop Name',
-                      hint: 'e.g. Ali Tailor & Sons',
+                      hint: 'Enter shop name',
                       icon: Icons.storefront_outlined,
                       context: context,
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
@@ -157,7 +157,7 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                     _buildField(
                       controller: _nameCtrl,
                       label: 'Owner Full Name',
-                      hint: 'e.g. Saifur Rahman',
+                      hint: 'Enter owner full name',
                       icon: Icons.person_outline_rounded,
                       context: context,
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
@@ -166,7 +166,7 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                     _buildField(
                       controller: _emailCtrl,
                       label: 'Email Address',
-                      hint: 'e.g. ali@example.com',
+                      hint: 'owner@example.com',
                       icon: Icons.email_outlined,
                       context: context,
                       keyboardType: TextInputType.emailAddress,

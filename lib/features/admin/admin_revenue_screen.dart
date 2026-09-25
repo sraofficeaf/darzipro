@@ -277,43 +277,118 @@ class _AdminRevenueScreenState extends ConsumerState<AdminRevenueScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Payment Methods Breakdown ───────────────────────────────
+                  // ── Payment Gateway & Provider Breakdown ───────────────────
                   RepaintBoundary(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final w = constraints.maxWidth;
-                        final cardW = w >= 600 ? (w - 24) / 3 : w;
-                        return Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            SizedBox(
-                              width: cardW,
-                              child: AdminMiniStat(
-                                label: 'Easypaisa',
-                                value: 'Rs ${_fmt(easypaisaTotal)}',
-                                color: AdminColors.emerald,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: context.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.border),
+                        boxShadow: context.cardShadow,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.payment_rounded, size: 18, color: AdminColors.indigo),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Payment Provider Breakdown',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.text1,
+                                ),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final byProvider = breakdown['by_provider'] as Map<String, dynamic>? ?? {};
+                              final stripeData = byProvider['stripe'] as Map<String, dynamic>? ?? {};
+                              final manualData = byProvider['manual'] as Map<String, dynamic>? ?? {};
+                              final stripeTotal = (stripeData['amount'] as num?)?.toInt() ?? 0;
+                              final stripeCount = (stripeData['count'] as num?)?.toInt() ?? 0;
+                              final manualTotal = (manualData['amount'] as num?)?.toInt() ?? 0;
+                              final manualCount = (manualData['count'] as num?)?.toInt() ?? 0;
+
+                              final w = constraints.maxWidth;
+                              final cardW = w >= 600 ? (w - 12) / 2 : w;
+                              return Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  SizedBox(
+                                    width: cardW,
+                                    child: AdminMiniStat(
+                                      label: 'Stripe (Cards)',
+                                      value: 'Rs ${_fmt(stripeTotal)} ($stripeCount txs)',
+                                      color: AdminColors.indigo,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: cardW,
+                                    child: AdminMiniStat(
+                                      label: 'Manual Gateway',
+                                      value: 'Rs ${_fmt(manualTotal)} ($manualCount txs)',
+                                      color: AdminColors.emerald,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Manual Channels',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: context.text2,
                             ),
-                            SizedBox(
-                              width: cardW,
-                              child: AdminMiniStat(
-                                label: 'JazzCash',
-                                value: 'Rs ${_fmt(jazzcashTotal)}',
-                                color: AdminColors.amber,
-                              ),
-                            ),
-                            SizedBox(
-                              width: cardW,
-                              child: AdminMiniStat(
-                                label: 'Bank Transfer',
-                                value: 'Rs ${_fmt(bankTotal)}',
-                                color: AdminColors.blue,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                          ),
+                          const SizedBox(height: 8),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final w = constraints.maxWidth;
+                              final cardW = w >= 600 ? (w - 24) / 3 : w;
+                              return Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  SizedBox(
+                                    width: cardW,
+                                    child: AdminMiniStat(
+                                      label: 'Easypaisa',
+                                      value: 'Rs ${_fmt(easypaisaTotal)}',
+                                      color: AdminColors.emerald,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: cardW,
+                                    child: AdminMiniStat(
+                                      label: 'JazzCash',
+                                      value: 'Rs ${_fmt(jazzcashTotal)}',
+                                      color: AdminColors.amber,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: cardW,
+                                    child: AdminMiniStat(
+                                      label: 'Bank Transfer',
+                                      value: 'Rs ${_fmt(bankTotal)}',
+                                      color: AdminColors.blue,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 

@@ -45,6 +45,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     ref.invalidate(adminSubscriptionPaymentsProvider);
     ref.invalidate(adminSubscriptionStatsProvider);
     ref.invalidate(adminReportsDataProvider);
+    ref.invalidate(adminAuditAlertsProvider);
   }
 
   @override
@@ -57,6 +58,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     final subPayAsync = ref.watch(adminSubscriptionPaymentsProvider);
     final subStatsAsync = ref.watch(adminSubscriptionStatsProvider);
     final reportsAsync = ref.watch(adminReportsDataProvider);
+    final auditAlertsAsync = ref.watch(adminAuditAlertsProvider);
 
     final bg = context.bg;
     final surface = context.surface;
@@ -72,6 +74,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     final pendingEarnings = earningsAsync.valueOrNull ?? [];
     final subPayments = subPayAsync.valueOrNull ?? [];
     final subStats = subStatsAsync.valueOrNull ?? {};
+    final auditAlerts = auditAlertsAsync.valueOrNull ?? [];
 
     final reportsData = reportsAsync.valueOrNull ?? {};
     final summaryData = reportsData['summary'] as Map<String, dynamic>? ?? {};
@@ -128,7 +131,12 @@ class AdminDashboardScreen extends ConsumerWidget {
         }
       }
       final used = (s['storage_used_bytes'] as int?) ?? 0;
-      if (used >= 1200000 && (s['storage_addon_active'] != true)) {
+      final allowanceBytes = (s['storage_allowance_bytes'] as int?) ??
+          (s['founding_storage_limit_bytes'] as int?) ??
+          (s['lifetime_storage_limit_bytes'] as int?);
+      if (allowanceBytes != null && allowanceBytes > 0 &&
+          used >= (allowanceBytes * 0.8) &&
+          (s['storage_addon_active'] != true)) {
         storageAttentionCount++;
       }
     }
@@ -182,6 +190,19 @@ class AdminDashboardScreen extends ConsumerWidget {
                           ],
 
                           // ── ALERTS ──────────────────────────────────
+                          if (auditAlerts.isNotEmpty) ...[
+                            _AlertRibbon(
+                              icon: Icons.warning_amber_rounded,
+                              title: 'CRITICAL: ${auditAlerts.length} Payment(s) Bypassed Due to Test Mode Flag',
+                              subtitle: auditAlerts.first['message'] as String? ??
+                                  'A payment arrived with is_test=true for a live shop. Verify payment_providers configuration immediately.',
+                              buttonLabel: isMobile ? '' : 'Inspect Providers',
+                              onTap: () => context.go('/admin/payment-providers'),
+                              isDark: isDark,
+                              isMobile: isMobile,
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           if (pendingApprovalsCount > 0) ...[
                             _AlertRibbon(
                               icon: Icons.error_outline_rounded,
@@ -233,7 +254,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                             onApprovalsTap: () =>
                                 context.go('/admin/approvals'),
                             onRevenueTap: () => context.go('/admin/revenue'),
-                            onPayoutsTap: () => context.go('/admin/invites'),
+                            onPayoutsTap: () => context.go('/admin/agencies'),
                           ),
                           const SizedBox(height: 16),
 
@@ -1477,6 +1498,9 @@ class _SubscriptionsPanel extends StatelessWidget {
     // Format plan prices dynamically from DB
     String formatPlanPrice(String code) {
       final price = (planPrices[code] as num?)?.toInt() ?? 0;
+      if (code == 'founding') {
+        return price > 0 ? 'Rs ${NumberFormat('#,###').format(price)} one-time' : '';
+      }
       return price > 0 ? 'Rs $price/mo' : '';
     }
 

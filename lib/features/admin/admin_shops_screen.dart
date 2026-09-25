@@ -312,7 +312,9 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                     final code = p['code']?.toString() ?? '';
                     final name = p['name']?.toString() ?? code;
                     final price = (p['price_pkr'] as num?)?.toInt() ?? 0;
-                    final priceStr = price > 0 ? 'Rs $price/mo' : 'Free';
+                    final priceStr = code == 'founding'
+                        ? 'Rs 35,000 one-time'
+                        : (price > 0 ? 'Rs $price/mo' : 'Free');
                     return DropdownMenuItem<String>(
                       value: code,
                       child: Text('$name ($priceStr)'),
@@ -1011,7 +1013,7 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
       }
     }
     final bytes = _toInt(s['storage_used_bytes'], 0);
-    final mb = (bytes / 1000000).toStringAsFixed(1);
+    final mb = (bytes / (1024 * 1024)).toStringAsFixed(1);
     return '$mb MB / Limited';
   }
 }

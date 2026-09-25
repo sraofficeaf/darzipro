@@ -173,7 +173,7 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                     _buildField(
                       controller: _shopCtrl,
                       label: 'Shop Name',
-                      hint: 'e.g. Ali Tailor & Sons',
+                      hint: 'Enter shop name',
                       icon: Icons.storefront_outlined,
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,
@@ -186,7 +186,7 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                     _buildField(
                       controller: _nameCtrl,
                       label: 'Owner Full Name',
-                      hint: 'e.g. Saifur Rahman',
+                      hint: 'Enter owner full name',
                       icon: Icons.person_outline_rounded,
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,
@@ -199,7 +199,7 @@ class _AdminCreateUserModalState extends State<AdminCreateUserModal> {
                     _buildField(
                       controller: _emailCtrl,
                       label: 'Email Address',
-                      hint: 'e.g. ali@example.com',
+                      hint: 'owner@example.com',
                       icon: Icons.email_outlined,
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,

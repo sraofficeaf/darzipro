@@ -908,20 +908,29 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
   }
 
   Future<void> _approvePayment(BuildContext context, WidgetRef ref, Map<String, dynamic> payment) async {
-    final paymentType = payment['payment_type'] as String? ?? 'monthly';
-    final isFoundingActivation = paymentType == 'founding_activation';
+    final purpose = (payment['purpose'] as String?) ??
+        (payment['payment_type'] == 'founding_activation' ? 'foundingActivation' : 'subscriptionMonthly');
+    final isFoundingActivation = purpose == 'foundingActivation';
 
     if (isFoundingActivation) {
       await _approveFoundingPayment(context, ref, payment);
       return;
     }
 
-    // Regular subscription approval
+    final rawMinor = payment['amount_minor'];
+    final amount = rawMinor != null
+        ? ((rawMinor as num).toInt() / 100.0).round()
+        : ((payment['amount_pkr'] as int?) ?? 0);
+    final planCode = (payment['metadata'] is Map ? payment['metadata']['plan_code'] : null) ??
+        payment['plan_code'] ??
+        purpose;
+
+    // Regular subscription or storage approval
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Approve Subscription Payment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text('Approve Rs ${payment['amount_pkr']} for plan "${payment['plan_code']}"?\nThis will activate the shop\'s subscription.'),
+        title: Text('Approve Payment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Approve Rs $amount for "$planCode"?\nThis will fulfill and activate the shop subscription.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
@@ -933,6 +942,7 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
+
     final success = await AdminService.instance.approveSubscriptionPayment(
       paymentId: payment['id'] as String,
       shopId: payment['shop_id'] as String,
@@ -940,7 +950,7 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
     );
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success ? '✅ Payment approved!' : '❌ Approval failed'),
+        content: Text(success ? '✅ Payment approved & fulfilled!' : '❌ Approval failed'),
         backgroundColor: success ? AdminColors.emerald : AdminColors.rose,
       ));
       if (success) ref.invalidate(adminSubscriptionPaymentsProvider);
@@ -952,7 +962,7 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Reject Subscription Payment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: Text('Reject Payment', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -994,10 +1004,14 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
     WidgetRef ref,
     Map<String, dynamic> payment,
   ) async {
-    // Fetch founding settings so dialog shows correct defaults
     final settings = await AdminService.instance.fetchAppSettings(prefix: 'founding');
     final freeMonths = int.tryParse(settings['founding_free_months'] ?? '6') ?? 6;
     final storageGb  = double.tryParse(settings['founding_storage_limit_gb'] ?? '5') ?? 5.0;
+
+    final rawMinor = payment['amount_minor'];
+    final amount = rawMinor != null
+        ? ((rawMinor as num).toInt() / 100.0).round()
+        : ((payment['amount_pkr'] as int?) ?? 0);
 
     if (!context.mounted) return;
 
@@ -1014,7 +1028,7 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Amount: Rs ${payment['amount_pkr']}'),
+            Text('Amount: Rs $amount'),
             const SizedBox(height: 4),
             const Text('This will:'),
             const SizedBox(height: 4),
@@ -1031,7 +1045,7 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
                 border: Border.all(color: AdminColors.amber.withValues(alpha: 0.3)),
               ),
               child: Text(
-                'This calls activate_founding_membership() — atomic and cannot be undone.',
+                'Fulfills via shared fulfill_payment() function — atomic and idempotent.',
                 style: GoogleFonts.inter(fontSize: 11, color: AdminColors.amber),
               ),
             ),
@@ -1059,7 +1073,7 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
       final ok = result['success'] == true;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(ok
-          ? '👑 Founding membership activated! Free until ${result['free_until'] ?? '?'}'
+          ? '👑 Founding membership activated successfully!'
           : '❌ Failed: ${result['error'] ?? 'Unknown error'}'),
         backgroundColor: ok ? AdminColors.amber : AdminColors.rose,
         duration: const Duration(seconds: 5),
@@ -1068,7 +1082,6 @@ class _SubscriptionsQueueTab extends ConsumerWidget {
     }
   }
 }
-
 
 class _SubPaymentCard extends StatelessWidget {
   final Map<String, dynamic> payment;
@@ -1079,14 +1092,26 @@ class _SubPaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amount = (payment['amount_pkr'] as int?) ?? 0;
-    final planCode = payment['plan_code'] as String? ?? '';
-    final paymentType = payment['payment_type'] as String? ?? 'monthly';
-    final isFoundingActivation = paymentType == 'founding_activation';
-    final method = payment['payment_method'] as String? ?? '-';
-    final txId = payment['transaction_id'] as String? ?? '';
-    final screenshotUrl = payment['payment_screenshot_url'] as String?;
+    final rawMinor = payment['amount_minor'];
+    final amount = rawMinor != null
+        ? ((rawMinor as num).toInt() / 100.0).round()
+        : ((payment['amount_pkr'] as int?) ?? 0);
+    final currency = (payment['currency'] as String?) ?? 'PKR';
+    final purpose = (payment['purpose'] as String?) ??
+        (payment['payment_type'] == 'founding_activation' ? 'foundingActivation' : 'subscriptionMonthly');
+    final isFoundingActivation = purpose == 'foundingActivation';
+    final isStorage = purpose == 'storageMonthly' || purpose == 'storageAnnual';
+
+    final planCode = (payment['metadata'] is Map ? payment['metadata']['plan_code'] : null) ??
+        payment['plan_code'] ??
+        purpose;
+    final method = (payment['metadata'] is Map ? payment['metadata']['payment_method'] : null) ??
+        payment['payment_method'] ??
+        'Manual';
+    final txId = (payment['manual_transaction_id'] as String?) ?? (payment['transaction_id'] as String?) ?? '';
+    final receiptUrl = (payment['receipt_url'] as String?) ?? (payment['payment_screenshot_url'] as String?);
     final createdAt = payment['created_at'] as String?;
+    final shopName = (payment['shops'] as Map?)?['name']?.toString() ?? 'Shop';
     final formattedDate = createdAt != null
         ? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(createdAt).toLocal())
         : '-';
@@ -1113,28 +1138,44 @@ class _SubPaymentCard extends StatelessWidget {
           Row(
             children: [
               if (isFoundingActivation) ...[
-                AdminBadge(label: '👑 FOUNDING', color: AdminColors.amber),
+                const AdminBadge(label: '👑 FOUNDING', color: AdminColors.amber),
+                const SizedBox(width: 8),
+              ] else if (isStorage) ...[
+                const AdminBadge(label: '💾 STORAGE', color: AdminColors.emerald),
                 const SizedBox(width: 8),
               ],
-              AdminBadge(label: planCode.toUpperCase(), color: isFoundingActivation ? AdminColors.amber : AdminColors.violet),
+              AdminBadge(
+                label: planCode.toString().toUpperCase(),
+                color: isFoundingActivation
+                    ? AdminColors.amber
+                    : (isStorage ? AdminColors.emerald : AdminColors.violet),
+              ),
               const Spacer(),
-              Text('Rs ${NumberFormat('#,###').format(amount)}',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: context.text1)),
+              Text(
+                currency == 'PKR' ? 'Rs ${NumberFormat('#,###').format(amount)}' : '$currency $amount',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: context.text1),
+              ),
             ],
           ),
 
           const SizedBox(height: 8),
+          Text('Shop: $shopName', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: context.text1)),
           Text('Via: $method${txId.isNotEmpty ? " · TID: $txId" : ""}',
               style: GoogleFonts.inter(fontSize: 12, color: context.text2)),
           Text('Submitted: $formattedDate', style: GoogleFonts.inter(fontSize: 11, color: context.text2)),
-          if (screenshotUrl != null && screenshotUrl.startsWith('http')) ...[
+          if (receiptUrl != null && receiptUrl.startsWith('http')) ...[
             const SizedBox(height: 10),
             GestureDetector(
-              onTap: () => showDialog(context: context, builder: (_) => Dialog(child: Image.network(screenshotUrl, fit: BoxFit.contain))),
+              onTap: () => showDialog(context: context, builder: (_) => Dialog(child: Image.network(receiptUrl, fit: BoxFit.contain))),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(screenshotUrl, height: 100, width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                child: Image.network(
+                  receiptUrl,
+                  height: 100,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
               ),
             ),
           ],

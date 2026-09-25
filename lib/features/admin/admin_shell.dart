@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/widgets/shared_widgets.dart';
 import '../../shared/providers/admin_providers.dart';
+import '../../shared/providers/supabase_providers.dart';
 import '../../shared/widgets/dashboard_switcher.dart';
 import 'widgets/admin_ui_kit.dart';
 
@@ -31,7 +32,8 @@ const _navItems = [
   _NavItem(icon: Icons.people_outline_rounded, iconActive: Icons.people_rounded, label: 'Users & Staff', route: '/admin/users'),
   _NavItem(icon: Icons.monetization_on_outlined, iconActive: Icons.monetization_on_rounded, label: 'Revenue', route: '/admin/revenue'),
   _NavItem(icon: Icons.layers_outlined, iconActive: Icons.layers_rounded, label: 'Subscription Plans', route: '/admin/subscription-plans'),
-  _NavItem(icon: Icons.handshake_outlined, iconActive: Icons.handshake_rounded, label: 'Invites & Payouts', route: '/admin/invites'),
+  _NavItem(icon: Icons.payments_outlined, iconActive: Icons.payments_rounded, label: 'Payment Providers', route: '/admin/payment-providers'),
+  _NavItem(icon: Icons.handshake_outlined, iconActive: Icons.handshake_rounded, label: 'Agencies & Payouts', route: '/admin/agencies'),
   _NavItem(icon: Icons.notifications_outlined, iconActive: Icons.notifications_rounded, label: 'Notifications', route: '/admin/notifications'),
   _NavItem(icon: Icons.system_update_outlined, iconActive: Icons.system_update_rounded, label: 'App Versions', route: '/admin/versions'),
   _NavItem(icon: Icons.assessment_outlined, iconActive: Icons.assessment_rounded, label: 'Reports', route: '/admin/reports'),
@@ -48,7 +50,16 @@ class AdminShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(profileProvider);
     final isAdmin = ref.watch(isUserAdminProvider);
+
+    if (!isAdmin && profileAsync.isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFF5A623)),
+        ),
+      );
+    }
 
     if (!isAdmin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

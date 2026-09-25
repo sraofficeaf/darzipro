@@ -17,6 +17,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final _delayCtrl = TextEditingController(text: '0');
   final _storageMonthlyCtrl = TextEditingController(text: '1200');
   final _storageAnnualCtrl = TextEditingController(text: '10000');
+  final _storageGbCtrl = TextEditingController(text: '1');
 
   bool _storageMonthlyActive = true;
   bool _storageAnnualActive = true;
@@ -38,10 +39,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       setState(() {
         _thresholdCtrl.text = threshold.toString();
         _delayCtrl.text = delayDays.toString();
-        _storageMonthlyCtrl.text = config['storage_monthly_price']?.toString() ?? '1200';
+        _storageMonthlyCtrl.text = config['storage_monthly_price']?.toString() ?? '250';
         _storageMonthlyActive = config['storage_monthly_active'] as bool? ?? true;
-        _storageAnnualCtrl.text = config['storage_annual_price']?.toString() ?? '10000';
+        _storageAnnualCtrl.text = config['storage_annual_price']?.toString() ?? '2500';
         _storageAnnualActive = config['storage_annual_active'] as bool? ?? true;
+        _storageGbCtrl.text = config['storage_addon_gb']?.toString() ?? '1';
         _isLoading = false;
       });
     }
@@ -73,6 +75,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       'storage_monthly_active': _storageMonthlyActive,
       'storage_annual_price': _storageAnnualCtrl.text.trim(),
       'storage_annual_active': _storageAnnualActive,
+      'storage_addon_gb': _storageGbCtrl.text.trim(),
     });
 
     if (mounted) {
@@ -95,6 +98,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     _delayCtrl.dispose();
     _storageMonthlyCtrl.dispose();
     _storageAnnualCtrl.dispose();
+    _storageGbCtrl.dispose();
     super.dispose();
   }
 
@@ -386,9 +390,27 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Add-on Capacity (GB per add-on pack)', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                    const SizedBox(height: 4),
+                                    TextField(
+                                      controller: _storageGbCtrl,
+                                      keyboardType: TextInputType.number,
+                                      style: GoogleFonts.inter(fontSize: 13, color: text1),
+                                      decoration: InputDecoration(
+                                        suffixText: 'GB',
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 14),
                                 InkWell(
-                                  onTap: () => context.go('/admin/subscriptions'),
+                                  onTap: () => context.go('/admin/subscription-plans'),
                                   borderRadius: BorderRadius.circular(8),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
