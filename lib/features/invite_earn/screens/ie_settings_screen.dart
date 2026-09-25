@@ -169,7 +169,7 @@ class _IeSettingsScreenState extends ConsumerState<IeSettingsScreen> {
                 _IeTextField(
                   controller: _accountNumberCtrl,
                   label: 'Account Number / Phone',
-                  hint: 'e.g. 03001234567',
+                  hint: '03XXXXXXXXX',
                   icon: Icons.phone_rounded,
                   keyboardType: TextInputType.phone,
                   border: border,
