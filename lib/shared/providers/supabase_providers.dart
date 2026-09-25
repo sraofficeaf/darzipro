@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'license_provider.dart';
 import '../../core/services/license/license_model.dart';
 import '../../core/services/license/license_service.dart';
+import '../../core/services/storage_service.dart';
 
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
   return Supabase.instance.client;
@@ -30,11 +32,26 @@ final profileProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
     final supabase = ref.read(supabaseClientProvider);
     final data = await supabase
         .from('profiles')
-        .select()
+        .select('id, shop_id, full_name, role, created_at')
         .eq('id', userId)
         .maybeSingle();
+
+    if (data != null) {
+      try {
+        final box = Hive.box('license_box');
+        await box.put('profile_cache_$userId', data);
+      } catch (_) {}
+    }
     return data;
   } catch (_) {
+    // Offline fallback: return cached profile for this user
+    try {
+      final box = Hive.box('license_box');
+      final cached = box.get('profile_cache_$userId');
+      if (cached != null) {
+        return Map<String, dynamic>.from(cached);
+      }
+    } catch (_) {}
     return null;
   }
 });
@@ -89,24 +106,65 @@ final currentShopIdProvider = Provider<String?>((ref) {
 });
 
 // Fetch current shop details (full row including subscription columns)
-final currentShopProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
-  final shopId = ref.watch(currentShopIdProvider);
-  if (shopId == null) return null;
-
-  try {
-    final supabase = ref.read(supabaseClientProvider);
-    final data = await supabase
-        .from('shops')
-        .select(
-            'id, name, phone, address, logo_url, currency, plan_code, subscription_status, billing_cycle_start, billing_cycle_end, trial_started_at, lifetime_access, lifetime_storage_limit_bytes, storage_used_bytes, storage_addon_active')
-        .eq('id', shopId)
-        .maybeSingle();
-    return data;
-  } catch (e, st) {
-    debugPrint('Error fetching currentShop: $e\n$st');
-    return null;
-  }
+final currentShopProvider =
+    StateNotifierProvider<CurrentShopNotifier, AsyncValue<Map<String, dynamic>?>>((ref) {
+  final notifier = CurrentShopNotifier(ref);
+  ref.listen<String?>(currentShopIdProvider, (previous, next) {
+    if (next != null && next.isNotEmpty) {
+      notifier.fetchForShop(next);
+    }
+  });
+  return notifier;
 });
+
+class CurrentShopNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>?>> {
+  final Ref ref;
+
+  CurrentShopNotifier(this.ref) : super(const AsyncData({'name': ''})) {
+    _init();
+  }
+
+  void _init() {
+    final shopId = ref.read(currentShopIdProvider);
+    Map<String, dynamic>? initialData;
+    if (shopId != null) {
+      try {
+        final box = Hive.box('license_box');
+        final cached = box.get('shop_cache_$shopId');
+        if (cached != null) {
+          initialData = Map<String, dynamic>.from(cached);
+        }
+      } catch (_) {}
+    }
+    // Set non-null initial state with cached real shop data or empty name so fallbacks never fire
+    state = AsyncData(initialData ?? const {'name': ''});
+    if (shopId != null) {
+      fetchForShop(shopId);
+    }
+  }
+
+  Future<void> fetchForShop(String shopId) async {
+    try {
+      final supabase = ref.read(supabaseClientProvider);
+      final data = await supabase
+          .from('shops')
+          .select(
+              'id, name, phone, address, logo_url, currency, plan_code, subscription_status, billing_cycle_start, billing_cycle_end, trial_started_at, lifetime_access, lifetime_storage_limit_bytes, storage_used_bytes, storage_addon_active')
+          .eq('id', shopId)
+          .maybeSingle();
+
+      if (data != null) {
+        try {
+          final box = Hive.box('license_box');
+          await box.put('shop_cache_$shopId', data);
+        } catch (_) {}
+        state = AsyncData(data);
+      }
+    } catch (e, st) {
+      debugPrint('Error fetching currentShop: $e\n$st');
+    }
+  }
+}
 
 // Convenience provider: current plan code from shop data
 final shopPlanCodeProvider = Provider<String>((ref) {
@@ -135,4 +193,20 @@ final isLifetimeProvider = Provider<bool>((ref) {
 final shopPlanProvider = FutureProvider<String?>((ref) async {
   final license = ref.watch(licenseProvider);
   return license.plan;
+});
+
+/// Dynamic storage allowance in MB read at runtime per plan + add-on for the active shop
+final shopStorageAllowanceProvider = FutureProvider<int>((ref) async {
+  final shop = ref.watch(currentShopProvider).value;
+  final shopId = shop?['id'] as String?;
+  if (shopId != null && shopId.isNotEmpty) {
+    return StorageService.instance.getEffectiveStorageLimitMbForShop(shopId);
+  }
+  final planCode = (shop?['plan_code'] as String?) ?? 'trial';
+  return StorageService.instance.getStorageLimitMbForPlan(planCode);
+});
+
+/// Dynamic storage allowance in MB read at runtime
+final baseStorageLimitMbProvider = FutureProvider<int>((ref) async {
+  return ref.watch(shopStorageAllowanceProvider.future);
 });

@@ -25,18 +25,21 @@ import '../../features/admin/admin_shops_screen.dart';
 import '../../features/admin/admin_revenue_screen.dart';
 import '../../features/admin/admin_notifications_screen.dart';
 import '../../features/admin/admin_versions_screen.dart';
-import '../../features/admin/admin_invites_screen.dart';
 import '../../features/admin/admin_support_screen.dart';
 import '../../features/admin/admin_reports_screen.dart';
 import '../../features/admin/admin_settings_screen.dart';
 import '../../features/admin/admin_vps_resources_screen.dart';
 import '../../features/admin/admin_subscription_plans_screen.dart';
 import '../../features/admin/admin_users_screen.dart';
+import '../../features/admin/admin_agencies_screen.dart';
 
-import '../../features/invite_earn/invite_earn_shell.dart';
+import '../../features/agency/agency_shell.dart';
 import '../../features/registration/registration_flow_screen.dart';
+import '../../features/registration/registration_resume_screen.dart';
 import '../../features/billing/subscription_plan_screen.dart';
 import '../../features/billing/subscription_payment_screen.dart';
+import '../../features/admin/admin_payment_providers_screen.dart';
+import '../../core/payments/payment_provider.dart';
 import '../responsive/app_shell.dart';
 
 import '../constants/app_enums.dart';
@@ -70,7 +73,7 @@ final appRouter = GoRouter(
     final location = state.matchedLocation;
 
     // Public routes — always accessible
-    final publicRoutes = ['/', '/login', '/forgot-password', '/join', '/register'];
+    final publicRoutes = ['/', '/login', '/forgot-password', '/join', '/register', '/registration-resume'];
     final isPublic = publicRoutes.any((r) => location == r || location.startsWith(r));
     if (isPublic) return null;
 
@@ -111,6 +114,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/register',
       redirect: (context, state) => '/join',
+    ),
+    // Stranded-account recovery: authenticated user with no profiles row
+    GoRoute(
+      path: '/registration-resume',
+      builder: (context, state) {
+        final email = state.uri.queryParameters['email'] ?? '';
+        return RegistrationResumeScreen(email: email);
+      },
     ),
     GoRoute(
       path: '/print',
@@ -258,23 +269,45 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/subscription/pay',
           builder: (context, state) {
-            final plan = state.extra as Map<String, dynamic>?;
-            return SubscriptionPaymentScreen(planData: plan);
+            PaymentPurpose purpose = PaymentPurpose.subscriptionMonthly;
+            Map<String, dynamic>? planData;
+            Map<String, dynamic>? extraData;
+
+            if (state.extra is Map<String, dynamic>) {
+              final map = state.extra as Map<String, dynamic>;
+              if (map['purpose'] is PaymentPurpose) {
+                purpose = map['purpose'] as PaymentPurpose;
+              } else if (map['purpose'] is String) {
+                purpose = PaymentPurpose.fromString(map['purpose'] as String);
+              }
+              if (map.containsKey('planData')) {
+                planData = map['planData'] as Map<String, dynamic>?;
+              } else if (!map.containsKey('purpose')) {
+                planData = map;
+              }
+              extraData = map['extraData'] as Map<String, dynamic>?;
+            }
+
+            return SubscriptionPaymentScreen(
+              purpose: purpose,
+              planData: planData,
+              extraData: extraData,
+            );
           },
         ),
         // ── Invite Dashboard (legacy redirect) ────────────────────────
         GoRoute(
           path: '/invites',
-          redirect: (context, state) => '/invite-earn',
+          redirect: (context, state) => '/agency',
         ),
       ],
     ),
-    // ── Invite & Earn standalone shell ──────────────────────────────────
+    // ── Agency standalone shell ──────────────────────────────────────────
     GoRoute(
-      path: '/invite-earn',
+      path: '/agency',
       pageBuilder: (context, state) => CustomTransitionPage(
         key: state.pageKey,
-        child: const InviteEarnShell(),
+        child: const AgencyShell(),
         transitionDuration: const Duration(milliseconds: 320),
         reverseTransitionDuration: const Duration(milliseconds: 250),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -289,6 +322,11 @@ final appRouter = GoRouter(
           );
         },
       ),
+    ),
+    // Legacy redirect to /agency
+    GoRoute(
+      path: '/invite-earn',
+      redirect: (context, state) => '/agency',
     ),
     ShellRoute(
       builder: (context, state, child) => AdminShell(child: child),
@@ -315,8 +353,12 @@ final appRouter = GoRouter(
           pageBuilder: (context, state) => const NoTransitionPage(child: AdminRevenueScreen()),
         ),
         GoRoute(
+          path: '/admin/agencies',
+          pageBuilder: (context, state) => const NoTransitionPage(child: AdminAgenciesScreen()),
+        ),
+        GoRoute(
           path: '/admin/invites',
-          pageBuilder: (context, state) => const NoTransitionPage(child: AdminInvitesScreen()),
+          redirect: (context, state) => '/admin/agencies',
         ),
         GoRoute(
           path: '/admin/notifications',
@@ -348,6 +390,11 @@ final appRouter = GoRouter(
           path: '/admin/subscription-plans',
           pageBuilder: (context, state) => const NoTransitionPage(child: AdminSubscriptionPlansScreen()),
         ),
+        GoRoute(
+          path: '/admin/payment-providers',
+          pageBuilder: (context, state) => const NoTransitionPage(child: AdminPaymentProvidersScreen()),
+        ),
+        GoRoute(path: '/admin/subscriptions', redirect: (context, state) => '/admin/subscription-plans'),
         // Legacy redirects to Approvals
         GoRoute(path: '/admin/registrations', redirect: (context, state) => '/admin/approvals'),
         GoRoute(path: '/admin/upgrades', redirect: (context, state) => '/admin/approvals'),

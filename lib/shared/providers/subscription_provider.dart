@@ -1,5 +1,11 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/license/license_model.dart';
+import '../../core/services/license/license_service.dart';
 import '../../core/services/subscription_service.dart';
+import 'license_provider.dart';
 import 'supabase_providers.dart';
 
 // ── Subscription State Model ────────────────────────────────────────────────
@@ -22,6 +28,8 @@ class SubscriptionState {
   // Founding Member fields
   final DateTime? foundingActivatedAt;
   final DateTime? foundingFreeUntil;
+  final bool isOffline;
+  final DateTime? lastVerifiedAt;
 
   const SubscriptionState({
     required this.planCode,
@@ -40,7 +48,28 @@ class SubscriptionState {
     this.trialStartedAt,
     this.foundingActivatedAt,
     this.foundingFreeUntil,
+    this.isOffline = false,
+    this.lastVerifiedAt,
   });
+
+  /// Days since the subscription plan was last verified with the server.
+  int get offlineDaysAgo {
+    final baseParam = Uri.base.queryParameters['offline_days'];
+    if (baseParam != null) {
+      final parsed = int.tryParse(baseParam);
+      if (parsed != null) return parsed;
+    }
+    if (Uri.base.fragment.contains('?')) {
+      final fragmentUri = Uri.tryParse(Uri.base.fragment);
+      final fragParam = fragmentUri?.queryParameters['offline_days'];
+      if (fragParam != null) {
+        final parsed = int.tryParse(fragParam);
+        if (parsed != null) return parsed;
+      }
+    }
+    if (lastVerifiedAt == null) return 0;
+    return DateTime.now().difference(lastVerifiedAt!).inDays.clamp(0, 99999);
+  }
 
   bool get isReadOnly  => subscriptionStatus == 'read_only';
   bool get isGrace     => subscriptionStatus == 'grace';
@@ -139,6 +168,10 @@ class SubscriptionState {
       foundingFreeUntil: json['founding_free_until'] != null
           ? DateTime.tryParse(json['founding_free_until'] as String)
           : null,
+      isOffline: json['is_offline'] as bool? ?? false,
+      lastVerifiedAt: json['last_verified_at'] != null
+          ? DateTime.tryParse(json['last_verified_at'] as String)
+          : null,
     );
   }
 
@@ -187,53 +220,180 @@ final pendingUpgradeNotificationProvider =
 /// Full subscription state for the current shop.
 final subscriptionStateProvider =
     StateNotifierProvider<SubscriptionNotifier, AsyncValue<SubscriptionState>>(
-  (ref) => SubscriptionNotifier(ref),
+  (ref) {
+    final notifier = SubscriptionNotifier(ref);
+
+    // Actively watch currentShopIdProvider: whenever shopId resolves or changes,
+    // fresh subscription state is fetched from the server immediately.
+    ref.listen<String?>(currentShopIdProvider, (previous, next) {
+      if (next != null && next.isNotEmpty) {
+        notifier.fetchForShop(next);
+      } else if (next == null) {
+        notifier.clear();
+      }
+    }, fireImmediately: true);
+
+    ref.onDispose(() {
+      notifier.clear();
+    });
+
+    return notifier;
+  },
 );
 
 class SubscriptionNotifier
     extends StateNotifier<AsyncValue<SubscriptionState>> {
   final Ref _ref;
+  String? _currentShopId;
+  RealtimeChannel? _realtimeChannel;
+
+  AppLifecycleListener? _lifecycleListener;
 
   SubscriptionNotifier(this._ref)
       : super(const AsyncValue.loading()) {
-    _fetch();
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () {
+        final sId = _currentShopId ?? _ref.read(currentShopIdProvider);
+        if (sId != null && sId.isNotEmpty) {
+          debugPrint('App resumed: refreshing subscription state for shop $sId');
+          fetchForShop(sId, forceRefresh: true);
+        }
+      },
+    );
   }
 
-  Future<void> _fetch() async {
-    final shopId = _ref.read(currentShopIdProvider);
-    if (shopId == null) {
-      state = AsyncValue.data(SubscriptionState.loading());
-      return;
+  @override
+  void dispose() {
+    _lifecycleListener?.dispose();
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void clear() {
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = null;
+    _currentShopId = null;
+    state = const AsyncValue.loading();
+  }
+
+  /// Fetches fresh subscription state for the given shopId.
+  /// Server is always queried first when online.
+  /// If offline/unreachable, falls back to Hive cache for this specific shop.
+  Future<SubscriptionState?> fetchForShop(String shopId, {bool forceRefresh = false}) async {
+    if (_currentShopId != shopId || forceRefresh) {
+      _currentShopId = shopId;
+      _setupRealtime(shopId);
     }
+
     try {
       final data = await SubscriptionService.instance
           .getShopSubscriptionState(shopId);
+
       if (data != null && data['error'] == null) {
-        state = AsyncValue.data(SubscriptionState.fromJson(data));
-      } else {
+        final cacheData = Map<String, dynamic>.from(data);
+        cacheData['last_verified_at'] = DateTime.now().toIso8601String();
+        cacheData['is_offline'] = false;
+
+        final subState = SubscriptionState.fromJson(cacheData);
+        state = AsyncValue.data(subState);
+
+        // Cache fresh data to Hive keyed specifically to this shopId
+        try {
+          final box = Hive.box('license_box');
+          await box.put('sub_cache_$shopId', cacheData);
+        } catch (_) {}
+
+        // Keep legacy LicenseModel in exact sync
+        _syncLicenseModel(subState);
+
+        return subState;
+      } else if (data != null && data['error'] == 'shop_not_found') {
         state = AsyncValue.data(SubscriptionState.loading());
+        return null;
       }
     } catch (e, st) {
+      debugPrint('Subscription fetch network error: $e');
+
+      // Offline fallback: ONLY if network is unavailable, read cached plan for this shopId
+      try {
+        final box = Hive.box('license_box');
+        final cached = box.get('sub_cache_$shopId');
+        if (cached != null) {
+          final cachedMap = Map<String, dynamic>.from(cached);
+          cachedMap['is_offline'] = true;
+          // Stale cache rule: keep usable offline, NEVER lock, NEVER downgrade features
+          final cachedState = SubscriptionState.fromJson(cachedMap);
+          state = AsyncValue.data(cachedState);
+          _syncLicenseModel(cachedState);
+          return cachedState;
+        }
+      } catch (_) {}
+
       state = AsyncValue.error(e, st);
+      return null;
+    }
+
+    return null;
+  }
+
+  void _syncLicenseModel(SubscriptionState subState) {
+    try {
+      final licenseModel = LicenseModel(
+        plan: subState.planCode,
+        licenseKey: '',
+        isActive: subState.isActive,
+        shopName: subState.planNameEn,
+        email: '',
+        activatedAt: DateTime.now(),
+      );
+      LicenseService().saveLicense(licenseModel);
+      _ref.read(licenseProvider.notifier).updateLicense(licenseModel);
+    } catch (_) {}
+  }
+
+  void _setupRealtime(String shopId) {
+    _realtimeChannel?.unsubscribe();
+    try {
+      _realtimeChannel = Supabase.instance.client
+          .channel('public:shops:realtime:$shopId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'shops',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: shopId,
+            ),
+            callback: (payload) {
+              debugPrint('Realtime change on shop $shopId detected: refreshing plan state');
+              refresh();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Realtime setup error: $e');
     }
   }
 
-  Future<void> refresh() async => _fetch();
+  Future<void> refresh() async {
+    final shopId = _currentShopId ?? _ref.read(currentShopIdProvider);
+    if (shopId != null) {
+      await fetchForShop(shopId, forceRefresh: true);
+    }
+  }
 
   /// Called after each order creation.
-  /// Runs check_and_apply_plan non-blocking; sets upgrade notification if needed.
   Future<void> onOrderCreated() async {
-    final shopId = _ref.read(currentShopIdProvider);
+    final shopId = _currentShopId ?? _ref.read(currentShopIdProvider);
     if (shopId == null) return;
 
-    // Non-blocking: fire and let it run in background
     Future.microtask(() async {
       await SubscriptionService.instance.incrementCycleOrders(shopId);
       final result =
           await SubscriptionService.instance.checkAndApplyPlan(shopId);
 
       if (result['upgraded'] == true) {
-        // Find plan display info
         final plans = await SubscriptionService.instance.fetchPlans();
         final newPlanData = plans.firstWhere(
           (p) => p['code'] == result['new_plan'],
@@ -254,14 +414,13 @@ class SubscriptionNotifier
         );
       }
 
-      // Refresh UI state
-      await _fetch();
+      await refresh();
     });
   }
 
   /// Called after each customer creation.
   Future<void> onCustomerCreated() async {
-    final shopId = _ref.read(currentShopIdProvider);
+    final shopId = _currentShopId ?? _ref.read(currentShopIdProvider);
     if (shopId == null) return;
 
     Future.microtask(() async {
@@ -289,7 +448,7 @@ class SubscriptionNotifier
         );
       }
 
-      await _fetch();
+      await refresh();
     });
   }
 }

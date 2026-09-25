@@ -82,6 +82,8 @@ class AppColors {
   static const Color tealS = Color(0x2410CBA0);
   static const Color tealLight = lightTeal;
   static const Color tealSLight = Color(0x1E059669);
+  static const Color emerald = Color(0xFF10B981);
+  static const Color amber = Color(0xFFF59E0B);
 
   static const Color red = Color(0xFFFF3A58);
   static const Color redS = Color(0x24FF3A58);

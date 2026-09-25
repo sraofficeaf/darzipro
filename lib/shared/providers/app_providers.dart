@@ -985,14 +985,14 @@ final customerMeasurementsProvider = Provider<AsyncValue<List<MeasurementModel>>
 // ── Report Period ──────────────────────────────────────────────────────
 final reportPeriodProvider = StateProvider<ReportPeriod>((ref) => ReportPeriod.thisMonth);
 
-final _defaultMeasurementTemplates = [
+List<Map<String, dynamic>> get _defaultMeasurementTemplates => [
   {
     'id': 'temp_men_shalwar_kameez',
     'shop_id': 'default',
     'name': 'Shalwar Kameez (Men)',
     'category': 'men',
     'fields': ['lambai', 'teerwa', 'bazo', 'chhaati', 'baghal', 'kamar', 'daman', 'collar', 'shalwar', 'panche'],
-    'created_at': '2026-06-22T00:00:00.000Z',
+    'created_at': DateTime.now().toIso8601String(),
   },
   {
     'id': 'temp_women_kurti',
@@ -1000,7 +1000,7 @@ final _defaultMeasurementTemplates = [
     'name': 'Kurti / Suit (Women)',
     'category': 'women',
     'fields': ['lambai', 'teerwa', 'bazo', 'chhaati', 'kamar', 'hip', 'daman', 'gala', 'shalwar', 'panche'],
-    'created_at': '2026-06-22T00:00:00.000Z',
+    'created_at': DateTime.now().toIso8601String(),
   },
 ];
 
@@ -1024,7 +1024,7 @@ final measurementTemplatesProvider = FutureProvider<List<Map<String, dynamic>>>(
     final supabase = ref.read(supabaseClientProvider);
     final List<dynamic> data = await supabase
         .from('measurement_templates')
-        .select()
+        .select('id, shop_id, category, name, fields, is_default, created_at')
         .eq('shop_id', shopId);
     
     final list = List<Map<String, dynamic>>.from(data);

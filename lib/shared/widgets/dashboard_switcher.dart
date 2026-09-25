@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../providers/admin_providers.dart';
+import '../../features/agency/providers/agency_providers.dart';
 
 enum DashboardMode {
   shop,
@@ -28,6 +29,7 @@ class DashboardSwitcherDropdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isAdmin = ref.watch(isUserAdminProvider);
+    final isAgency = ref.watch(isCurrentShopAgencyProvider);
     final text1 = context.text1;
     final text2 = context.text2;
 
@@ -61,8 +63,8 @@ class DashboardSwitcherDropdown extends ConsumerWidget {
         bgGradient2 = const Color(0xFF059669);
         chipBg = isDark ? const Color(0x1410CBA0) : const Color(0xFFECFDF5);
         chipBorder = isDark ? const Color(0x2E10CBA0) : const Color(0x33059669);
-        modeLabel = 'Invite & Earn';
-        modeTag = 'AFFILIATE';
+        modeLabel = 'Agency Portal';
+        modeTag = 'AGENCY';
         modeIcon = Icons.monetization_on_rounded;
         modeImage = null;
         break;
@@ -89,7 +91,7 @@ class DashboardSwitcherDropdown extends ConsumerWidget {
         if (val == 'shop') {
           if (currentMode != DashboardMode.shop) context.go('/dashboard');
         } else if (val == 'earn') {
-          if (currentMode != DashboardMode.earn) context.go('/invite-earn');
+          if (currentMode != DashboardMode.earn) context.go('/agency');
         } else if (val == 'admin') {
           if (isAdmin && currentMode != DashboardMode.admin) context.go('/admin/dashboard');
         }
@@ -210,22 +212,23 @@ class DashboardSwitcherDropdown extends ConsumerWidget {
           ),
         ),
 
-        // 2. Invite & Earn (Affiliate Panel)
-        PopupMenuItem<String>(
-          value: 'earn',
-          child: _buildMenuItem(
-            context: ctx,
-            title: 'Invite & Earn',
-            subtitle: 'Invite & profit network',
-            icon: Icons.monetization_on_rounded,
-            iconColors: const [Color(0xFF10CBA0), Color(0xFF059669)],
-            isActive: currentMode == DashboardMode.earn,
-            activeColor: const Color(0xFF10CBA0),
-            text1: text1,
-            text2: text2,
-            isDark: isDark,
+        // 2. Agency Portal (Active Agencies Only)
+        if (isAgency)
+          PopupMenuItem<String>(
+            value: 'earn',
+            child: _buildMenuItem(
+              context: ctx,
+              title: 'Agency Portal',
+              subtitle: 'Agency & profit overview',
+              icon: Icons.monetization_on_rounded,
+              iconColors: const [Color(0xFF10CBA0), Color(0xFF059669)],
+              isActive: currentMode == DashboardMode.earn,
+              activeColor: const Color(0xFF10CBA0),
+              text1: text1,
+              text2: text2,
+              isDark: isDark,
+            ),
           ),
-        ),
 
         // 3. Admin Portal (Super Admins Only)
         if (isAdmin)

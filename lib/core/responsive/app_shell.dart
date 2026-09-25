@@ -4,18 +4,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_enums.dart';
 import '../constants/app_translations.dart';
 import 'responsive.dart';
 import '../../shared/providers/app_providers.dart';
-import '../../shared/providers/license_provider.dart';
-import '../services/license/license_model.dart';
+import '../../shared/providers/subscription_provider.dart';
 import '../../shared/providers/supabase_providers.dart';
 import '../../shared/providers/reminders_provider.dart';
 import '../../features/billing/widgets/readonly_banner.dart';
+import '../../features/billing/widgets/offline_plan_banner.dart';
 import '../theme/theme_extensions.dart';
 import '../../shared/widgets/dashboard_switcher.dart';
+import '../../features/agency/providers/agency_providers.dart';
+import '../../shared/providers/admin_providers.dart';
 
 class AppShell extends ConsumerWidget {
   final Widget child;
@@ -24,8 +27,33 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Stranded account guard: authenticated user with no profile row.
+    // Intercepts all authenticated shell routes (dashboard, customers, orders, etc.)
+    // Never traps super_admin / admin users.
+    final profileAsync = ref.watch(profileProvider);
+    final session = Supabase.instance.client.auth.currentSession;
+    final isAdmin = ref.watch(isUserAdminProvider);
+    if (!isAdmin && session != null && profileAsync.hasValue && profileAsync.value == null) {
+      final email = session.user.email ?? '';
+      return _StrandedAccountShellGuard(email: email);
+    }
+
     final isDesktop = Responsive.isDesktop(context);
-    final currentSection = ref.watch(navSectionProvider);
+    final location = GoRouterState.of(context).matchedLocation;
+    NavSection currentSection = ref.watch(navSectionProvider);
+    if (location.startsWith('/profile') || location.startsWith('/settings')) {
+      currentSection = NavSection.profile;
+    } else if (location.startsWith('/customers')) {
+      currentSection = NavSection.clients;
+    } else if (location.startsWith('/orders')) {
+      currentSection = NavSection.orders;
+    } else if (location.startsWith('/reports')) {
+      currentSection = NavSection.reports;
+    } else if (location.startsWith('/reminders')) {
+      currentSection = NavSection.reminders;
+    } else if (location.startsWith('/dashboard')) {
+      currentSection = NavSection.dashboard;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isDesktop) {
@@ -68,6 +96,7 @@ class _DesktopShell extends ConsumerWidget {
               children: [
                 _TopBar(currentSection: currentSection),
                 const ReadOnlyBanner(),
+                const OfflinePlanBanner(),
                 Expanded(child: child),
               ],
             ),
@@ -97,9 +126,18 @@ class _MobileShell extends ConsumerWidget {
       body: Column(
         children: [
           _MobileTopBar(currentSection: currentSection),
+          const OfflinePlanBanner(),
           Consumer(builder: (context, ref, _) {
-            final license = ref.watch(licenseProvider);
-            if (license.isExpiringSoon) {
+            final subAsync = ref.watch(subscriptionStateProvider);
+            final sub = subAsync.valueOrNull;
+            if (sub == null) return const SizedBox.shrink();
+            final daysLeft = sub.cycleEnd != null
+                ? sub.cycleEnd!.difference(DateTime.now()).inDays.clamp(0, 99999)
+                : (sub.trialDaysRemaining ?? 0);
+            final isExpiringSoon = (sub.isExpiring || (daysLeft <= 7 && daysLeft > 0)) &&
+                !sub.isLifetime &&
+                !sub.isFoundingFree;
+            if (isExpiringSoon) {
               return Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -108,12 +146,12 @@ class _MobileShell extends ConsumerWidget {
                   const Text('⚠️'),
                   const SizedBox(width: 8),
                   Text(
-                    'Pro plan expires in ${license.daysRemaining} days.',
+                    '${sub.planNameEn} expires in $daysLeft days.',
                     style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent),
                   ),
                   const Spacer(),
                   GestureDetector(
-                    onTap: () => context.push('/upgrade'),
+                    onTap: () => context.push('/subscription'),
                     child: Text('Renew →', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.accent)),
                   ),
                 ]),
@@ -285,10 +323,12 @@ class _Sidebar extends ConsumerWidget {
     final reminders = ref.watch(remindersProvider);
     final unreadRemindersCount = reminders.where((r) => !r.isRead).length;
 
-    final license = ref.watch(licenseProvider);
+    final subAsync = ref.watch(subscriptionStateProvider);
+    final sub = subAsync.valueOrNull;
 
     final shopAsync = ref.watch(currentShopProvider);
-    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
+    final shopName = shopAsync.value?['name'] as String? ?? '';
+    final shopCity = shopAsync.value?['city'] as String? ?? shopAsync.value?['address'] as String? ?? '';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -404,9 +444,9 @@ class _Sidebar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildPlanCard(context, license),
+                _buildPlanCard(context, sub),
                 const SizedBox(height: 8),
-                _buildShopUserRow(context, shopName),
+                _buildShopUserRow(context, shopName, shopCity),
               ],
             ),
           ),
@@ -432,137 +472,219 @@ class _Sidebar extends ConsumerWidget {
     );
   }
 
-  Widget _buildPlanCard(BuildContext context, LicenseModel license) {
-    final isPro = license.isPro || license.isBusiness;
-    final daysRemaining = license.daysRemaining;
-    final expiryDate = license.expiresAt;
+  Widget _buildPlanCard(BuildContext context, SubscriptionState? sub) {
+    if (sub == null) {
+      return const SizedBox(
+        height: 64,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFF5A623)),
+          ),
+        ),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0x0FF5A623) : AppColors.lightAccentBg,
-        border: Border.all(
-          color: isDark ? const Color(0x26F5A623) : AppColors.lightAccentBorder, 
-          width: 1,
+    final planName = sub.planNameEn;
+    final isLifetime = sub.isLifetime;
+    final isPaidOrFounding = sub.isActive;
+
+    final int daysRemaining;
+    if (sub.isLifetime) {
+      daysRemaining = 9999;
+    } else if (sub.isFoundingFree) {
+      daysRemaining = sub.foundingFreeDaysRemaining ?? 0;
+    } else if (sub.isTrial) {
+      daysRemaining = sub.trialDaysRemaining ?? 0;
+    } else if (sub.cycleEnd != null) {
+      daysRemaining = sub.cycleEnd!.difference(DateTime.now()).inDays.clamp(0, 99999);
+    } else {
+      daysRemaining = 0;
+    }
+
+    final expiryDate = sub.cycleEnd ?? sub.foundingFreeUntil;
+
+    return GestureDetector(
+      onTap: () => context.push('/subscription'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0x0FF5A623) : AppColors.lightAccentBg,
+          border: Border.all(
+            color: isDark ? const Color(0x26F5A623) : AppColors.lightAccentBorder, 
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
         ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isPro) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
-                    border: Border.all(color: isDark ? const Color(0x3310CBA0) : const Color(0xFF059669).withValues(alpha: 0.3), width: 1),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(
-                    '✓ PRO PLAN',
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isPaidOrFounding) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+                      border: Border.all(
+                        color: isDark ? const Color(0x3310CBA0) : const Color(0xFF059669).withValues(alpha: 0.3), 
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(5),
                     ),
-                  ),
-                ),
-                Text(
-                  '$daysRemaining Days Left',
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    color: isDark ? const Color(0xFF5A7090) : const Color(0xFF94A3B8),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Progress bar
-            Container(
-              height: 3,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000),
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: (daysRemaining / 30).clamp(0.0, 1.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF5A623), Color(0xFFD97706)],
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (expiryDate != null)
-              RichText(
-                text: TextSpan(
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8),
-                  ),
-                  children: [
-                    const TextSpan(text: 'Renew before '),
-                    TextSpan(
-                      text: '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
-                      style: TextStyle(
-                        color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
-                        fontWeight: FontWeight.w600,
+                    child: Text(
+                      '✓ ${planName.toUpperCase()}',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFF10CBA0) : const Color(0xFF059669),
                       ),
                     ),
-                  ],
-                ),
-              ),
-          ] else ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0x1AF5A623) : const Color(0xFFFFF8EE),
-                    border: Border.all(color: isDark ? const Color(0x33F5A623) : const Color(0xFFD97706).withValues(alpha: 0.3), width: 1),
-                    borderRadius: BorderRadius.circular(5),
                   ),
-                  child: Text(
-                    'FREE PLAN',
+                  Text(
+                    isLifetime ? 'Lifetime Access' : '$daysRemaining Days Left',
                     style: GoogleFonts.inter(
                       fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                      color: isDark ? const Color(0xFF5A7090) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+              if (!isLifetime) ...[
+                const SizedBox(height: 10),
+                // Progress bar
+                Container(
+                  height: 3,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: (daysRemaining / 30).clamp(0.0, 1.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => context.push('/upgrade'),
-                  child: Text(
-                    'Upgrade →',
+                const SizedBox(height: 10),
+                if (expiryDate != null)
+                  RichText(
+                    text: TextSpan(
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8),
+                      ),
+                      children: [
+                        const TextSpan(text: 'Renew before '),
+                        TextSpan(
+                          text: '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ] else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0x1AF5A623) : const Color(0xFFFFF8EE),
+                      border: Border.all(
+                        color: isDark ? const Color(0x33F5A623) : const Color(0xFFD97706).withValues(alpha: 0.3), 
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      planName.toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$daysRemaining Days Left',
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      color: isDark ? const Color(0xFF5A7090) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Progress bar for trial
+              Container(
+                height: 3,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0x0FFFFFFF) : const Color(0x1A000000),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: (daysRemaining / 14).clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF5A623), Color(0xFFD97706)],
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    sub.isTrialExpired ? 'Trial Expired' : 'Trial Active',
                     style: GoogleFonts.inter(
                       fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                      color: isDark ? const Color(0xFF3D5470) : const Color(0xFF94A3B8),
                     ),
                   ),
-                ),
-              ],
-            ),
+                  GestureDetector(
+                    onTap: () => context.push('/subscription'),
+                    child: Text(
+                      'Upgrade →',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFF5A623) : const Color(0xFFD97706),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildShopUserRow(BuildContext context, String shopName) {
+  Widget _buildShopUserRow(BuildContext context, String shopName, [String shopCity = '']) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
@@ -605,7 +727,7 @@ class _Sidebar extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                'Owner · Peshawar',
+                shopCity.isNotEmpty ? 'Owner · $shopCity' : 'Owner',
                 style: GoogleFonts.inter(
                   fontSize: 9,
                   color: isDark ? const Color(0xFF3D5470) : context.text3,
@@ -1283,7 +1405,7 @@ class _TopBarState extends ConsumerState<_TopBar> {
     final reminders = ref.watch(remindersProvider);
     final hasUnread = reminders.any((r) => !r.isRead);
     final shopAsync = ref.watch(currentShopProvider);
-    final shopName = shopAsync.value?['name'] as String? ?? 'SaifurRahman Tailors';
+    final shopName = shopAsync.value?['name'] as String? ?? '';
 
     String titleText = '';
     switch (widget.currentSection) {
@@ -1406,33 +1528,35 @@ class _TopBarState extends ConsumerState<_TopBar> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Green Dollar Earn Button
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      context.go('/invite-earn');
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
-                        border: Border.all(
-                          color: isDark ? const Color(0x3310CBA0) : const Color(0x4010CBA0),
-                          width: 1.1,
+                  // Green Dollar Earn Button (Visible only to active Agencies)
+                  if (ref.watch(isCurrentShopAgencyProvider)) ...[
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.go('/agency');
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+                          border: Border.all(
+                            color: isDark ? const Color(0x3310CBA0) : const Color(0x4010CBA0),
+                            width: 1.1,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.monetization_on_rounded,
-                          size: 19,
-                          color: Color(0xFF10CBA0),
+                        child: const Center(
+                          child: Icon(
+                            Icons.monetization_on_rounded,
+                            size: 19,
+                            color: Color(0xFF10CBA0),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
+                    const SizedBox(width: 8),
+                  ],
                   _buildTopBarIconButton(
                     icon: Icons.notifications_rounded,
                     hasBadge: hasUnread,
@@ -1848,40 +1972,42 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── Green Dollar Earn Dashboard Button ──
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.go('/invite-earn');
-                        },
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
-                            border: Border.all(
-                              color: isDark ? const Color(0x3310CBA0) : const Color(0x4010CBA0),
-                              width: 1.1,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF10CBA0).withValues(alpha: isDark ? 0.15 : 0.08),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                      // ── Green Dollar Earn Dashboard Button (Visible only to active Agencies) ──
+                      if (ref.watch(isCurrentShopAgencyProvider)) ...[
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            context.go('/agency');
+                          },
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0x1A10CBA0) : const Color(0xFFECFDF5),
+                              border: Border.all(
+                                color: isDark ? const Color(0x3310CBA0) : const Color(0x4010CBA0),
+                                width: 1.1,
                               ),
-                            ],
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.monetization_on_rounded,
-                              size: 19,
-                              color: Color(0xFF10CBA0),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF10CBA0).withValues(alpha: isDark ? 0.15 : 0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.monetization_on_rounded,
+                                size: 19,
+                                color: Color(0xFF10CBA0),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 7),
+                        const SizedBox(width: 7),
+                      ],
 
                       // Search Button (Professional Squircle)
                       GestureDetector(
@@ -1965,6 +2091,135 @@ class _MobileTopBarState extends ConsumerState<_MobileTopBar> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StrandedAccountShellGuard extends StatelessWidget {
+  final String email;
+
+  const _StrandedAccountShellGuard({required this.email});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    return Scaffold(
+      backgroundColor: bg,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 480),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB800).withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Text('🏪', style: TextStyle(fontSize: 32)),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Finish Setting Up Your Shop',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Your account is signed in as $email, but your shop details were not saved during sign-up. Complete setup now to start your 14-day free trial.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: textSecondary,
+                  ),
+                ),
+                if (email.toLowerCase() == 'sraoffice.af@gmail.com') ...[
+                  OutlinedButton(
+                    onPressed: () => context.go('/admin'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFF5A623),
+                      side: const BorderSide(color: Color(0xFFF5A623)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Go to Admin Panel',
+                      style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                ElevatedButton(
+                  onPressed: () {
+                    context.go('/registration-resume?email=${Uri.encodeComponent(email)}');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D9488),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Complete Shop Setup',
+                    style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () async {
+                    await Supabase.instance.client.auth.signOut();
+                    if (context.mounted) context.go('/login');
+                  },
+                  child: Text(
+                    'Sign Out',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: textSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

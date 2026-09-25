@@ -11,6 +11,8 @@ extension ThemeColors on BuildContext {
   Color get text1 => isDark ? AppColors.textPrimaryDark : AppColors.lightText1;
   Color get text2 => isDark ? AppColors.textSecondaryDark : AppColors.lightText2;
   Color get text3 => isDark ? AppColors.textTertiaryDark : AppColors.lightText3;
+  Color get textPrimary => text1;
+  Color get textSecondary => text2;
   Color get accent => isDark ? AppColors.accent : AppColors.lightAccent;
   Color get accentBg => isDark ? AppColors.accentS : AppColors.lightAccentBg;
   Color get surfaceHover => isDark ? const Color(0x0FFFFFFF) : AppColors.lightSurfaceHover;

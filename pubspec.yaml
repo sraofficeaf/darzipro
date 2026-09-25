@@ -52,6 +52,9 @@ dependencies:
   flutter_image_compress: ^2.3.0
 
 
+  # Payments
+  flutter_stripe: ^11.5.0
+
   # Local Cache / Storage
   hive: ^2.2.3
   hive_flutter: ^1.1.0
