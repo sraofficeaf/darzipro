@@ -19,14 +19,12 @@ SET
   billing_cycle_end            = null,
   trial_started_at             = null,
   lifetime_storage_limit_bytes = 5368709120  -- 5 GB
-WHERE
-  lower(name) LIKE '%sra tailor%'
-  OR lower(name) LIKE '%sra office%'
-  OR lower(name) LIKE '%khan%'
-  OR plan_code IN ('full_access', 'full_access_3yr', 'mobile_only', 'unlimited')
-  OR lifetime_access IS TRUE;
+WHERE id IN (
+  '46af1cee-8aa0-4975-ba86-e608a2d69978', -- Sra Tailor
+  'e29b21da-98b7-45e8-b44a-c8e367b25f6e'  -- Khan
+);
 
--- 2. Update/Clean up shop_usage_cycles for lifetime shops
+-- 2. Update/Clean up shop_usage_cycles for the two grandfathered shops
 -- Ensure no cycle has any pending payment or amount due
 UPDATE shop_usage_cycles
 SET
@@ -35,20 +33,23 @@ SET
   plan_code_at_start = 'unlimited',
   plan_code_at_end   = 'unlimited'
 WHERE shop_id IN (
-  SELECT id FROM shops WHERE lifetime_access = true OR subscription_status = 'lifetime'
+  '46af1cee-8aa0-4975-ba86-e608a2d69978', -- Sra Tailor
+  'e29b21da-98b7-45e8-b44a-c8e367b25f6e'  -- Khan
 );
 
--- 3. Delete any accidental pending subscription payments for lifetime shops
+-- 3. Delete any accidental pending subscription payments for the two grandfathered shops
 DELETE FROM subscription_payments
 WHERE shop_id IN (
-  SELECT id FROM shops WHERE lifetime_access = true OR subscription_status = 'lifetime'
-);
+  '46af1cee-8aa0-4975-ba86-e608a2d69978', -- Sra Tailor
+  'e29b21da-98b7-45e8-b44a-c8e367b25f6e'  -- Khan
+) AND status = 'pending';
 
 -- 4. Replace get_shop_subscription_state to guarantee 0 amount due for lifetime shops
 CREATE OR REPLACE FUNCTION get_shop_subscription_state(p_shop_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_shop              record;
@@ -142,4 +143,4 @@ SELECT
   billing_cycle_end,
   lifetime_storage_limit_bytes / (1024*1024*1024) AS storage_gb
 FROM shops
-WHERE lower(name) LIKE '%sra%' OR lower(name) LIKE '%khan%';
+WHERE id IN ('46af1cee-8aa0-4975-ba86-e608a2d69978', 'e29b21da-98b7-45e8-b44a-c8e367b25f6e');

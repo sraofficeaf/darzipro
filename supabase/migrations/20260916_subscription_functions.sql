@@ -11,6 +11,7 @@ create or replace function check_and_apply_plan(p_shop_id uuid)
 returns jsonb
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_current_plan_code    text;
@@ -149,6 +150,7 @@ create or replace function initialize_shop_trial(p_shop_id uuid)
 returns void
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_trial_days int;
@@ -189,6 +191,7 @@ create or replace function increment_cycle_orders(p_shop_id uuid)
 returns void
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 begin
   update shop_usage_cycles
@@ -206,6 +209,7 @@ create or replace function close_and_renew_billing_cycle(p_shop_id uuid)
 returns void
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_current_plan_code text;
@@ -265,6 +269,7 @@ create or replace function get_shop_subscription_state(p_shop_id uuid)
 returns jsonb
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_shop              record;
@@ -366,6 +371,7 @@ create or replace function register_new_shop_free_trial(
 returns jsonb
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_shop_id       uuid;

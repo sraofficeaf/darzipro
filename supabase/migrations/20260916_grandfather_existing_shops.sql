@@ -15,11 +15,10 @@ set
   subscription_status            = 'lifetime',
   plan_code                      = 'unlimited',
   lifetime_storage_limit_bytes   = 5368709120  -- 5 GB
-where
-  plan_code in ('mobile_only', 'full_access', 'full_access_3yr')
-  or lower(name) like '%sra tailor%'
-  or lower(name) like '%sra office%'
-  or lower(name) like '%khan%';
+where id in (
+  '46af1cee-8aa0-4975-ba86-e608a2d69978', -- Sra Tailor
+  'e29b21da-98b7-45e8-b44a-c8e367b25f6e'  -- Khan
+);
 
 -- Initialize usage cycles for any existing shops that don't have one yet
 -- (shops that were created before this subscription system existed).

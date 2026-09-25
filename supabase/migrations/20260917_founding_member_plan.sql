@@ -76,6 +76,7 @@ create or replace function check_and_apply_plan(p_shop_id uuid)
 returns jsonb
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $func$
 declare
   v_current_plan_code  text;
@@ -184,6 +185,7 @@ create or replace function activate_founding_membership(
 returns jsonb
 language plpgsql
 security definer
+set search_path = public, pg_temp
 as $func$
 declare
   v_now           timestamptz := now();
@@ -229,6 +231,7 @@ create or replace function count_founding_shops()
 returns int
 language sql
 security definer
+set search_path = public, pg_temp
 stable
 as $func$
   select count(*)::int from shops where plan_code = 'founding';
