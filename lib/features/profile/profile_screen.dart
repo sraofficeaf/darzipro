@@ -1,34 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/constants/app_enums.dart';
-import '../../core/services/update_service.dart';
-import '../../core/widgets/update_dialog.dart';
+import '../../core/constants/build_info.dart';
+import '../../core/utils/image_compressor.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/providers/supabase_providers.dart';
-import '../../shared/providers/license_provider.dart';
+import '../../shared/providers/subscription_provider.dart';
 import '../settings/add_template_modal.dart';
-import '../storage/storage_addon_modal.dart';
 import 'change_password_modal.dart';
 import 'delete_account_screen.dart';
 
-// ── COLOR CONSTANTS (CACHED) ────────────────────────────────────────────────
+// ── COLOR CONSTANTS ─────────────────────────────────────────────────────────
 class _ProfColors {
   static const ink = Color(0xFF111827);
   static const muted = Color(0xFF7B8494);
   static const faint = Color(0xFFAAB2BF);
   static const line = Color(0xFFE8EAF0);
-  static const paper = Color(0xFFF5F6F8);
+  static const paper = Color(0xFFF7F8FA);
   static const white = Color(0xFFFFFFFF);
   static const dark = Color(0xFF151922);
-  static const darkCard = Color(0xFF181D27);
-  static const darkLine = Color(0xFF333946);
+  static const darkCard = Color(0xFF1B202B);
+  static const darkLine = Color(0xFF2E3544);
 
   static const gold = Color(0xFFE9A227);
   static const gold2 = Color(0xFFFFC65A);
@@ -40,64 +38,9 @@ class _ProfColors {
   static const greenLine = Color(0xFFCFEFE3);
 
   static const rose = Color(0xFFEF5261);
-  static const roseBg = Color(0xFFFFF0F2);
   static const roseLine = Color(0xFFFFD9DE);
 
   static const blue = Color(0xFF5478E8);
-  static const blueBg = Color(0xFFEEF2FF);
-}
-
-// ── TYPOGRAPHY CONSTANTS (CACHED) ───────────────────────────────────────────
-class _ProfStyles {
-  static final heroTitle = GoogleFonts.manrope(
-    fontSize: 21,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.6,
-    color: Colors.white,
-  );
-
-  static final heroSub = GoogleFonts.dmSans(
-    fontSize: 12,
-    color: const Color(0xFFAEB5C2),
-  );
-
-  static final shopNameBig = GoogleFonts.manrope(
-    fontSize: 26,
-    fontWeight: FontWeight.w900,
-    letterSpacing: -0.8,
-  );
-
-  static final sectionTitle = GoogleFonts.dmSans(
-    fontSize: 11,
-    fontWeight: FontWeight.w800,
-    letterSpacing: 1.4,
-    color: _ProfColors.muted,
-  );
-
-  static final rowLabel = GoogleFonts.manrope(
-    fontSize: 13.5,
-    fontWeight: FontWeight.w700,
-    letterSpacing: -0.1,
-  );
-
-  static final rowSub = GoogleFonts.dmSans(
-    fontSize: 11.5,
-    fontWeight: FontWeight.w500,
-    color: _ProfColors.muted,
-  );
-
-  static final statNum = GoogleFonts.ibmPlexMono(
-    fontSize: 17,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.4,
-  );
-
-  static final statLbl = GoogleFonts.dmSans(
-    fontSize: 9,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 0.7,
-    color: _ProfColors.muted,
-  );
 }
 
 // ── PROFILE SCREEN ──────────────────────────────────────────────────────────
@@ -110,7 +53,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isUploadingLogo = false;
-  String _activeTab = 'overview'; // 'overview', 'shop', 'templates', 'settings'
+  String _activeTab = 'shop'; // 'shop', 'plan', 'templates', 'settings'
 
   // ──── Helper: Get Initials ────
   String _getInitials(String name) {
@@ -134,13 +77,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _getFieldHint(String label) {
     switch (label.toLowerCase()) {
       case 'shop name':
-        return 'e.g. Ahmed Tailors';
+        return 'Enter shop name';
       case 'owner name':
-        return 'e.g. Muhammad Ahmed';
+        return 'Enter owner name';
       case 'phone':
-        return 'e.g. 0300-1234567';
+        return '03XX-XXXXXXX';
       case 'address':
-        return 'e.g. Main Bazaar, Lahore';
+        return 'Enter shop address';
       case 'card footer':
         return 'e.g. Thank you for your business!';
       default:
@@ -164,7 +107,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required String shopName,
     required double size,
     required double radius,
-    double fontSize = 22,
+    double fontSize = 24,
   }) {
     final resolvedUrl = _resolveLogoUrl(logoUrl);
     if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
@@ -193,8 +136,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               color: const Color(0xFF1D222D),
               child: const Center(
                 child: SizedBox(
-                  width: 18,
-                  height: 18,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(_ProfColors.gold),
@@ -214,7 +157,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [_ProfColors.gold2, Color(0xFFD97706)]),
+        gradient: const LinearGradient(
+          colors: [_ProfColors.gold2, Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: const Color(0x80FFC65A), width: 2),
       ),
@@ -275,14 +222,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked == null) return;
+
+    final rawBytes = await picked.readAsBytes();
+    if (rawBytes.length > ImageCompressor.maxUploadSizeBytes) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(isUrdu ? '⚠️ فائل بہت بڑی ہے (30 MB سے زیادہ)' : '⚠️ File too large (exceeds 30 MB).'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isUploadingLogo = true);
     try {
-      final bytes = await picked.readAsBytes();
-      final extension = picked.name.split('.').last.toLowerCase();
-      final storagePath = '$shopId/logo_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final compressed = await ImageCompressor.compressGarmentPhoto(rawBytes);
+      final bytes = compressed.bytes;
+      final storagePath = '$shopId/logo_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       debugPrint('[LogoUpload] Uploading $storagePath (${bytes.length} bytes)');
 
@@ -302,12 +260,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await Supabase.instance.client.storage.from('shop-logos').uploadBinary(
         storagePath,
         bytes,
-        fileOptions: FileOptions(upsert: true, contentType: 'image/$extension'),
+        fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
       );
 
       final publicUrl = Supabase.instance.client.storage.from('shop-logos').getPublicUrl(storagePath);
-      debugPrint('[LogoUpload] Upload successful. Public URL: $publicUrl');
-
       await Supabase.instance.client.from('shops').update({'logo_url': publicUrl}).eq('id', shopId);
 
       ref.invalidate(currentShopProvider);
@@ -321,17 +277,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
     } catch (e) {
       debugPrint('[LogoUpload] Failed: $e');
-      final errStr = e.toString();
-      final isBucketNotFound = errStr.contains('Bucket not found') || errStr.contains('404');
       messenger.showSnackBar(
         SnackBar(
-          content: Text(isBucketNotFound
-              ? (isUrdu
-                  ? '❌ ایرر: "shop-logos" سٹوریج بالٹی Supabase میں نہیں ملی! SQL رن کریں۔'
-                  : '❌ Storage bucket "shop-logos" not found! Please run the SQL migration in Supabase.')
-              : '❌ Upload failed: $e'),
+          content: Text('❌ Upload failed: $e'),
           backgroundColor: _ProfColors.rose,
-          duration: const Duration(seconds: 6),
         ),
       );
     } finally {
@@ -339,7 +288,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  // ──── Save Profile Field ────
+  // ──── Save Shop Field ────
   Future<void> _updateShopField(String key, String value) async {
     final messenger = ScaffoldMessenger.of(context);
     final isUrdu = ref.read(localeProvider) == 'ur';
@@ -347,50 +296,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final resolved = await _getResolvedShopAndUserId();
     final shopId = resolved.shopId;
 
-    // Debug: log what we got
-    debugPrint('[ProfileUpdate] shopId=$shopId userId=${resolved.userId}');
-
     if (shopId == null) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(isUrdu ? '❌ ایرر: دکان کا اکاؤنٹ نہیں ملا!' : '❌ Error: Shop ID not found! Please logout and login again.'),
+          content: Text(isUrdu ? '❌ ایرر: دکان کا اکاؤنٹ نہیں ملا!' : '❌ Error: Shop ID not found!'),
           backgroundColor: _ProfColors.rose,
-          duration: const Duration(seconds: 4),
         ),
       );
       return;
     }
 
     try {
-      debugPrint('[ProfileUpdate] Updating shops.$key for shopId=$shopId');
-
-      // Use .select() so that RLS violations throw instead of silently 0-row updating
-      final result = await Supabase.instance.client
+      await Supabase.instance.client
           .from('shops')
           .update({key: value})
-          .eq('id', shopId)
-          .select('id, $key')
-          .maybeSingle();
-
-      debugPrint('[ProfileUpdate] Update result: $result');
-
-      if (result == null) {
-        // 0 rows matched — either wrong shopId or RLS blocked update
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('❌ Update blocked! No rows matched (shopId=$shopId). Check RLS policy on shops table.'),
-            backgroundColor: _ProfColors.rose,
-            duration: const Duration(seconds: 6),
-          ),
-        );
-        return;
-      }
-
-      if (key == 'name') {
-        try {
-          await Supabase.instance.client.from('licenses').update({'shop_name': value}).eq('shop_id', shopId);
-        } catch (_) {}
-      }
+          .eq('id', shopId);
 
       ref.invalidate(currentShopProvider);
       ref.invalidate(profileProvider);
@@ -407,7 +327,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         SnackBar(
           content: Text('❌ Save failed: $e'),
           backgroundColor: _ProfColors.rose,
-          duration: const Duration(seconds: 6),
         ),
       );
     }
@@ -452,13 +371,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  // ──── Edit Single Field Modal (Matches HTML #modalField) ────
+  // ──── Edit Single Field Modal ────
   void _openFieldEdit(String label, String initialValue, Future<void> Function(String) onSave, {int maxLines = 1, String? hintText}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final controller = TextEditingController(text: initialValue);
     bool saving = false;
-
-    // Map label to hint if not provided
     final resolvedHint = hintText ?? _getFieldHint(label);
 
     showDialog(
@@ -470,7 +387,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             constraints: const BoxConstraints(maxWidth: 440),
             child: Dialog(
               backgroundColor: isDark ? _ProfColors.darkCard : _ProfColors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(22),
                 child: Column(
@@ -480,49 +397,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Edit $label',
-                              style: GoogleFonts.manrope(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white : _ProfColors.ink,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Changes save immediately to your shop.',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 11.5,
-                                color: _ProfColors.muted,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Edit $label',
+                          style: GoogleFonts.manrope(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : _ProfColors.ink,
+                          ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18),
+                          icon: const Icon(Icons.close_rounded, size: 20),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
-                    Text(
-                      label.toUpperCase(),
-                      style: GoogleFonts.dmSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: _ProfColors.muted,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 16),
                     TextField(
                       controller: controller,
                       maxLines: maxLines,
                       style: GoogleFonts.dmSans(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : _ProfColors.ink,
                       ),
@@ -530,11 +424,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         filled: true,
                         fillColor: isDark ? _ProfColors.dark : _ProfColors.paper,
                         hintText: resolvedHint,
-                        hintStyle: GoogleFonts.dmSans(
-                          fontSize: 13,
-                          color: _ProfColors.faint,
-                          fontStyle: FontStyle.italic,
-                        ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -554,7 +443,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             onPressed: () => Navigator.pop(ctx),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: Text(
@@ -582,7 +470,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               backgroundColor: _ProfColors.gold,
                               foregroundColor: const Color(0xFF211500),
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: saving
@@ -609,7 +496,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  // ──── Edit Profile Modal (Full — Matches HTML #modalEdit) ────
+  // ──── Edit Profile Modal (Full) ────
   void _openEditProfileModal(String sName, String oName, String phone, String address) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shopCtrl = TextEditingController(text: sName);
@@ -624,10 +511,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
+            constraints: const BoxConstraints(maxWidth: 480),
             child: Dialog(
               backgroundColor: isDark ? _ProfColors.darkCard : _ProfColors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: SingleChildScrollView(
@@ -642,7 +529,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Edit Profile',
+                                'Edit Shop Profile',
                                 style: GoogleFonts.manrope(
                                   fontSize: 19,
                                   fontWeight: FontWeight.w800,
@@ -651,13 +538,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Update your shop and owner information.',
-                                style: GoogleFonts.dmSans(fontSize: 11.5, color: _ProfColors.muted),
+                                'Update your shop and owner details.',
+                                style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted),
                               ),
                             ],
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18),
+                            icon: const Icon(Icons.close_rounded, size: 20),
                             onPressed: () => Navigator.pop(ctx),
                           ),
                         ],
@@ -670,7 +557,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       _buildFieldInput('PHONE', phoneCtrl, isDark),
                       const SizedBox(height: 12),
                       _buildFieldInput('ADDRESS', addressCtrl, isDark, maxLines: 2),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
                       Row(
                         children: [
                           Expanded(
@@ -678,7 +565,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               onPressed: () => Navigator.pop(ctx),
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
-                                side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               child: Text('Cancel', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: _ProfColors.muted)),
@@ -703,13 +589,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                             'phone': phoneCtrl.text.trim(),
                                             'address': addressCtrl.text.trim(),
                                           }).eq('id', sId);
-
-                                          try {
-                                            await Supabase.instance.client.from('licenses').update({
-                                              'shop_name': shopCtrl.text.trim(),
-                                              'phone': phoneCtrl.text.trim(),
-                                            }).eq('shop_id', sId);
-                                          } catch (_) {}
                                         }
 
                                         if (uId != null) {
@@ -730,12 +609,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 backgroundColor: _ProfColors.gold,
                                 foregroundColor: const Color(0xFF211500),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
-                                elevation: 0,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               child: saving
-                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF211500)))
-                                  : Text('Save Profile', style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 13)),
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF211500)),
+                                    )
+                                  : Text(
+                                      'Save Profile',
+                                      style: GoogleFonts.manrope(fontWeight: FontWeight.w800, fontSize: 13),
+                                    ),
                             ),
                           ),
                         ],
@@ -751,7 +636,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildFieldInput(String label, TextEditingController ctrl, bool isDark, {int maxLines = 1}) {
+  Widget _buildFieldInput(String label, TextEditingController controller, bool isDark, {int maxLines = 1}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -759,14 +644,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           label,
           style: GoogleFonts.dmSans(
             fontSize: 10,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
             color: _ProfColors.muted,
-            letterSpacing: 0.5,
           ),
         ),
         const SizedBox(height: 6),
         TextField(
-          controller: ctrl,
+          controller: controller,
           maxLines: maxLines,
           style: GoogleFonts.dmSans(
             fontSize: 13,
@@ -776,7 +661,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           decoration: InputDecoration(
             filled: true,
             fillColor: isDark ? _ProfColors.dark : _ProfColors.paper,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
@@ -791,70 +676,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  // ──── Language Sheet (Matches HTML #sheetLang) ────
-  void _openLangSheet() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentLang = ref.read(localeProvider);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? _ProfColors.darkCard : _ProfColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: _ProfColors.line, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Text('Select Language', style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-            const SizedBox(height: 16),
-            _buildLangOption('English', currentLang == 'en', isDark, () {
-              Navigator.pop(ctx);
-              ref.read(localeProvider.notifier).setLanguage('en');
-            }),
-            const SizedBox(height: 8),
-            _buildLangOption('اردو (Urdu)', currentLang == 'ur', isDark, () {
-              Navigator.pop(ctx);
-              ref.read(localeProvider.notifier).setLanguage('ur');
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLangOption(String name, bool isSelected, bool isDark, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? _ProfColors.goldBg : (isDark ? _ProfColors.dark : _ProfColors.paper),
-          border: Border.all(color: isSelected ? _ProfColors.gold : (isDark ? _ProfColors.darkLine : _ProfColors.line), width: 1.5),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              name,
-              style: GoogleFonts.manrope(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? const Color(0xFFB45309) : (isDark ? Colors.white : _ProfColors.ink),
-              ),
-            ),
-            if (isSelected) const Text('✓', style: TextStyle(color: _ProfColors.gold, fontWeight: FontWeight.w900, fontSize: 16)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ──── Logout Modal (Matches HTML #modalLogout) ────
+  // ──── Logout Confirmation Modal ────
   void _openLogoutModal() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
@@ -862,23 +684,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       barrierColor: Colors.black54,
       builder: (ctx) => Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
+          constraints: const BoxConstraints(maxWidth: 400),
           child: Dialog(
             backgroundColor: isDark ? _ProfColors.darkCard : _ProfColors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Logout Confirmation', style: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
+                  Text(
+                    'Sign Out',
+                    style: GoogleFonts.manrope(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : _ProfColors.ink,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    'Any unsaved changes will be lost. Your data stays safe on the cloud.',
-                    style: GoogleFonts.dmSans(fontSize: 12.5, color: _ProfColors.muted, height: 1.6),
+                    'Are you sure you want to sign out? Your business data remains safely synced in the cloud.',
+                    style: GoogleFonts.dmSans(fontSize: 13, color: _ProfColors.muted, height: 1.5),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   Row(
                     children: [
                       Expanded(
@@ -886,7 +715,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           onPressed: () => Navigator.pop(ctx),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: Text('Cancel', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: _ProfColors.muted)),
@@ -904,10 +732,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             backgroundColor: _ProfColors.rose,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text('Logout', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
+                          child: Text('Sign Out', style: GoogleFonts.manrope(fontWeight: FontWeight.w800)),
                         ),
                       ),
                     ],
@@ -921,42 +748,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // MAIN BUILD METHOD
+  // ═════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
-    final shopAsync = ref.watch(currentShopProvider);
-    final profileAsync = ref.watch(profileProvider);
-    final license = ref.watch(licenseProvider);
-    final customersAsync = ref.watch(customersProvider);
-    final ordersAsync = ref.watch(ordersProvider);
-    final templatesAsync = ref.watch(measurementTemplatesProvider);
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isUrdu = ref.watch(localeProvider) == 'ur';
 
+    // Watched Providers (Targeted & Reactive)
+    final shopAsync = ref.watch(currentShopProvider);
+    final profileAsync = ref.watch(profileProvider);
+    final subAsync = ref.watch(subscriptionStateProvider);
+    final templatesAsync = ref.watch(measurementTemplatesProvider);
+    final baseStorageMb = ref.watch(baseStorageLimitMbProvider).valueOrNull ?? 1000;
+
     final shop = shopAsync.valueOrNull;
-    final shopName = shop?['name'] as String? ?? '';
-    final ownerName = profileAsync.valueOrNull?['full_name'] as String? ?? '';
-    final phoneNum = shop?['phone'] as String? ?? '';
-    final addressVal = shop?['address'] as String? ?? '';
+    final profile = profileAsync.valueOrNull;
+    final sub = subAsync.valueOrNull;
+
+    // Derived values
+    final shopName = (shop?['name'] as String?)?.trim().isNotEmpty == true
+        ? shop!['name'] as String
+        : 'Darzi Pro Tailor Shop';
+    final ownerName = (profile?['full_name'] as String?)?.trim().isNotEmpty == true
+        ? profile!['full_name'] as String
+        : 'Tailor Master';
+    final phoneNum = (shop?['phone'] as String?) ?? '';
+    final addressVal = (shop?['address'] as String?) ?? '';
     final logoUrl = shop?['logo_url'] as String?;
 
     final Box settingsBox = Hive.box('settings_box');
     final cardFooter = settingsBox.get('card_footer', defaultValue: '') as String;
 
-    final clientsCount = customersAsync.valueOrNull?.length ?? 0;
-    final activeOrdersCount = ordersAsync.valueOrNull?.where((o) =>
-        o.status != OrderStatus.delivered && o.status != OrderStatus.cancelled).length ?? 0;
+    final planName = sub?.planNameEn ?? (subAsync.isLoading ? 'Loading...' : 'Free Trial');
 
-    final isPro = license.isPro || license.isBusiness;
-
-    // Cloud storage calculation
-    final usedBytes = (shop?['storage_used_bytes'] as int?) ?? 420000;
-    final double usedMb = (usedBytes / 1000000);
+    // Storage Calculations
+    final usedBytes = (shop?['storage_used_bytes'] as int?) ?? 0;
+    final double usedMb = (usedBytes / (1024 * 1024));
     final isAddonActive = shop?['storage_addon_active'] == true;
-    final double storageProgress = isAddonActive ? 1.0 : (usedBytes / 1500000).clamp(0.0, 1.0);
+    final totalStorageBytes = baseStorageMb * 1024 * 1024;
+    final double storageProgress = (usedBytes / totalStorageBytes).clamp(0.0, 1.0);
+    final String baseStorageDisplay = baseStorageMb >= 1024 && baseStorageMb % 1024 == 0
+        ? '${baseStorageMb ~/ 1024} GB'
+        : (baseStorageMb >= 1000 && baseStorageMb % 1000 == 0
+            ? '${baseStorageMb ~/ 1000} GB'
+            : '$baseStorageMb MB');
 
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final isDesktop = screenWidth >= 1000;
+    final isDesktop = screenWidth >= 960;
 
     return Directionality(
       textDirection: isUrdu ? TextDirection.rtl : TextDirection.ltr,
@@ -965,47 +805,698 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         body: SafeArea(
           child: ListView(
             padding: EdgeInsets.symmetric(
-              horizontal: isDesktop ? 28 : 16,
+              horizontal: isDesktop ? 32 : 16,
               vertical: isDesktop ? 24 : 16,
             ),
             children: [
-              // 1. TOP HERO BANNER (Matches HTML .hero)
-              RepaintBoundary(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+              // 1. TOP HERO HEADER (Single source of identity & branding)
+              _buildHeroHeader(
+                isDark: isDark,
+                shopName: shopName,
+                ownerName: ownerName,
+                phone: phoneNum,
+                address: addressVal,
+                logoUrl: logoUrl,
+                planName: planName,
+                isDesktop: isDesktop,
+              ),
+              const SizedBox(height: 20),
+
+              // 2. SEGMENTED TAB SELECTOR (Clean pill bar)
+              _buildSegmentedTabBar(isDark),
+              const SizedBox(height: 20),
+
+              // 3. TAB CONTENT
+              if (_activeTab == 'shop')
+                _buildShopDetailsTab(
+                  isDark: isDark,
+                  shopName: shopName,
+                  ownerName: ownerName,
+                  phone: phoneNum,
+                  address: addressVal,
+                  cardFooter: cardFooter,
+                  settingsBox: settingsBox,
+                )
+              else if (_activeTab == 'plan')
+                _buildPlanAndStorageTab(
+                  isDark: isDark,
+                  sub: sub,
+                  planName: planName,
+                  usedMb: usedMb,
+                  baseStorageDisplay: baseStorageDisplay,
+                  storageProgress: storageProgress,
+                  isAddonActive: isAddonActive,
+                )
+              else if (_activeTab == 'templates')
+                _buildTemplatesTab(
+                  isDark: isDark,
+                  templatesAsync: templatesAsync,
+                )
+              else
+                _buildSettingsAndSecurityTab(
+                  isDark: isDark,
+                  isUrdu: isUrdu,
+                  settingsBox: settingsBox,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SECTION 1: TOP HERO HEADER
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildHeroHeader({
+    required bool isDark,
+    required String shopName,
+    required String ownerName,
+    required String phone,
+    required String address,
+    required String? logoUrl,
+    required String planName,
+    required bool isDesktop,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 28 : 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF221A0F), const Color(0xFF161B24)]
+              : [_ProfColors.goldBg, Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _ProfColors.goldLine.withValues(alpha: 0.6)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: isDesktop
+          ? Row(
+              children: [
+                _buildAvatarSection(logoUrl, shopName, 80),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              shopName,
+                              style: GoogleFonts.manrope(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? Colors.white : _ProfColors.ink,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _ProfColors.greenBg,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: _ProfColors.greenLine),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: _ProfColors.green,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Active Shop',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: _ProfColors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Owner: $ownerName ${phone.isNotEmpty ? "· $phone" : ""}',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _ProfColors.muted,
+                        ),
+                      ),
+                      if (address.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          address,
+                          style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _buildHeroActionButtons(shopName, ownerName, phone, address, isDark),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _buildAvatarSection(logoUrl, shopName, 64),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            shopName,
+                            style: GoogleFonts.manrope(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : _ProfColors.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            ownerName,
+                            style: GoogleFonts.dmSans(fontSize: 12.5, color: _ProfColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildHeroActionButtons(shopName, ownerName, phone, address, isDark),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildAvatarSection(String? logoUrl, String shopName, double size) {
+    return Stack(
+      children: [
+        _buildAvatar(
+          logoUrl: logoUrl,
+          shopName: shopName,
+          size: size,
+          radius: size * 0.28,
+          fontSize: size * 0.35,
+        ),
+        if (_isUploadingLogo)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(size * 0.28),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: _ProfColors.gold),
+                ),
+              ),
+            ),
+          )
+        else
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: InkWell(
+              onTap: _pickAndUploadLogo,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: _ProfColors.gold,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(Icons.camera_alt_rounded, size: 13, color: Color(0xFF211500)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHeroActionButtons(String sName, String oName, String phone, String address, bool isDark) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _pickAndUploadLogo,
+          icon: const Icon(Icons.image_outlined, size: 16),
+          label: Text('Change Logo', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w700)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: isDark ? Colors.white : _ProfColors.ink,
+            side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => _openEditProfileModal(sName, oName, phone, address),
+          icon: const Icon(Icons.edit_rounded, size: 16),
+          label: Text('Edit Profile', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _ProfColors.gold,
+            foregroundColor: const Color(0xFF211500),
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SECTION 2: SEGMENTED TAB SELECTOR
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildSegmentedTabBar(bool isDark) {
+    final tabs = [
+      {'id': 'shop', 'label': 'Shop Details', 'icon': Icons.storefront_rounded},
+      {'id': 'plan', 'label': 'Plan & Storage', 'icon': Icons.cloud_done_rounded},
+      {'id': 'templates', 'label': 'Naap Templates', 'icon': Icons.straighten_rounded},
+      {'id': 'settings', 'label': 'Settings & Security', 'icon': Icons.tune_rounded},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? _ProfColors.darkCard : const Color(0xFFECEEF2),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: tabs.map((tab) {
+            final isActive = _activeTab == tab['id'];
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: InkWell(
+                onTap: () => setState(() => _activeTab = tab['id'] as String),
+                borderRadius: BorderRadius.circular(10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: _ProfColors.dark,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x2E111827),
-                        blurRadius: 30,
-                        offset: Offset(0, 12),
+                    color: isActive
+                        ? (isDark ? const Color(0xFF2B3242) : Colors.white)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: isActive
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            )
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        tab['icon'] as IconData,
+                        size: 16,
+                        color: isActive
+                            ? _ProfColors.gold
+                            : (isDark ? _ProfColors.faint : _ProfColors.muted),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        tab['label'] as String,
+                        style: GoogleFonts.manrope(
+                          fontSize: 13,
+                          fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                          color: isActive
+                              ? (isDark ? Colors.white : _ProfColors.ink)
+                              : (isDark ? _ProfColors.faint : _ProfColors.muted),
+                        ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SECTION 3: TAB 1 — SHOP DETAILS
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildShopDetailsTab({
+    required bool isDark,
+    required String shopName,
+    required String ownerName,
+    required String phone,
+    required String address,
+    required String cardFooter,
+    required Box settingsBox,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Shop Information',
+          subtitle: 'Core contact details printed on tokens, cards, and receipts.',
+          children: [
+            _buildDetailRow(
+              isDark: isDark,
+              icon: Icons.store_rounded,
+              label: 'Shop Name',
+              value: shopName,
+              onEdit: () => _openFieldEdit('Shop Name', shopName, (val) => _updateShopField('name', val)),
+            ),
+            const Divider(height: 1),
+            _buildDetailRow(
+              isDark: isDark,
+              icon: Icons.person_rounded,
+              label: 'Owner Name',
+              value: ownerName,
+              onEdit: () => _openFieldEdit('Owner Name', ownerName, (val) => _updateProfileField('full_name', val)),
+            ),
+            const Divider(height: 1),
+            _buildDetailRow(
+              isDark: isDark,
+              icon: Icons.phone_rounded,
+              label: 'Phone Number',
+              value: phone.isNotEmpty ? phone : 'Not specified',
+              onEdit: () => _openFieldEdit('Phone', phone, (val) => _updateShopField('phone', val)),
+            ),
+            const Divider(height: 1),
+            _buildDetailRow(
+              isDark: isDark,
+              icon: Icons.location_on_rounded,
+              label: 'Shop Address',
+              value: address.isNotEmpty ? address : 'Not specified',
+              onEdit: () => _openFieldEdit('Address', address, (val) => _updateShopField('address', val), maxLines: 2),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Invoice & Print Settings',
+          subtitle: 'Text printed at the bottom of customer slips and token cards.',
+          children: [
+            _buildDetailRow(
+              isDark: isDark,
+              icon: Icons.receipt_long_rounded,
+              label: 'Card Footer Note',
+              value: cardFooter.isNotEmpty ? cardFooter : 'e.g. Thank you for choosing us!',
+              onEdit: () => _openFieldEdit(
+                'Card Footer',
+                cardFooter,
+                (val) async {
+                  await settingsBox.put('card_footer', val);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            _buildDetailRow(
+              isDark: isDark,
+              icon: Icons.payments_rounded,
+              label: 'Operating Currency',
+              value: 'PKR (Rs.) · Pakistani Rupee',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SECTION 4: TAB 2 — PLAN & CLOUD STORAGE
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildPlanAndStorageTab({
+    required bool isDark,
+    required SubscriptionState? sub,
+    required String planName,
+    required double usedMb,
+    required String baseStorageDisplay,
+    required double storageProgress,
+    required bool isAddonActive,
+  }) {
+    final expiryDate = sub?.cycleEnd != null
+        ? DateFormat.yMMMMd().format(sub!.cycleEnd!)
+        : (sub?.trialStartedAt != null
+            ? DateFormat.yMMMMd().format(sub!.trialStartedAt!.add(const Duration(days: 60)))
+            : 'Active');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Subscription Card
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Subscription Status',
+          subtitle: 'Current plan gating, renewal lifecycle, and feature access.',
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [_ProfColors.gold2, _ProfColors.gold]),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      planName.toUpperCase(),
+                      style: GoogleFonts.ibmPlexMono(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF211500),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          sub?.isLifetime == true ? 'Lifetime Access License' : 'Active Subscription · Darzi Pro',
+                          style: GoogleFonts.manrope(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : _ProfColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          sub?.isLifetime == true ? 'No renewal required' : 'Cycle valid until $expiryDate',
+                          style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => context.push('/subscription'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF2B3242) : _ProfColors.paper,
+                      foregroundColor: isDark ? Colors.white : _ProfColors.ink,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('Change Plan', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Storage Quota Meter
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Cloud Storage Quota',
+          subtitle: 'Dynamic storage utilized for measurements, garment photos, and cloth swatches.',
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${usedMb.toStringAsFixed(2)} MB used of $baseStorageDisplay',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : _ProfColors.ink,
+                        ),
+                      ),
+                      Text(
+                        '${(storageProgress * 100).toStringAsFixed(1)}%',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: storageProgress > 0.9 ? _ProfColors.rose : _ProfColors.gold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: storageProgress,
+                      minHeight: 10,
+                      backgroundColor: isDark ? const Color(0xFF2B3242) : _ProfColors.line,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        storageProgress > 0.9 ? _ProfColors.rose : _ProfColors.gold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: isAddonActive ? _ProfColors.greenBg : (isDark ? const Color(0xFF232A38) : _ProfColors.paper),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isAddonActive ? '✓ Storage Add-on Active (+5 GB)' : 'Standard Plan Quota',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: isAddonActive ? _ProfColors.green : _ProfColors.muted,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => context.push('/subscription'),
+                        icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+                        label: Text('Upgrade Storage', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                        style: TextButton.styleFrom(foregroundColor: _ProfColors.gold),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SECTION 5: TAB 3 — NAAP TEMPLATES
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildTemplatesTab({
+    required bool isDark,
+    required AsyncValue<List<Map<String, dynamic>>> templatesAsync,
+  }) {
+    final templates = templatesAsync.valueOrNull ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Measurement Profiles (Naap Templates)',
+          subtitle: 'Pre-configured measurement fields used when taking customer orders.',
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${templates.length} Active Templates',
+                  style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: _ProfColors.muted),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => AddTemplateModal.show(context),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: Text('Add Template', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _ProfColors.gold,
+                    foregroundColor: const Color(0xFF211500),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (templates.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    'No custom templates created yet. Default templates are available.',
+                    style: GoogleFonts.dmSans(fontSize: 13, color: _ProfColors.muted),
+                  ),
+                ),
+              )
+            else
+              ...templates.map((tpl) {
+                final name = tpl['name'] as String? ?? 'Custom Template';
+                final category = tpl['category'] as String? ?? 'General';
+                final isDef = tpl['is_default'] == true;
+                final fields = tpl['fields'] is List ? (tpl['fields'] as List).length : 0;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF222836) : _ProfColors.paper,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
                   ),
                   child: Row(
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [_ProfColors.gold2, _ProfColors.gold],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
+                          color: _ProfColors.goldBg,
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Center(
-                          child: Text(
-                            'D',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF241605),
-                            ),
-                          ),
+                          child: Icon(Icons.straighten_rounded, size: 20, color: _ProfColors.gold),
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1013,1535 +1504,343 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Profile & Settings', style: _ProfStyles.heroTitle),
-                            const SizedBox(height: 3),
-                            Text('Manage your shop, templates, and app preferences · پروفائل اور سیٹنگز', style: _ProfStyles.heroSub),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Top Action Buttons
-                      if (isDesktop) ...[
-                        // Theme Toggle
-                        _buildHeroActionButton(
-                          icon: isDark ? '☀️' : '🌙',
-                          label: 'Theme',
-                          onTap: () {
-                            final newMode = isDark ? ThemeMode.light : ThemeMode.dark;
-                            ref.read(themeModeProvider.notifier).state = newMode;
-                            settingsBox.put('themeMode', isDark ? 'light' : 'dark');
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        // Edit Profile
-                        _buildHeroActionButton(
-                          icon: '✏',
-                          label: 'Edit',
-                          onTap: () => _openEditProfileModal(shopName, ownerName, phoneNum, addressVal),
-                        ),
-                        const SizedBox(width: 8),
-                        // Save Button
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('✓ Profile saved successfully!'), backgroundColor: _ProfColors.green),
-                            );
-                          },
-                          child: Container(
-                            height: 40,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [_ProfColors.gold2, _ProfColors.gold]),
-                              borderRadius: BorderRadius.circular(12),
+                            Row(
+                              children: [
+                                Text(
+                                  name,
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark ? Colors.white : _ProfColors.ink,
+                                  ),
+                                ),
+                                if (isDef) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _ProfColors.greenBg,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Default',
+                                      style: GoogleFonts.dmSans(fontSize: 9.5, fontWeight: FontWeight.w800, color: _ProfColors.green),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            child: Center(
-                              child: Text('✓ Save', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF211500))),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // 2. MAIN LAYOUT (DESKTOP: SIDEBAR + CONTENT, MOBILE: STACKED)
-              if (isDesktop)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // LEFT COLUMN: SIDEBAR (320px)
-                    SizedBox(
-                      width: 320,
-                      child: _buildDesktopSidebar(
-                        context,
-                        shopName: shopName,
-                        ownerName: ownerName,
-                        addressVal: addressVal,
-                        logoUrl: logoUrl,
-                        isDark: isDark,
-                        isPro: isPro,
-                        usedMb: usedMb,
-                        storageProgress: storageProgress,
-                      ),
-                    ),
-                    const SizedBox(width: 18),
-                    // RIGHT COLUMN: MAIN CONTENT (TABS + ACTIVE VIEW)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildNavbar(isDark),
-                          const SizedBox(height: 14),
-                          _buildActiveViewContent(
-                            isDark: isDark,
-                            isUrdu: isUrdu,
-                            shopName: shopName,
-                            ownerName: ownerName,
-                            phoneNum: phoneNum,
-                            addressVal: addressVal,
-                            cardFooter: cardFooter,
-                            logoUrl: logoUrl,
-                            clientsCount: clientsCount,
-                            activeOrdersCount: activeOrdersCount,
-                            isPro: isPro,
-                            usedMb: usedMb,
-                            storageProgress: storageProgress,
-                            templatesAsync: templatesAsync,
-                            settingsBox: settingsBox,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              else
-                // MOBILE COMPACT VIEW (< 1000px)
-                Column(
-                  children: [
-                    // Compact Mobile Hero Card (.m-hero) — on tabs other than Overview
-                    if (_activeTab != 'overview') ...[
-                      _buildMobileHeroCard(
-                        isDark: isDark,
-                        shopName: shopName,
-                        ownerName: ownerName,
-                        addressVal: addressVal,
-                        logoUrl: logoUrl,
-                        clientsCount: clientsCount,
-                        activeOrdersCount: activeOrdersCount,
-                        isPro: isPro,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    // Mobile Tabs
-                    _buildNavbar(isDark),
-                    const SizedBox(height: 14),
-                    // Content
-                    _buildActiveViewContent(
-                      isDark: isDark,
-                      isUrdu: isUrdu,
-                      shopName: shopName,
-                      ownerName: ownerName,
-                      phoneNum: phoneNum,
-                      addressVal: addressVal,
-                      cardFooter: cardFooter,
-                      logoUrl: logoUrl,
-                      clientsCount: clientsCount,
-                      activeOrdersCount: activeOrdersCount,
-                      isPro: isPro,
-                      usedMb: usedMb,
-                      storageProgress: storageProgress,
-                      templatesAsync: templatesAsync,
-                      settingsBox: settingsBox,
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ──── Hero Top Action Button ────
-  Widget _buildHeroActionButton({required String icon, required String label, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1D222D),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF333946)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 6),
-            Text(label, style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFFE9ECF2))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ──── DESKTOP SIDEBAR (.side, 320px) ────
-  Widget _buildDesktopSidebar(
-    BuildContext context, {
-    required String shopName,
-    required String ownerName,
-    required String addressVal,
-    required String? logoUrl,
-    required bool isDark,
-    required bool isPro,
-    required double usedMb,
-    required double storageProgress,
-  }) {
-    return RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? _ProfColors.darkCard : _ProfColors.white,
-          border: Border.all(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12111827),
-              blurRadius: 20,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Side Cover
-            Container(
-              height: 130,
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0.6, -0.4),
-                  radius: 1.2,
-                  colors: [Color(0xFF2A2110), Color(0xFF181D27)],
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // 70px Avatar with Online Dot
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      _buildAvatar(
-                        logoUrl: logoUrl,
-                        shopName: shopName,
-                        size: 64,
-                        radius: 20,
-                        fontSize: 22,
-                      ),
-                      Positioned(
-                        bottom: 2,
-                        right: 2,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10CBA0),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF181D27), width: 2.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(shopName, style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text(
-                    addressVal.isNotEmpty ? '$ownerName · $addressVal' : ownerName.isNotEmpty ? ownerName : 'Owner Name',
-                    style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFFAEB5C2)),
-                  ),
-                ],
-              ),
-            ),
-
-            // Side Body
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // Side Nav Items
-                  _buildSideNavItem(
-                    icon: '🏪',
-                    title: 'Shop Profile',
-                    subtitle: 'Name, owner, contact',
-                    isActive: _activeTab == 'shop',
-                    isDark: isDark,
-                    onTap: () => setState(() => _activeTab = 'shop'),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildSideNavItem(
-                    icon: '📐',
-                    title: 'Naap Templates',
-                    subtitle: '3 defaults · add new',
-                    isActive: _activeTab == 'templates',
-                    isDark: isDark,
-                    onTap: () => setState(() => _activeTab = 'templates'),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildSideNavItem(
-                    icon: '⚙️',
-                    title: 'App Settings',
-                    subtitle: 'Theme, language, updates',
-                    isActive: _activeTab == 'settings',
-                    isDark: isDark,
-                    onTap: () => setState(() => _activeTab = 'settings'),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildSideNavItem(
-                    icon: '⭐',
-                    title: 'Plan & Storage',
-                    subtitle: isPro ? 'Pro · Limited storage' : 'Free Plan',
-                    isActive: _activeTab == 'overview',
-                    isDark: isDark,
-                    onTap: () => setState(() => _activeTab = 'overview'),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildSideNavItem(
-                    icon: '🔒',
-                    title: 'Security',
-                    subtitle: 'Password, logout',
-                    isActive: false,
-                    isDark: isDark,
-                    onTap: () => setState(() => _activeTab = 'settings'),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Storage Meter (.side-meter)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _ProfColors.goldBg,
-                      border: Border.all(color: _ProfColors.goldLine, style: BorderStyle.solid),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('CLOUD STORAGE', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w900, color: const Color(0xFF8B6C22))),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(7)),
-                              child: Text(
-                                '${usedMb.toStringAsFixed(2)} / 1.5 MB',
-                                style: GoogleFonts.ibmPlexMono(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFF8B6C22)),
-                              ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Category: $category · $fields Measurement Fields',
+                              style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(3),
-                          child: LinearProgressIndicator(
-                            value: storageProgress,
-                            minHeight: 6,
-                            backgroundColor: Colors.white,
-                            valueColor: const AlwaysStoppedAnimation<Color>(_ProfColors.gold),
-                          ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          'Limited plan · upgrade for unlimited storage',
-                          style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF8B6C22)),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 14),
-
-                  // Quick Actions (.side-quick)
-                  ElevatedButton(
-                    onPressed: () => AddTemplateModal.show(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _ProfColors.gold,
-                      foregroundColor: const Color(0xFF211500),
-                      minimumSize: const Size(double.infinity, 40),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text('＋ Add Naap Template', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
-                  ),
-                  const SizedBox(height: 7),
-                  OutlinedButton(
-                    onPressed: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      try {
-                        final update = await UpdateService().checkForUpdate();
-                        if (update != null && context.mounted) {
-                          showDialog(context: context, builder: (_) => UpdateDialog(update: update));
-                        } else {
-                          messenger.showSnackBar(const SnackBar(content: Text('App is up to date!'), backgroundColor: _ProfColors.green));
-                        }
-                      } catch (e) {
-                        messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: _ProfColors.rose));
-                      }
-                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 40),
-                      side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text('🔄 Check Updates', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-                  ),
-                ],
-              ),
-            ),
+                );
+              }),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSideNavItem({
-    required String icon,
-    required String title,
-    required String subtitle,
-    required bool isActive,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: isActive ? _ProfColors.dark : Colors.transparent,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: isActive ? Colors.white10 : (isDark ? _ProfColors.dark : _ProfColors.paper),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(child: Text(icon, style: const TextStyle(fontSize: 15))),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.manrope(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: isActive ? Colors.white : (isDark ? Colors.white : _ProfColors.ink),
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: isActive ? const Color(0xFFAEB5C2) : _ProfColors.muted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 12,
-              color: isActive ? const Color(0xFFAEB5C2) : _ProfColors.faint,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ──── STICKY NAVBAR TABS (.navbar) ────
-  Widget _buildNavbar(bool isDark) {
-    return RepaintBoundary(
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: isDark ? _ProfColors.darkCard : _ProfColors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildTabBtn('Overview', 'overview', isDark),
-                    const SizedBox(width: 4),
-                    _buildTabBtn('Shop', 'shop', isDark),
-                    const SizedBox(width: 4),
-                    _buildTabBtn('Templates', 'templates', isDark),
-                    const SizedBox(width: 4),
-                    _buildTabBtn('Settings', 'settings', isDark),
-                  ],
-                ),
-              ),
-            ),
-            // Actions on right
-            IconButton(
-              icon: const Text('🌐', style: TextStyle(fontSize: 16)),
-              onPressed: _openLangSheet,
-              tooltip: 'Language',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabBtn(String label, String id, bool isDark) {
-    final isActive = _activeTab == id;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _activeTab = id);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isActive ? _ProfColors.dark : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isActive) ...[
-              Container(width: 6, height: 6, decoration: const BoxDecoration(color: _ProfColors.gold, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: GoogleFonts.manrope(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: isActive ? Colors.white : (isDark ? const Color(0xFFCBD5E1) : _ProfColors.muted),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ──── MOBILE HERO CARD (.m-hero) ────
-  Widget _buildMobileHeroCard({
-    required bool isDark,
-    required String shopName,
-    required String ownerName,
-    required String addressVal,
-    required String? logoUrl,
-    required int clientsCount,
-    required int activeOrdersCount,
-    required bool isPro,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const RadialGradient(
-          center: Alignment(0.8, -0.6),
-          radius: 1.5,
-          colors: [Color(0xFF2A2110), Color(0xFF1B2436)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _buildAvatar(
-                logoUrl: logoUrl,
-                shopName: shopName,
-                size: 60,
-                radius: 18,
-                fontSize: 22,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(shopName, style: GoogleFonts.manrope(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white)),
-                    const SizedBox(height: 2),
-                    Text(
-                      addressVal.isNotEmpty ? '$ownerName · $addressVal' : ownerName.isNotEmpty ? ownerName : 'Owner Name',
-                      style: GoogleFonts.dmSans(fontSize: 11, color: const Color(0xFFAEB5C2)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // 3-stat strip
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0x10FFFFFF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x14FFFFFF)),
-            ),
-            child: Row(
-              children: [
-                Expanded(child: _buildMobileStat('$clientsCount', 'CLIENTS')),
-                Container(width: 1, height: 22, color: Colors.white12),
-                Expanded(child: _buildMobileStat('$activeOrdersCount', 'ACTIVE')),
-                Container(width: 1, height: 22, color: Colors.white12),
-                Expanded(child: _buildMobileStat(isPro ? 'PRO' : 'FREE', 'PLAN')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobileStat(String val, String lbl) {
-    return Column(
-      children: [
-        Text(val, style: GoogleFonts.ibmPlexMono(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        const SizedBox(height: 2),
-        Text(lbl, style: GoogleFonts.dmSans(fontSize: 8.5, fontWeight: FontWeight.w900, color: const Color(0xFFAEB5C2), letterSpacing: 0.5)),
       ],
     );
   }
 
-  // ──── VIEW CONTENT SWITCHER ────
-  Widget _buildActiveViewContent({
+  // ═════════════════════════════════════════════════════════════════════════
+  // SECTION 6: TAB 4 — SETTINGS & SECURITY
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildSettingsAndSecurityTab({
     required bool isDark,
     required bool isUrdu,
-    required String shopName,
-    required String ownerName,
-    required String phoneNum,
-    required String addressVal,
-    required String cardFooter,
-    required String? logoUrl,
-    required int clientsCount,
-    required int activeOrdersCount,
-    required bool isPro,
-    required double usedMb,
-    required double storageProgress,
-    required AsyncValue<List<Map<String, dynamic>>> templatesAsync,
     required Box settingsBox,
   }) {
-    switch (_activeTab) {
-      case 'shop':
-        return _buildShopTabView(isDark, shopName, ownerName, phoneNum, addressVal, cardFooter, logoUrl, settingsBox);
-      case 'templates':
-        return _buildTemplatesTabView(isDark, templatesAsync);
-      case 'settings':
-        return _buildSettingsTabView(isDark, isUrdu, settingsBox);
-      case 'overview':
-      default:
-        return _buildOverviewTabView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // App Preferences
+        _buildContentCard(
           isDark: isDark,
-          isUrdu: isUrdu,
-          shopName: shopName,
-          ownerName: ownerName,
-          phoneNum: phoneNum,
-          addressVal: addressVal,
-          cardFooter: cardFooter,
-          logoUrl: logoUrl,
-          clientsCount: clientsCount,
-          activeOrdersCount: activeOrdersCount,
-          isPro: isPro,
-          usedMb: usedMb,
-          storageProgress: storageProgress,
-          templatesAsync: templatesAsync,
-          settingsBox: settingsBox,
-        );
-    }
-  }
-
-  // ──── TAB 1: OVERVIEW VIEW ────
-  Widget _buildOverviewTabView({
-    required bool isDark,
-    required bool isUrdu,
-    required String shopName,
-    required String ownerName,
-    required String phoneNum,
-    required String addressVal,
-    required String cardFooter,
-    required String? logoUrl,
-    required int clientsCount,
-    required int activeOrdersCount,
-    required bool isPro,
-    required double usedMb,
-    required double storageProgress,
-    required AsyncValue<List<Map<String, dynamic>>> templatesAsync,
-    required Box settingsBox,
-  }) {
-    final planLabel = isPro ? 'PRO' : 'FREE';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Overview Section Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          title: 'Preferences',
+          subtitle: 'Display appearance and localization.',
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Dashboard', style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-                const SizedBox(height: 2),
-                Text('Everything about your shop, in one place.', style: GoogleFonts.dmSans(fontSize: 11, color: _ProfColors.muted)),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-              decoration: BoxDecoration(
-                color: _ProfColors.greenBg,
-                borderRadius: BorderRadius.circular(11),
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
                 children: [
-                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: _ProfColors.green, shape: BoxShape.circle)),
-                  const SizedBox(width: 6),
-                  Text('Active', style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w800, color: _ProfColors.green)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        // BIG PROFILE HERO CARD (.profile-hero)
-        RepaintBoundary(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [const Color(0xFF2A2110), const Color(0xFF181D27)]
-                    : [_ProfColors.goldBg, const Color(0xFFFFFDF8), Colors.white],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(color: _ProfColors.goldLine),
-              borderRadius: BorderRadius.circular(26),
-              boxShadow: const [
-                BoxShadow(color: Color(0x1AE9A227), blurRadius: 24, offset: Offset(0, 10)),
-              ],
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isCompact = constraints.maxWidth < 680;
-
-                final avatarWidget = Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _buildAvatar(
-                      logoUrl: logoUrl,
-                      shopName: shopName,
-                      size: isCompact ? 72 : 90,
-                      radius: isCompact ? 20 : 24,
-                      fontSize: isCompact ? 26 : 32,
-                    ),
-                    Positioned(
-                      bottom: 2,
-                      right: 2,
-                      child: Container(
-                        width: isCompact ? 14 : 16,
-                        height: isCompact ? 14 : 16,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10CBA0),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-
-                final infoWidget = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      shopName,
-                      style: (isCompact
-                              ? GoogleFonts.manrope(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5)
-                              : _ProfStyles.shopNameBig)
-                          .copyWith(color: isDark ? Colors.white : _ProfColors.ink),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '$ownerName · $addressVal',
-                      style: GoogleFonts.dmSans(
-                        fontSize: isCompact ? 11.5 : 12.5,
-                        color: _ProfColors.muted,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                );
-
-                final statsWidget = Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.6),
-                    border: Border.all(color: _ProfColors.goldLine),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(child: _buildStatItem('$clientsCount', 'CLIENTS')),
-                      Container(width: 1, height: 26, color: _ProfColors.goldLine),
-                      Expanded(child: _buildStatItem('$activeOrdersCount', 'ACTIVE')),
-                      Container(width: 1, height: 26, color: _ProfColors.goldLine),
-                      Expanded(child: _buildStatItem(isPro ? 'PRO' : 'FREE', 'PLAN')),
-                    ],
-                  ),
-                );
-
-                final editBtn = ElevatedButton(
-                  onPressed: () => _openEditProfileModal(shopName, ownerName, phoneNum, addressVal),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _ProfColors.gold,
-                    foregroundColor: const Color(0xFF211500),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text('✏ Edit Profile', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
-                );
-
-                final logoBtn = OutlinedButton(
-                  onPressed: _isUploadingLogo ? null : _pickAndUploadLogo,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                    side: BorderSide(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-                    backgroundColor: isDark ? _ProfColors.dark : Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isUploadingLogo
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text('🖼 Change Logo', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-                );
-
-                if (isCompact) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          avatarWidget,
-                          const SizedBox(width: 14),
-                          Expanded(child: infoWidget),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(child: editBtn),
-                          const SizedBox(width: 10),
-                          Expanded(child: logoBtn),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      statsWidget,
-                    ],
-                  );
-                }
-
-                // Desktop spacious row
-                return Row(
-                  children: [
-                    avatarWidget,
-                    const SizedBox(width: 22),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          infoWidget,
-                          const SizedBox(height: 14),
-                          statsWidget,
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        editBtn,
-                        const SizedBox(height: 8),
-                        logoBtn,
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-
-        // PLAN & STORAGE CARD (.plan-card)
-        RepaintBoundary(
-          child: Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [_ProfColors.darkCard, const Color(0xFF1B2436)]
-                    : [const Color(0xFFFFFDF8), Colors.white],
-              ),
-              border: Border.all(color: _ProfColors.goldLine),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('CURRENT PLAN', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w900, color: _ProfColors.muted, letterSpacing: 1)),
-                        const SizedBox(height: 4),
-                        Text(isPro ? 'Professional' : 'Free Plan', style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w900, color: isDark ? Colors.white : _ProfColors.ink)),
-                        const SizedBox(height: 2),
-                        Text('Active license · Darzi Pro Tailor Suite', style: GoogleFonts.dmSans(fontSize: 11.5, color: _ProfColors.muted)),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_ProfColors.gold2, _ProfColors.gold]),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.star_rounded, size: 14, color: Color(0xFF211500)),
-                          const SizedBox(width: 4),
-                          Text(planLabel, style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w900, color: const Color(0xFF211500))),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Cloud Storage', style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: _ProfColors.muted)),
-                    Text('Limited · ${usedMb.toStringAsFixed(2)} MB / 1.5 MB', style: GoogleFonts.ibmPlexMono(fontSize: 11.5, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: LinearProgressIndicator(
-                    value: storageProgress,
-                    minHeight: 8,
-                    backgroundColor: isDark ? _ProfColors.dark : _ProfColors.paper,
-                    valueColor: const AlwaysStoppedAnimation<Color>(_ProfColors.gold),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => context.push('/subscription'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _ProfColors.gold,
-                          foregroundColor: const Color(0xFF211500),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-                        ),
-                        child: Text('⬆ Plan & Billing', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => StorageAddonModal.show(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: _ProfColors.green),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-                        ),
-                        child: Text('☁ Buy Storage', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800, color: _ProfColors.green)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-
-        // SHOP PROFILE 5 ROWS (Matches HTML #section-shop)
-        _buildSectionHeader('SHOP PROFILE', '5 fields', _ProfColors.gold),
-        const SizedBox(height: 10),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildProfileRow('🏪', 'Shop Name', shopName, isDark, hint: 'e.g. Ahmed Tailors', onTap: () {
-              _openFieldEdit('Shop Name', shopName, (val) => _updateShopField('name', val));
-            }),
-            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, hint: 'e.g. Muhammad Ahmed', onTap: () {
-              _openFieldEdit('Owner Name', ownerName, (val) => _updateProfileField('full_name', val));
-            }),
-            _buildProfileRow('📞', 'Phone', phoneNum, isDark, hint: 'e.g. 0300-1234567', onTap: () {
-              _openFieldEdit('Phone', phoneNum, (val) => _updateShopField('phone', val));
-            }),
-            _buildProfileRow('📍', 'Address', addressVal, isDark, hint: 'e.g. Main Bazaar, Lahore', onTap: () {
-              _openFieldEdit('Address', addressVal, (val) => _updateShopField('address', val), maxLines: 2);
-            }),
-            _buildProfileRow('🪪', 'Card Footer', cardFooter, isDark, isLast: true, hint: 'e.g. Thank you for your business!', onTap: () {
-              _openFieldEdit('Card Footer', cardFooter, (val) async {
-                await settingsBox.put('card_footer', val);
-                if (mounted) setState(() {});
-              });
-            }),
-          ],
-        ),
-        const SizedBox(height: 18),
-
-        // MEASUREMENT TEMPLATES 3 DEFAULTS + ADD (Matches HTML #section-templates)
-        _buildSectionHeader('MEASUREMENT TEMPLATES', '3', _ProfColors.green),
-        const SizedBox(height: 10),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildTemplateRow('👔', 'Shalwar Kameez', 'Default Template · 15 fields', 'Default', isDark),
-            _buildTemplateRow('👑', 'Sherwani', 'Default Template · 12 fields', 'Default', isDark),
-            _buildTemplateRow('🧥', 'Waistcoat', 'Default Template · 8 fields', 'Default', isDark),
-            // Add custom template row
-            GestureDetector(
-              onTap: () => AddTemplateModal.show(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [const Color(0x1F18B887), Colors.transparent]
-                        : [_ProfColors.greenBg, Colors.white],
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: _ProfColors.greenBg,
-                        border: Border.all(color: _ProfColors.greenLine),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: const Center(child: Text('＋', style: TextStyle(color: _ProfColors.green, fontSize: 18, fontWeight: FontWeight.bold))),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Add Custom Template', style: GoogleFonts.manrope(fontSize: 13.5, fontWeight: FontWeight.w700, color: _ProfColors.green)),
-                          const SizedBox(height: 2),
-                          Text('Create new measurement set', style: GoogleFonts.dmSans(fontSize: 11.5, color: _ProfColors.muted)),
-                        ],
-                      ),
-                    ),
-                    const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ──── TAB 2: SHOP TAB VIEW ────
-  Widget _buildShopTabView(
-    bool isDark,
-    String shopName,
-    String ownerName,
-    String phoneNum,
-    String addressVal,
-    String cardFooter,
-    String? logoUrl,
-    Box settingsBox,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Shop Profile', style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-                const SizedBox(height: 2),
-                Text('Your shop identity and contact details.', style: GoogleFonts.dmSans(fontSize: 11, color: _ProfColors.muted)),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-              decoration: BoxDecoration(color: _ProfColors.goldBg, borderRadius: BorderRadius.circular(10)),
-              child: Text('Editable', style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFF8B6C22))),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildSectionHeader('SHOP IDENTITY', '', _ProfColors.gold),
-        const SizedBox(height: 8),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildProfileRow('🏪', 'Shop Name', shopName, isDark, hint: 'e.g. Ahmed Tailors', onTap: () {
-              _openFieldEdit('Shop Name', shopName, (val) => _updateShopField('name', val));
-            }),
-            _buildProfileRow('👤', 'Owner Name', ownerName, isDark, hint: 'e.g. Muhammad Ahmed', onTap: () {
-              _openFieldEdit('Owner Name', ownerName, (val) => _updateProfileField('full_name', val));
-            }),
-            _buildProfileRow(
-              '🖼️',
-              'Shop Logo',
-              logoUrl != null && logoUrl.isNotEmpty ? 'Logo Uploaded · Tap to Change' : '',
-              isDark,
-              isLast: true,
-              hint: 'Tap to upload shop logo',
-              trailing: _isUploadingLogo
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : (logoUrl != null && logoUrl.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            _resolveLogoUrl(logoUrl) ?? '',
-                            width: 28,
-                            height: 28,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold)),
-                          ),
-                        )
-                      : const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold))),
-              onTap: _isUploadingLogo ? null : _pickAndUploadLogo,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildSectionHeader('CONTACT', '', _ProfColors.blue),
-        const SizedBox(height: 8),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildProfileRow('📞', 'Phone', phoneNum, isDark, hint: 'e.g. 0300-1234567', onTap: () {
-              _openFieldEdit('Phone', phoneNum, (val) => _updateShopField('phone', val));
-            }),
-            _buildProfileRow('📍', 'Address', addressVal, isDark, hint: 'e.g. Main Bazaar, Lahore', onTap: () {
-              _openFieldEdit('Address', addressVal, (val) => _updateShopField('address', val), maxLines: 2);
-            }),
-            _buildProfileRow('🪪', 'Card Footer', cardFooter, isDark, isLast: true, hint: 'e.g. Thank you for your business!', onTap: () {
-              _openFieldEdit('Card Footer', cardFooter, (val) async {
-                await settingsBox.put('card_footer', val);
-                if (mounted) setState(() {});
-              });
-            }),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ──── TAB 3: TEMPLATES TAB VIEW ────
-  Widget _buildTemplatesTabView(bool isDark, AsyncValue<List<Map<String, dynamic>>> templatesAsync) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Measurement Templates', style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-                const SizedBox(height: 2),
-                Text('Reusable naap sets for quick order creation.', style: GoogleFonts.dmSans(fontSize: 11, color: _ProfColors.muted)),
-              ],
-            ),
-            ElevatedButton(
-              onPressed: () => AddTemplateModal.show(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _ProfColors.gold,
-                foregroundColor: const Color(0xFF211500),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text('＋ Add Template', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildTemplateRow('👔', 'Shalwar Kameez', '15 fields · Updated 12 Feb 2026', 'Default', isDark),
-            _buildTemplateRow('👑', 'Sherwani', '12 fields · Updated 10 Feb 2026', 'Default', isDark),
-            _buildTemplateRow('🧥', 'Waistcoat', '8 fields · Updated 05 Feb 2026', 'Default', isDark),
-            GestureDetector(
-              onTap: () => AddTemplateModal.show(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [const Color(0x1F18B887), Colors.transparent]
-                        : [_ProfColors.greenBg, Colors.white],
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: _ProfColors.greenBg,
-                        border: Border.all(color: _ProfColors.greenLine),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: const Center(child: Text('＋', style: TextStyle(color: _ProfColors.green, fontSize: 18, fontWeight: FontWeight.bold))),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Add Custom Template', style: GoogleFonts.manrope(fontSize: 13.5, fontWeight: FontWeight.w700, color: _ProfColors.green)),
-                          const SizedBox(height: 2),
-                          Text('Create a new measurement set', style: GoogleFonts.dmSans(fontSize: 11.5, color: _ProfColors.muted)),
-                        ],
-                      ),
-                    ),
-                    const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ──── TAB 4: SETTINGS TAB VIEW ────
-  Widget _buildSettingsTabView(bool isDark, bool isUrdu, Box settingsBox) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('App Settings', style: GoogleFonts.manrope(fontSize: 22, fontWeight: FontWeight.w800, color: isDark ? Colors.white : _ProfColors.ink)),
-            const SizedBox(height: 2),
-            Text('Theme, language, and updates.', style: GoogleFonts.dmSans(fontSize: 11, color: _ProfColors.muted)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildSectionHeader('APPEARANCE & LANGUAGE', '', _ProfColors.gold),
-        const SizedBox(height: 8),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            // Theme Row with animated toggle switch
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(color: _ProfColors.goldBg, border: Border.all(color: _ProfColors.goldLine), borderRadius: BorderRadius.circular(11)),
-                    child: Center(child: Text(isDark ? '☀️' : '🌙', style: const TextStyle(fontSize: 16))),
-                  ),
+                  Icon(isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded, size: 20, color: _ProfColors.gold),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Theme', style: _ProfStyles.rowLabel.copyWith(color: isDark ? Colors.white : _ProfColors.ink)),
-                        const SizedBox(height: 2),
-                        Text(isDark ? 'Dark Mode' : 'Light Mode', style: _ProfStyles.rowSub),
+                        Text('Theme Mode', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : _ProfColors.ink)),
+                        Text(isDark ? 'Dark theme active' : 'Light theme active', style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted)),
                       ],
                     ),
                   ),
-                  // Animated switch
-                  GestureDetector(
-                    onTap: () {
-                      final newMode = isDark ? ThemeMode.light : ThemeMode.dark;
+                  Switch.adaptive(
+                    value: isDark,
+                    activeTrackColor: _ProfColors.gold,
+                    onChanged: (val) {
+                      final newMode = val ? ThemeMode.dark : ThemeMode.light;
                       ref.read(themeModeProvider.notifier).state = newMode;
-                      settingsBox.put('themeMode', isDark ? 'light' : 'dark');
+                      settingsBox.put('themeMode', val ? 'dark' : 'light');
                     },
-                    child: Container(
-                      width: 42,
-                      height: 24,
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: isDark ? _ProfColors.gold : _ProfColors.line,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Align(
-                        alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(width: 20, height: 20, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
-                      ),
-                    ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: _ProfColors.line),
-            // Language
-            _buildProfileRow('🌐', 'Language', isUrdu ? 'اردو' : 'English', isDark, onTap: _openLangSheet),
-            // Check for Updates
-            _buildProfileRow('🔄', 'Check for Updates', 'Version 1.0.0', isDark, isLast: true, onTap: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                final update = await UpdateService().checkForUpdate();
-                if (!mounted) return;
-                if (update != null) {
-                  showDialog(context: context, builder: (_) => UpdateDialog(update: update));
-                } else {
-                  messenger.showSnackBar(const SnackBar(content: Text('App is up to date!'), backgroundColor: _ProfColors.green));
-                }
-              } catch (e) {
-                messenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: _ProfColors.rose));
-              }
-            }),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // Security Section (Blue bar)
-        _buildSectionHeader('SECURITY', '', _ProfColors.blue),
-        const SizedBox(height: 8),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildProfileRow('🔒', 'Change Password', 'Update your login password', isDark, onTap: () {
-              ChangePasswordModal.show(context);
-            }),
-            _buildProfileRow('🛡️', 'Two-Factor Auth', 'Not enabled', isDark, isLast: true, trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(color: _ProfColors.blueBg, borderRadius: BorderRadius.circular(6)),
-              child: Text('Setup', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w800, color: _ProfColors.blue)),
-            )),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // Danger Zone (Rose bar)
-        _buildSectionHeader('DANGER ZONE', '', _ProfColors.rose),
-        const SizedBox(height: 8),
-        _buildCardWrapper(
-          isDark,
-          children: [
-            _buildProfileRow('🚪', 'Logout', 'Sign out of your account', isDark, isDanger: true, onTap: _openLogoutModal),
-            _buildProfileRow('🗑️', 'Delete My Account', 'Permanently delete all data — cannot be undone', isDark, isDanger: true, isLast: true, onTap: () {
-              DeleteAccountScreen.show(context);
-            }),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ──── HELPER REUSABLE WIDGETS ────
-  Widget _buildStatItem(String val, String lbl) {
-    return Column(
-      children: [
-        Text(val, style: _ProfStyles.statNum),
-        const SizedBox(height: 2),
-        Text(lbl, style: _ProfStyles.statLbl),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title, String count, Color barColor) {
-    return Row(
-      children: [
-        Container(width: 3.5, height: 18, decoration: BoxDecoration(color: barColor, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 8),
-        Text(title, style: _ProfStyles.sectionTitle),
-        if (count.isNotEmpty) ...[
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: _ProfColors.paper,
-              border: Border.all(color: _ProfColors.line),
-              borderRadius: BorderRadius.circular(6),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.language_rounded, size: 20, color: _ProfColors.blue),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('App Language', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : _ProfColors.ink)),
+                        Text(isUrdu ? 'اردو (Urdu)' : 'English', style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted)),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      final newLang = isUrdu ? 'en' : 'ur';
+                      ref.read(localeProvider.notifier).setLanguage(newLang);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(isUrdu ? 'Switch to English' : 'اردو میں تبدیل کریں', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
             ),
-            child: Text(count, style: GoogleFonts.ibmPlexMono(fontSize: 10, fontWeight: FontWeight.w700, color: _ProfColors.muted)),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Security & Account
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Account Security',
+          subtitle: 'Authentication and active sessions.',
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_reset_rounded, size: 20, color: _ProfColors.gold),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Change Password', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : _ProfColors.ink)),
+                        Text('Update your login password regularly', style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted)),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => ChangePasswordModal.show(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF2B3242) : _ProfColors.paper,
+                      foregroundColor: isDark ? Colors.white : _ProfColors.ink,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('Change', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.logout_rounded, size: 20, color: _ProfColors.rose),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Sign Out', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : _ProfColors.ink)),
+                        Text('Log out of this device', style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted)),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: _openLogoutModal,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _ProfColors.rose,
+                      side: const BorderSide(color: _ProfColors.roseLine),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('Sign Out', style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Danger Zone
+        _buildContentCard(
+          isDark: isDark,
+          title: 'Danger Zone',
+          subtitle: 'Permanent account deletion and data removal.',
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, size: 20, color: _ProfColors.rose),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Delete Account', style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w700, color: _ProfColors.rose)),
+                        Text('Permanently delete your shop, orders, and customer records', style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted)),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => DeleteAccountScreen.show(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _ProfColors.rose,
+                      side: const BorderSide(color: _ProfColors.rose),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('Delete Account', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Build Info Badge
+        Center(
+          child: Text(
+            BuildInfo.fullBuildTag,
+            style: GoogleFonts.ibmPlexMono(fontSize: 11, color: _ProfColors.muted),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // REUSABLE CARD & ROW HELPERS
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildContentCard({
+    required bool isDark,
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: isDark ? _ProfColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildCardWrapper(bool isDark, {required List<Widget> children}) {
-    return RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? _ProfColors.darkCard : _ProfColors.white,
-          border: Border.all(color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.manrope(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : _ProfColors.ink,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: GoogleFonts.dmSans(fontSize: 12, color: _ProfColors.muted),
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
       ),
     );
   }
 
-  Widget _buildProfileRow(
-    String icon,
-    String label,
-    String subtitle,
-    bool isDark, {
-    VoidCallback? onTap,
-    Widget? trailing,
-    bool isDanger = false,
-    bool isLast = false,
-    String? hint,
+  Widget _buildDetailRow({
+    required bool isDark,
+    required IconData icon,
+    required String label,
+    required String value,
+    VoidCallback? onEdit,
   }) {
-    final bool isEmpty = subtitle.trim().isEmpty;
-    final String displayText = isEmpty ? (hint ?? 'Tap to add...') : subtitle;
-
-    return GestureDetector(
-      onTap: () {
-        if (onTap != null) {
-          HapticFeedback.lightImpact();
-          onTap();
-        }
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Column(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(
+          Icon(icon, size: 18, color: _ProfColors.gold),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isDanger
-                        ? _ProfColors.roseBg
-                        : (isDark ? _ProfColors.dark : _ProfColors.goldBg),
-                    border: Border.all(color: isDanger ? _ProfColors.roseLine : _ProfColors.goldLine),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Center(child: Text(icon, style: const TextStyle(fontSize: 16))),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: _ProfStyles.rowLabel.copyWith(
-                          color: isDanger ? _ProfColors.rose : (isDark ? Colors.white : _ProfColors.ink),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        displayText,
-                        style: _ProfStyles.rowSub.copyWith(
-                          color: isEmpty ? _ProfColors.faint : _ProfColors.muted,
-                          fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
-                        ),
-                      ),
-                    ],
+                Text(
+                  label,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _ProfColors.muted,
                   ),
                 ),
-                trailing ?? const Text('›', style: TextStyle(fontSize: 18, color: _ProfColors.faint, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : _ProfColors.ink,
+                  ),
+                ),
               ],
             ),
           ),
-          if (!isLast) Divider(height: 1, color: isDark ? _ProfColors.darkLine : _ProfColors.line),
+          if (onEdit != null)
+            TextButton(
+              onPressed: onEdit,
+              style: TextButton.styleFrom(
+                foregroundColor: _ProfColors.gold,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+              child: Text(
+                'Edit',
+                style: GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w800),
+              ),
+            ),
         ],
       ),
-    );
-  }
-
-  Widget _buildTemplateRow(String icon, String label, String subtitle, String pill, bool isDark) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _ProfColors.greenBg,
-                  border: Border.all(color: _ProfColors.greenLine),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Center(child: Text(icon, style: const TextStyle(fontSize: 16))),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: _ProfStyles.rowLabel.copyWith(color: isDark ? Colors.white : _ProfColors.ink)),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: _ProfStyles.rowSub),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: _ProfColors.greenBg,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(pill, style: GoogleFonts.dmSans(fontSize: 9.5, fontWeight: FontWeight.w800, color: _ProfColors.green)),
-              ),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: isDark ? _ProfColors.darkLine : _ProfColors.line),
-      ],
     );
   }
 }

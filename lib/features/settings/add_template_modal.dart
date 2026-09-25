@@ -201,7 +201,7 @@ class _AddTemplateModalState extends ConsumerState<AddTemplateModal> {
               'name': 'Shalwar Kameez (Men)',
               'category': 'men',
               'fields': ['lambai', 'teerwa', 'bazo', 'chhaati', 'baghal', 'kamar', 'daman', 'collar', 'shalwar', 'panche'],
-              'created_at': '2026-06-22T00:00:00.000Z',
+              'created_at': DateTime.now().toIso8601String(),
             },
             {
               'id': 'temp_women_kurti',
@@ -209,7 +209,7 @@ class _AddTemplateModalState extends ConsumerState<AddTemplateModal> {
               'name': 'Kurti / Suit (Women)',
               'category': 'women',
               'fields': ['lambai', 'teerwa', 'bazo', 'chhaati', 'kamar', 'hip', 'daman', 'gala', 'shalwar', 'panche'],
-              'created_at': '2026-06-22T00:00:00.000Z',
+              'created_at': DateTime.now().toIso8601String(),
             },
           ];
           currentList.addAll(defaultTemplates);
