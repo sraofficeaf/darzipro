@@ -35,6 +35,31 @@ class AdminService {
   Uri _restUri(String path) =>
       Uri.parse('${SupabaseConfig.url}/rest/v1$path');
 
+  Uri _functionUri(String path) =>
+      Uri.parse('${SupabaseConfig.url}/functions/v1$path');
+
+  Future<Map<String, dynamic>> _callAdminUsersEdgeFunction(Map<String, dynamic> payload) async {
+    try {
+      final res = await http.post(
+        _functionUri('/admin-users'),
+        headers: _adminHeaders,
+        body: jsonEncode(payload),
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      debugPrint('admin-users Edge Function failed: ${res.statusCode} ${res.body}');
+      try {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      } catch (_) {
+        return {'success': false, 'error': 'Server error: ${res.statusCode}'};
+      }
+    } catch (e) {
+      debugPrint('Error invoking admin-users Edge Function: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   Future<dynamic> _callAdminRpc(String fnName, [Map<String, dynamic>? params]) async {
     try {
       final res = await http.post(
@@ -124,31 +149,24 @@ class AdminService {
 
   Future<List<Map<String, dynamic>>> fetchAllShopUsers() async {
     try {
-      final res = await http.get(
-        _restUri('/profiles?select=id,full_name,role,created_at,shop_id,shops(id,name,phone,currency)&order=created_at.desc'),
-        headers: _adminHeaders,
-      );
-      if (res.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(res.body));
+      final res = await _callAdminUsersEdgeFunction({'action': 'list'});
+      if (res['success'] == true && res['users'] is List) {
+        return List<Map<String, dynamic>>.from(res['users']);
       }
     } catch (e) {
-      debugPrint('Error fetching shop users: $e');
+      debugPrint('Error fetching shop users via edge function: $e');
     }
     return [];
   }
 
   Future<List<Map<String, dynamic>>> fetchAuthUsers() async {
     try {
-      final res = await http.get(
-        _authUri('/admin/users?per_page=1000'),
-        headers: _adminHeaders,
-      );
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        return List<Map<String, dynamic>>.from(data['users'] ?? []);
+      final res = await _callAdminUsersEdgeFunction({'action': 'list'});
+      if (res['success'] == true && res['users'] is List) {
+        return List<Map<String, dynamic>>.from(res['users']);
       }
     } catch (e) {
-      debugPrint('Error fetching auth users: $e');
+      debugPrint('Error fetching auth users via edge function: $e');
     }
     return [];
   }
@@ -158,91 +176,49 @@ class AdminService {
     required String password,
     required String shopName,
     required String ownerName,
+    String? phone,
   }) async {
-    try {
-      final authRes = await http.post(
-        _authUri('/admin/users'),
-        headers: _adminHeaders,
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-          'email_confirm': true,
-        }),
-      );
-
-      if (authRes.statusCode != 200 && authRes.statusCode != 201) {
-        final err = jsonDecode(authRes.body);
-        return {'success': false, 'error': err['message'] ?? 'User creation failed'};
-      }
-
-      final authUser = jsonDecode(authRes.body) as Map<String, dynamic>;
-      final userId = authUser['id'] as String;
-
-      final shopRes = await http.post(
-        _restUri('/shops'),
-        headers: _restHeaders,
-        body: jsonEncode({
-          'name': shopName,
-          'currency': 'PKR',
-          'invite_code': _generateInviteCode(),
-        }),
-      );
-
-      if (shopRes.statusCode != 200 && shopRes.statusCode != 201) {
-        return {'success': false, 'error': 'Shop creation failed'};
-      }
-
-      final shopData = (jsonDecode(shopRes.body) as List).first as Map<String, dynamic>;
-      final shopId = shopData['id'] as String;
-
-      final profileRes = await http.post(
-        _restUri('/profiles'),
-        headers: _restHeaders,
-        body: jsonEncode({
-          'id': userId,
-          'shop_id': shopId,
-          'full_name': ownerName,
-          'role': 'owner',
-        }),
-      );
-
-      if (profileRes.statusCode != 200 && profileRes.statusCode != 201) {
-        return {'success': false, 'error': 'Profile creation failed'};
-      }
-
-      return {'success': true, 'userId': userId, 'shopId': shopId};
-    } catch (e) {
-      debugPrint('Error creating shop user: $e');
-      return {'success': false, 'error': e.toString()};
-    }
+    return await _callAdminUsersEdgeFunction({
+      'action': 'create',
+      'email': email,
+      'password': password,
+      'shopName': shopName,
+      'ownerName': ownerName,
+      'phone': phone,
+    });
   }
 
-  Future<bool> blockUser(String userId) async {
-    try {
-      final res = await http.put(
-        _authUri('/admin/users/$userId'),
-        headers: _adminHeaders,
-        body: jsonEncode({'ban_duration': '876600h'}),
-      );
-      return res.statusCode == 200;
-    } catch (e) {
-      debugPrint('Error blocking user: $e');
-      return false;
-    }
+  Future<bool> blockUser(String userId, {String duration = '876600h'}) async {
+    final res = await _callAdminUsersEdgeFunction({
+      'action': 'block',
+      'userId': userId,
+      'duration': duration,
+    });
+    return res['success'] == true;
   }
 
   Future<bool> unblockUser(String userId) async {
-    try {
-      final res = await http.put(
-        _authUri('/admin/users/$userId'),
-        headers: _adminHeaders,
-        body: jsonEncode({'ban_duration': 'none'}),
-      );
-      return res.statusCode == 200;
-    } catch (e) {
-      debugPrint('Error unblocking user: $e');
-      return false;
-    }
+    final res = await _callAdminUsersEdgeFunction({
+      'action': 'unblock',
+      'userId': userId,
+    });
+    return res['success'] == true;
+  }
+
+  Future<bool> resendConfirmationEmail(String email) async {
+    final res = await _callAdminUsersEdgeFunction({
+      'action': 'resend_confirmation',
+      'email': email,
+    });
+    return res['success'] == true;
+  }
+
+  Future<bool> confirmUserEmail(String userId) async {
+    final res = await _callAdminUsersEdgeFunction({
+      'action': 'confirm_email',
+      'userId': userId,
+    });
+    return res['success'] == true;
   }
 
   Future<bool> sendPasswordReset(String email) async {
@@ -259,23 +235,20 @@ class AdminService {
     }
   }
 
-  Future<bool> deleteShopUser(String userId, String shopId) async {
-    try {
-      final res = await http.delete(
-        _authUri('/admin/users/$userId'),
-        headers: _adminHeaders,
-      );
-      if (res.statusCode != 200 && res.statusCode != 204) return false;
-
-      await http.delete(
-        _restUri('/shops?id=eq.$shopId'),
-        headers: _adminHeaders,
-      );
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting shop user: $e');
-      return false;
+  Future<bool> deleteShopUser(String userId, [String? shopId]) async {
+    final res = await _callAdminUsersEdgeFunction({
+      'action': 'delete',
+      'userId': userId,
+    });
+    if (res['success'] == true && shopId != null && shopId.isNotEmpty) {
+      try {
+        await http.delete(
+          _restUri('/shops?id=eq.$shopId'),
+          headers: _adminHeaders,
+        );
+      } catch (_) {}
     }
+    return res['success'] == true;
   }
 
   // =========================================================================
@@ -645,11 +618,44 @@ class AdminService {
     }
   }
 
-  Future<bool> updateLicenseNotes(String id, String notes) async {
+  Future<bool> updateLicenseNotes(String shopId, String notes) async {
     try {
-      await client.from('licenses').update({'notes': notes}).eq('id', id);
-      return true;
+      // 1. Try updating license matching shop_id
+      final updated = await client
+          .from('licenses')
+          .update({'notes': notes})
+          .eq('shop_id', shopId)
+          .select('id');
+      if (updated.isNotEmpty) {
+        return true;
+      }
+
+      // 2. If no row matched by shop_id, check if passed ID is license primary key id
+      final updatedById = await client
+          .from('licenses')
+          .update({'notes': notes})
+          .eq('id', shopId)
+          .select('id');
+      if (updatedById.isNotEmpty) {
+        return true;
+      }
+
+      // 3. If no license row exists yet for this shop, create one
+      final shop = await client.from('shops').select('name, phone').eq('id', shopId).maybeSingle();
+      if (shop != null) {
+        final inserted = await client.from('licenses').insert({
+          'shop_id': shopId,
+          'shop_name': shop['name'] ?? 'Unnamed Shop',
+          'phone': shop['phone'] ?? '',
+          'notes': notes,
+          'status': 'active',
+          'license_key': 'LIC-${DateTime.now().millisecondsSinceEpoch}',
+        }).select('id');
+        return inserted.isNotEmpty;
+      }
+      return false;
     } catch (e) {
+      debugPrint('Error updating license notes: $e');
       return false;
     }
   }
@@ -785,13 +791,16 @@ class AdminService {
         _restUri('/licenses?id=eq.$licenseId&select=plan,plan_type'),
         headers: _adminHeaders,
       );
-      String planType = 'pro';
+      String? planType;
       if (licenseRes.statusCode == 200) {
         final licList = jsonDecode(licenseRes.body) as List;
         if (licList.isNotEmpty) {
           final first = licList.first as Map<String, dynamic>;
-          planType = (first['plan'] as String?) ?? (first['plan_type'] as String?) ?? 'pro';
+          planType = (first['plan'] as String?) ?? (first['plan_type'] as String?);
         }
+      }
+      if (planType == null || planType.trim().isEmpty) {
+        throw StateError('Could not resolve plan type for license $licenseId');
       }
 
       final earningType = planType == 'business' ? 'monthly_business' : 'monthly_pro';
@@ -1156,7 +1165,7 @@ class AdminService {
   // ── HELPERS ───────────────────────────────────────────────────────────────
   // =========================================================================
 
-  String _generateInviteCode() {
+  String generateInviteCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final rand = Random.secure();
     final code = List.generate(6, (_) => chars[rand.nextInt(chars.length)]).join();
@@ -1827,7 +1836,7 @@ class AdminService {
       final prevMonth = prevMonthDate.month;
 
       final res = await http.get(
-        _restUri('/agency_payouts?status=eq.paid&select=*,agency_shop:agency_shop_id(id,name)&order=processed_at.desc'),
+        _restUri('/agency_payouts?status=eq.paid&select=*,agency_profiles:agency_shop_id(shop_id,agency_code,display_name)&order=paid_at.desc.nullslast'),
         headers: _adminHeaders,
       );
 
@@ -1839,12 +1848,13 @@ class AdminService {
       for (final item in list) {
         final po = Map<String, dynamic>.from(item as Map);
         final shopId = po['agency_shop_id'] as String? ?? 'unknown';
-        final shopName = (po['agency_shop'] as Map?)?['name'] as String? ?? 'Unknown Agency';
+        final agencyProfile = po['agency_profiles'] as Map<String, dynamic>?;
+        final shopName = agencyProfile?['display_name'] as String? ?? agencyProfile?['agency_code'] as String? ?? 'Unknown Agency';
         final amount = po['amount_minor'] != null
             ? ((po['amount_minor'] as num).toInt() / 100.0).round()
             : (po['amount'] as num?)?.toInt() ?? 0;
 
-        final dateStr = (po['processed_at'] ?? po['requested_at']) as String?;
+        final dateStr = (po['paid_at'] ?? po['processed_at'] ?? po['requested_at']) as String?;
         final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
 
         if (!map.containsKey(shopId)) {
@@ -1888,7 +1898,7 @@ class AdminService {
   Future<List<Map<String, dynamic>>> fetchShopVpsUsage() async {
     try {
       final shopsRes = await http.get(
-        _restUri('/shops?select=id,name,phone,city,plan,storage_used_bytes,storage_addon_active,created_at,is_active'),
+        _restUri('/shops?select=id,name,phone,plan_code,storage_used_bytes,storage_addon_active,created_at,status'),
         headers: _adminHeaders,
       );
       if (shopsRes.statusCode != 200) return [];
@@ -1943,31 +1953,26 @@ class AdminService {
         final cCount = customerCounts[shopId] ?? 0;
         final mCount = measurementCounts[shopId] ?? 0;
         final oCount = orderCounts[shopId] ?? 0;
-
         final totalRecords = cCount + mCount + oCount;
-        final estDbOps = (totalRecords * 4) + (usedBytes ~/ 1024);
-        final estCpuPct = ((totalRecords * 0.15) + (usedBytes / 50000)).clamp(0.1, 12.5);
+
+        final status = (shop['status'] as String? ?? 'active').toLowerCase();
+        final isActive = status != 'deleted' && status != 'inactive';
 
         results.add({
           'id': shopId,
           'name': shop['name'] ?? 'Unnamed Shop',
           'phone': shop['phone'] ?? '-',
-          'city': shop['city'] ?? '-',
-          'plan': shop['plan'] ?? 'mobile_only',
+          'plan': shop['plan_code'] ?? 'trial',
+          'plan_code': shop['plan_code'] ?? 'trial',
           'storage_used_bytes': usedBytes,
           'storage_addon_active': shop['storage_addon_active'] == true,
-          'is_active': shop['is_active'] != false,
+          'is_active': isActive,
+          'status': status,
           'created_at': shop['created_at'],
           'customer_count': cCount,
           'measurement_count': mCount,
           'order_count': oCount,
           'total_records': totalRecords,
-          'est_db_ops': estDbOps,
-          'est_cpu_pct': double.parse(estCpuPct.toStringAsFixed(2)),
-          'customer_bytes': cCount * 320,
-          'measurement_bytes': mCount * 650,
-          'order_bytes': oCount * 480,
-          'other_bytes': (usedBytes - (cCount * 320 + mCount * 650 + oCount * 480)).clamp(0, 99999999),
         });
       }
 
@@ -2343,9 +2348,60 @@ class AdminService {
           'lifetime_storage_limit_bytes': (storageGb * 1073741824).toInt(),
         }),
       );
-      return res.statusCode == 200 || res.statusCode == 204;
+      final ok = res.statusCode == 200 || res.statusCode == 204;
+      if (ok) {
+        final list = jsonDecode(res.body);
+        return list is List && list.isNotEmpty;
+      }
+      return false;
     } catch (e) {
       debugPrint('Error granting lifetime access: $e');
+      return false;
+    }
+  }
+
+  Future<bool> revokeLifetimeAccess(String shopId, {String newPlan = 'trial'}) async {
+    try {
+      final res = await http.patch(
+        _restUri('/shops?id=eq.$shopId'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'lifetime_access': false,
+          'subscription_status': newPlan == 'trial' ? 'trial' : 'active',
+          'plan_code': newPlan,
+        }),
+      );
+      final ok = res.statusCode == 200 || res.statusCode == 204;
+      if (ok) {
+        final list = jsonDecode(res.body);
+        return list is List && list.isNotEmpty;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error revoking lifetime access: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateShopPlan(String shopId, {required String newPlan, required String newStatus}) async {
+    try {
+      final res = await http.patch(
+        _restUri('/shops?id=eq.$shopId'),
+        headers: _restHeaders,
+        body: jsonEncode({
+          'plan_code': newPlan,
+          'subscription_status': newStatus,
+          if (newPlan != 'unlimited') 'lifetime_access': false,
+        }),
+      );
+      final ok = res.statusCode == 200 || res.statusCode == 204;
+      if (ok) {
+        final list = jsonDecode(res.body);
+        return list is List && list.isNotEmpty;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error updating shop plan: $e');
       return false;
     }
   }

@@ -75,11 +75,9 @@ final currentShopIdProvider = Provider<String?>((ref) {
 
         if (shopData != null) {
           final planCode = shopData['plan_code'] as String? ?? 'trial';
-          final isLifetime = shopData['lifetime_access'] as bool? ?? false;
-          final effectivePlan = isLifetime ? 'lifetime' : planCode;
 
           final licenseModel = LicenseModel(
-            plan: effectivePlan,
+            plan: planCode,
             licenseKey: '',
             isActive: true,
             shopName: shopData['name'] as String? ?? '',

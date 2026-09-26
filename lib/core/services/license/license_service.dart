@@ -48,9 +48,14 @@ class LicenseService {
         return const LicenseActivationResult.error('This license has expired.');
       }
 
+      final plan = response['plan'] as String?;
+      if (plan == null || plan.trim().isEmpty) {
+        return const LicenseActivationResult.error('License record is missing a valid plan.');
+      }
+
       // Save to Hive
       final license = LicenseModel(
-        plan: response['plan'] ?? 'pro',
+        plan: plan.trim(),
         licenseKey: cleanKey,
         isActive: true,
         expiresAt: expiresAt,

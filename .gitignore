@@ -59,3 +59,4 @@ bin/
 !web/index.html
 tailor_management_prd.md
 node_modules/
+backups/

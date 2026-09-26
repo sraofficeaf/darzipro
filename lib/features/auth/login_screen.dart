@@ -242,11 +242,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         debugPrint('Platform check error: $platformErr');
       }
 
-      // Save credentials for quick biometric sign-in
-      await BiometricService.instance.saveCredentials(
-        email: email,
-        password: password,
-      );
+      // Save session refresh token for quick biometric sign-in (never plaintext password)
+      final refreshToken = authResponse.session?.refreshToken;
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        await BiometricService.instance.saveRefreshToken(
+          email: email,
+          refreshToken: refreshToken,
+        );
+      }
 
       if (mounted) {
         context.go('/dashboard');
@@ -462,11 +465,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
     if (authenticated) {
       HapticFeedback.vibrate();
-      final creds = await service.getSavedCredentials();
-      if (creds != null && mounted) {
-        _emailController.text = creds['email'] ?? '';
-        _passwordController.text = creds['password'] ?? '';
-        _handleLogin();
+      final token = await service.getSavedRefreshToken();
+      if (token != null && token.isNotEmpty && mounted) {
+        setState(() => _isLoading = true);
+        try {
+          final res = await Supabase.instance.client.auth.setSession(token);
+          if (res.session != null && mounted) {
+            context.go('/dashboard');
+            return;
+          }
+        } catch (e) {
+          debugPrint('Biometric session restore error: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Biometric session expired. Please sign in with email and password.',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 13),
+                ),
+                backgroundColor: const Color(0xFFFF3A58),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
+        }
       }
     }
   }

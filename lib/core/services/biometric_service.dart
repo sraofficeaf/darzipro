@@ -11,7 +11,7 @@ class BiometricService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   static const String _keyEmail = 'biometric_email';
-  static const String _keyPassword = 'biometric_password';
+  static const String _keyRefreshToken = 'biometric_refresh_token';
   static const String _keyEnabled = 'biometric_enabled';
 
   /// Check if hardware supports biometrics and user has enrolled fingerprint / face
@@ -60,49 +60,57 @@ class BiometricService {
     }
   }
 
-  /// Securely save credentials for biometric quick login
-  Future<void> saveCredentials({required String email, required String password}) async {
+  /// Securely save auth refresh token for biometric quick login (never plaintext password)
+  Future<void> saveRefreshToken({required String email, required String refreshToken}) async {
     try {
       await _storage.write(key: _keyEmail, value: email);
-      await _storage.write(key: _keyPassword, value: password);
+      await _storage.write(key: _keyRefreshToken, value: refreshToken);
       await _storage.write(key: _keyEnabled, value: 'true');
+      // Delete any legacy stored plaintext password
+      await _storage.delete(key: 'biometric_password');
     } catch (e) {
-      debugPrint('Error saving biometric credentials: $e');
+      debugPrint('Error saving biometric session token: $e');
     }
   }
 
-  /// Check if credentials are stored securely
+  /// Check if valid biometric token is stored securely
   Future<bool> hasSavedCredentials() async {
     try {
       final email = await _storage.read(key: _keyEmail);
-      final password = await _storage.read(key: _keyPassword);
+      final token = await _storage.read(key: _keyRefreshToken);
       final enabled = await _storage.read(key: _keyEnabled);
-      return enabled == 'true' && email != null && email.isNotEmpty && password != null && password.isNotEmpty;
+      return enabled == 'true' && email != null && email.isNotEmpty && token != null && token.isNotEmpty;
     } catch (e) {
       return false;
     }
   }
 
-  /// Retrieve stored credentials for quick login
-  Future<Map<String, String>?> getSavedCredentials() async {
+  /// Retrieve stored refresh token for session resume
+  Future<String?> getSavedRefreshToken() async {
     try {
-      final email = await _storage.read(key: _keyEmail);
-      final password = await _storage.read(key: _keyPassword);
-      if (email != null && email.isNotEmpty && password != null && password.isNotEmpty) {
-        return {'email': email, 'password': password};
-      }
+      return await _storage.read(key: _keyRefreshToken);
     } catch (e) {
-      debugPrint('Error reading biometric credentials: $e');
+      debugPrint('Error reading biometric token: $e');
+      return null;
     }
-    return null;
   }
 
-  /// Clear stored credentials
+  /// Retrieve stored email
+  Future<String?> getSavedEmail() async {
+    try {
+      return await _storage.read(key: _keyEmail);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Clear stored biometric credentials
   Future<void> clearCredentials() async {
     try {
       await _storage.delete(key: _keyEmail);
-      await _storage.delete(key: _keyPassword);
+      await _storage.delete(key: _keyRefreshToken);
       await _storage.delete(key: _keyEnabled);
+      await _storage.delete(key: 'biometric_password');
     } catch (e) {
       debugPrint('Error clearing biometric credentials: $e');
     }
