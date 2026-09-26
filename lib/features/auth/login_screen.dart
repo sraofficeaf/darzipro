@@ -25,7 +25,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   bool _obscure = true;
-  INTENTIONAL_COMPILE_ERROR_TO_PROVE_PRE_PUSH_GATE;
   bool _isLoggingIn = false;
 
   final _emailController = TextEditingController(text: '');
