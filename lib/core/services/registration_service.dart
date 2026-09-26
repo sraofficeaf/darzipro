@@ -45,7 +45,7 @@ class RegistrationService {
     required String email,
     required String password,
     String? inviteCodeUsed,
-    String planSelected = 'full_access',
+    String planSelected = 'trial',
     String? phone,
     String? address,
   }) async {

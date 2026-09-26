@@ -497,7 +497,7 @@ class AdminService {
             'shop_name': s['name'] ?? 'Shop',
             'shop_owner_name': ownerName,
             'whatsapp_number': s['phone'] ?? 'N/A',
-            'plan': s['plan'] ?? s['plan_type'] ?? 'full_access',
+            'plan': s['plan_code'] ?? s['plan'] ?? 'trial',
           });
         }
       }
@@ -1378,17 +1378,16 @@ class AdminService {
         'manual': {'amount': 0, 'count': 0, 'displayName': 'Bank / Easypaisa / JazzCash'},
       };
 
-      // byTier uses the subscription plan codes
+      // byTier uses the 5 subscription plan codes
       Map<String, Map<String, dynamic>> byTier = {
         'trial':     {'amount': 0, 'count': 0},
         'basic':     {'amount': 0, 'count': 0},
         'standard':  {'amount': 0, 'count': 0},
         'unlimited': {'amount': 0, 'count': 0},
         'founding':  {'amount': 0, 'count': 0},
-        'lifetime':  {'amount': 0, 'count': 0},
       };
 
-      // Helper: normalise old plan codes to subscription plan bucket keys
+      // Helper: normalise plan codes to valid subscription plan bucket keys
       String normalisePlanTier(String plan) {
         final p = plan.toLowerCase();
         if (p == 'trial') return 'trial';
@@ -1396,7 +1395,7 @@ class AdminService {
         if (p == 'standard') return 'standard';
         if (p == 'unlimited') return 'unlimited';
         if (p == 'founding') return 'founding';
-        return 'lifetime';
+        return 'standard';
       }
 
       // Fetch dynamic founding activation fee from app_settings at runtime
@@ -1806,7 +1805,6 @@ class AdminService {
             'standard':  {'amount': 0, 'count': 0},
             'unlimited': {'amount': 0, 'count': 0},
             'founding':  {'amount': 0, 'count': 0},
-            'lifetime':  {'amount': 0, 'count': 0},
           },
         },
         'top_earners': [],

@@ -304,8 +304,6 @@ class _RegistrationsQueueTab extends ConsumerWidget {
         'standard' => ('🚀 Standard Plan', AdminColors.violet),
         'unlimited' => ('💎 Unlimited Plan', AdminColors.emerald),
         'founding' => ('👑 Founding Member', AdminColors.amber),
-        'mobile_only' => ('⚡ Basic Plan (Legacy)', AdminColors.blue),
-        'full_access' => ('💎 Unlimited Plan (Legacy)', AdminColors.emerald),
         _ => ('⚡ $plan Plan', AdminColors.blue),
       };
 
@@ -568,10 +566,11 @@ class _UpgradesQueueTab extends ConsumerWidget {
   }
 
   String _formatUpgType(String t) => switch (t) {
-        'to_full_access' => 'Full Access (Rs 23,000)',
-        'to_3yr' => 'Full Access + 3Yr (Rs 35,000)',
-        'mobile_to_3yr' => 'Direct Jump to 3Yr (Rs 58,000)',
-        _ => t,
+        'basic' => 'Basic Plan',
+        'standard' => 'Standard Plan',
+        'unlimited' => 'Unlimited Plan',
+        'founding' => 'Founding Member',
+        _ => t.replaceAll('_', ' ').toUpperCase(),
       };
 
   void _handleApproveUpg(BuildContext context, WidgetRef ref, Map<String, dynamic> upg) async {

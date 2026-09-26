@@ -441,7 +441,6 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                   _BreakdownRow('Standard Plan', _fmt(byTier['standard']?['amount'] ?? 0), '${byTier['standard']?['count'] ?? 0} txs'),
                                   _BreakdownRow('Unlimited Plan', _fmt(byTier['unlimited']?['amount'] ?? 0), '${byTier['unlimited']?['count'] ?? 0} txs'),
                                   _BreakdownRow('Founding Member', _fmt(byTier['founding']?['amount'] ?? 0), '${byTier['founding']?['count'] ?? 0} txs'),
-                                  _BreakdownRow('Lifetime (Legacy)', _fmt(byTier['lifetime']?['amount'] ?? 0), '${byTier['lifetime']?['count'] ?? 0} txs'),
                                 ],
                               );
 

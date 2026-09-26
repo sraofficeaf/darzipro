@@ -54,7 +54,7 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
         if (_selectedTier == 'standard') return p == 'standard';
         if (_selectedTier == 'unlimited') return p == 'unlimited';
         if (_selectedTier == 'founding') return p == 'founding';
-        if (_selectedTier == 'lifetime') return p == 'lifetime' || p == 'mobile_only' || p == 'full_access' || p == 'full_access_3yr' || shop['lifetime_access'] == true;
+        if (_selectedTier == 'lifetime') return shop['lifetime_access'] == true || shop['subscription_status'] == 'lifetime';
         return p == _selectedTier;
       }).toList();
     });
@@ -348,7 +348,8 @@ class _ShopResourceCard extends StatelessWidget {
     final oCount = shop['order_count'] as int? ?? 0;
     final totalRecords = shop['total_records'] as int? ?? (cCount + mCount + oCount);
 
-    final (planLabel, planColor) = _getPlanDetails(plan);
+    final isLifetime = shop['lifetime_access'] == true || shop['subscription_status'] == 'lifetime';
+    final (planLabel, planColor) = _getPlanDetails(plan, isLifetime);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -435,13 +436,15 @@ class _ShopResourceCard extends StatelessWidget {
     );
   }
 
-  (String, Color) _getPlanDetails(String plan) => switch (plan.toLowerCase()) {
-        'trial' => ('Free Trial', AdminColors.text3),
-        'basic' => ('Basic Plan', AdminColors.blue),
-        'standard' => ('Standard Plan', AdminColors.violet),
-        'unlimited' => ('Unlimited Plan', AdminColors.emerald),
-        'founding' => ('👑 Founding', AdminColors.amber),
-        'lifetime' || 'mobile_only' || 'full_access' || 'full_access_3yr' => ('👑 Lifetime', AdminColors.amber),
-        _ => (plan, AdminColors.blue),
-      };
+  (String, Color) _getPlanDetails(String plan, [bool isLifetime = false]) {
+    if (isLifetime) return ('👑 Lifetime', AdminColors.amber);
+    return switch (plan.toLowerCase()) {
+      'trial' => ('Free Trial', AdminColors.text3),
+      'basic' => ('Basic Plan', AdminColors.blue),
+      'standard' => ('Standard Plan', AdminColors.violet),
+      'unlimited' => ('Unlimited Plan', AdminColors.emerald),
+      'founding' => ('👑 Founding', AdminColors.amber),
+      _ => (plan, AdminColors.blue),
+    };
+  }
 }

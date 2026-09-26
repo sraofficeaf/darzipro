@@ -219,7 +219,6 @@ class ReportsPdfBuilder {
                           _buildTierRow('Standard Plan', byTier['standard']),
                           _buildTierRow('Unlimited Plan', byTier['unlimited']),
                           _buildTierRow('Founding Member', byTier['founding']),
-                          _buildTierRow('Lifetime (Legacy)', byTier['lifetime']),
                         ],
                       ),
                       pw.SizedBox(height: 10),

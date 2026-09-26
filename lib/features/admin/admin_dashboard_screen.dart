@@ -85,7 +85,6 @@ class AdminDashboardScreen extends ConsumerWidget {
     final standardTier = byTier['standard']  as Map<String, dynamic>? ?? {};
     final unlimitedTier= byTier['unlimited'] as Map<String, dynamic>? ?? {};
     final foundingTier = byTier['founding']  as Map<String, dynamic>? ?? {};
-    final lifetimeTier = byTier['lifetime']  as Map<String, dynamic>? ?? {};
 
     final planCounts = (subStats['plan_counts'] as Map<String, dynamic>?) ?? {};
     final basicCount     = (planCounts['basic']     as num?)?.toInt() ?? 0;

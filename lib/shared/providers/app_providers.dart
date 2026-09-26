@@ -219,13 +219,6 @@ class CustomersNotifier extends StateNotifier<AsyncValue<List<CustomerModel>>> {
         }).eq('id', id);
         await _fetchCustomers();
       } catch (e) {
-        // If column doesn't exist yet, gracefully catch and fallback
-        if (e is PostgrestException && e.message.contains('is_archived')) {
-          debugPrint('is_archived column not yet in DB schema: $e');
-          await _fetchCustomers();
-          return;
-        }
-
         final errStr = e.toString().toLowerCase();
         final isNetwork = e is PostgrestException && (e.message.contains('Failed host lookup') || e.message.contains('network')) ||
             errStr.contains('socketexception') || errStr.contains('network') || errStr.contains('failed to connect') || errStr.contains('handshake_failed');

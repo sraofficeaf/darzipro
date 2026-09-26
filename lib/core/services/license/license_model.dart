@@ -29,12 +29,8 @@ class LicenseModel {
   /// All plans in the new model have cloud database access.
   bool get isCloudEnabled => true;
 
-  /// True if the shop has lifetime (grandfathered) access.
-  bool get isLifetime =>
-      plan == 'lifetime' ||
-      plan == 'full_access' ||
-      plan == 'full_access_3yr' ||
-      plan == 'mobile_only';
+  /// True if the shop has lifetime access.
+  bool get isLifetime => plan == 'founding';
 
   /// True if shop is on an active paid plan.
   bool get isActivePaidPlan =>

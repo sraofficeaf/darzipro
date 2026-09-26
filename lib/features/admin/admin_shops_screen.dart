@@ -15,7 +15,7 @@ class AdminShopsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
-  String _selectedFilter = 'all'; // 'all' | 'mobile_only' | 'full_access' | 'full_access_3yr'
+  String _selectedFilter = 'all'; // 'all' | 'trial' | 'basic' | 'standard' | 'unlimited' | 'founding' | 'lifetime' | 'deleted'
   String _searchQuery = '';
   Map<String, dynamic>? _selectedShop;
   final _notesCtrl = TextEditingController();
@@ -1045,7 +1045,6 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
       'standard' => ('🚀 Standard Plan', AdminColors.violet),
       'unlimited' => ('💎 Unlimited Plan', AdminColors.emerald),
       'founding' => ('👑 Founding Member', AdminColors.amber),
-      'mobile_only' || 'full_access' || 'full_access_3yr' => ('👑 Lifetime (Legacy)', AdminColors.amber),
       _ => ('⚡ $plan Plan', AdminColors.blue),
     };
   }

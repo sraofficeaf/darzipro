@@ -23,7 +23,7 @@ class _AdminRegistrationsScreenState extends ConsumerState<AdminRegistrationsScr
     setState(() => _isProcessing = true);
 
     try {
-      final planSelected = reg['plan_selected'] ?? 'full_access';
+      final planSelected = reg['plan_selected'] ?? 'trial';
 
       final res = await AdminService.instance.approveRegistration(
         id: reg['id'],
@@ -230,18 +230,14 @@ class _AdminRegistrationsScreenState extends ConsumerState<AdminRegistrationsScr
                           final submittedDate = _dateFormat.format(createdAt);
                           final planSelected = reg['plan_selected'];
 
-                          String planBadgeText = 'Basic Plan';
-                          Color planBadgeColor = AdminColors.blue;
-                          if (planSelected == 'full_access') {
-                            planBadgeText = 'Pro Plan · Rs 35k';
-                            planBadgeColor = AdminColors.amber;
-                          } else if (planSelected == 'mobile_only') {
-                            planBadgeText = 'Basic · Rs 12k';
-                            planBadgeColor = AdminColors.blue;
-                          } else if (planSelected == 'full_access_3yr') {
-                            planBadgeText = 'Enterprise · Rs 70k';
-                            planBadgeColor = AdminColors.emerald;
-                          }
+                          final (planBadgeText, planBadgeColor) = switch ((planSelected ?? 'trial').toString().toLowerCase()) {
+                            'trial' => ('⏳ Free Trial', AdminColors.text3),
+                            'basic' => ('⚡ Basic Plan', AdminColors.blue),
+                            'standard' => ('🚀 Standard Plan', AdminColors.violet),
+                            'unlimited' => ('💎 Unlimited Plan', AdminColors.emerald),
+                            'founding' => ('👑 Founding Member', AdminColors.amber),
+                            _ => ('$planSelected', AdminColors.blue),
+                          };
 
                           return RepaintBoundary(
                             child: Container(
