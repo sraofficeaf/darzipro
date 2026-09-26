@@ -182,33 +182,27 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       dateSubtitle = '${DateFormat('MMM dd').format(currentRange.start)} - ${DateFormat('MMM dd, yyyy').format(currentRange.end)}';
     }
 
-    // Dynamic trend calculations
-    String revTrend = '—';
+    // Dynamic trend calculations — only computed when real historical baseline exists
+    String? revTrend;
     if (prevStats.revenue > 0 && currentStats.revenue > 0) {
       final t = ((currentStats.revenue - prevStats.revenue) / prevStats.revenue) * 100;
       revTrend = '${t >= 0 ? '▲' : '▼'} ${t.abs().toStringAsFixed(0)}%';
-    } else if (currentStats.revenue > 0) {
-      revTrend = '▲ 100%';
     }
 
-    String ordTrend = '—';
+    String? ordTrend;
     if (prevStats.newOrders > 0 && currentStats.newOrders > 0) {
       final t = ((currentStats.newOrders - prevStats.newOrders) / prevStats.newOrders) * 100;
       ordTrend = '${t >= 0 ? '▲' : '▼'} ${t.abs().toStringAsFixed(0)}%';
-    } else if (currentStats.newOrders > 0) {
-      ordTrend = '▲ 100%';
     }
 
-    String delTrend = '—';
+    String? delTrend;
     if (prevStats.deliveredOrders > 0 && currentStats.deliveredOrders > 0) {
       final t = ((currentStats.deliveredOrders - prevStats.deliveredOrders) / prevStats.deliveredOrders) * 100;
       delTrend = '${t >= 0 ? '▲' : '▼'} ${t.abs().toStringAsFixed(0)}%';
-    } else if (currentStats.deliveredOrders > 0) {
-      delTrend = '▲ 100%';
     }
 
-    String cliTrend = '—';
-    if (currentStats.newClients > 0) {
+    String? cliTrend;
+    if (prevStats.newClients > 0 && currentStats.newClients > 0) {
       final diff = currentStats.newClients - prevStats.newClients;
       cliTrend = '${diff >= 0 ? '▲' : '▼'} ${diff.abs()}';
     }
@@ -572,22 +566,23 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                             ),
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0x1AF5A623) : context.accentBg,
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: isDark ? const Color(0x33F5A623) : AppColors.lightAccentBorder, width: 1),
-                          ),
-                          child: Text(
-                            '+118% peak $peakDayName',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? const Color(0xFFF5A623) : context.accent,
+                        if (filteredOrders.isNotEmpty && peakDayName.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0x1AF5A623) : context.accentBg,
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: isDark ? const Color(0x33F5A623) : AppColors.lightAccentBorder, width: 1),
+                            ),
+                            child: Text(
+                              'Peak: $peakDayName',
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFFF5A623) : context.accent,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -672,7 +667,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                               getTooltipItems: (List<LineBarSpot> touchedSpots) {
                                 return touchedSpots.map((spot) {
                                   return LineTooltipItem(
-                                    '+118%',
+                                    'Rs ${spot.y.toInt()}',
                                     GoogleFonts.jetBrainsMono(
                                       color: const Color(0xFFF5A623),
                                       fontWeight: FontWeight.w900,
@@ -806,7 +801,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   // Trend Badge generator for KPIs
-  Widget _buildTrendBadge(String label, Color bg, Color color) {
+  Widget _buildTrendBadge(String? label, Color bg, Color color) {
+    if (label == null || label.isEmpty || label == '—') {
+      return const SizedBox.shrink();
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(

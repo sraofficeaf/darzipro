@@ -467,7 +467,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
       HapticFeedback.vibrate();
       final token = await service.getSavedRefreshToken();
       if (token != null && token.isNotEmpty && mounted) {
-        setState(() => _isLoading = true);
+        setState(() => _isLoggingIn = true);
         try {
           final res = await Supabase.instance.client.auth.setSession(token);
           if (res.session != null && mounted) {
@@ -489,7 +489,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
             );
           }
         } finally {
-          if (mounted) setState(() => _isLoading = false);
+          if (mounted) setState(() => _isLoggingIn = false);
         }
       }
     }

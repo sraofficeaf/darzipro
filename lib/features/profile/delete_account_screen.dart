@@ -58,6 +58,17 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen>
   bool _deletionComplete = false;
   String? _errorMessage;
 
+  // Real data deletion impact summary
+  int _customerCount = 0;
+  int _orderCount = 0;
+  int _measurementCount = 0;
+  int _undeliveredCount = 0;
+  double _unpaidBalance = 0.0;
+  String _planCode = 'trial';
+  String _subscriptionStatus = 'trial';
+  DateTime? _cycleEnd;
+  bool _isLoadingSummary = true;
+
   // Step 1: Confirmation text
   final _confirmCtrl = TextEditingController();
   String _shopName = '';
@@ -75,22 +86,68 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen>
     _stepAnimCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _stepFade = CurvedAnimation(parent: _stepAnimCtrl, curve: Curves.easeOut);
     _stepAnimCtrl.forward();
-    _loadShopName();
+    _loadShopDataAndSummary();
   }
 
-  Future<void> _loadShopName() async {
+  Future<void> _loadShopDataAndSummary() async {
     final shopId = ref.read(currentShopIdProvider);
     if (shopId == null) return;
     try {
-      final data = await Supabase.instance.client
+      final client = Supabase.instance.client;
+      final shopData = await client
           .from('shops')
-          .select('name')
+          .select('name, plan_code, subscription_status, billing_cycle_end, lifetime_access')
           .eq('id', shopId)
           .maybeSingle();
-      if (mounted && data != null) {
-        setState(() => _shopName = data['name'] as String? ?? '');
+
+      final customersRes = await client
+          .from('customers')
+          .select('id')
+          .eq('shop_id', shopId);
+
+      final ordersRes = await client
+          .from('orders')
+          .select('id, status, remaining_amount')
+          .eq('shop_id', shopId);
+
+      final measurementsRes = await client
+          .from('measurements')
+          .select('id')
+          .eq('shop_id', shopId);
+
+      int undelivered = 0;
+      double unpaid = 0.0;
+      if (ordersRes is List) {
+        for (final o in ordersRes) {
+          if (o['status'] != 'delivered') {
+            undelivered++;
+            unpaid += (o['remaining_amount'] as num?)?.toDouble() ?? 0.0;
+          }
+        }
       }
-    } catch (_) {}
+
+      DateTime? cycleEnd;
+      if (shopData?['billing_cycle_end'] != null) {
+        cycleEnd = DateTime.tryParse(shopData!['billing_cycle_end'].toString());
+      }
+
+      if (mounted) {
+        setState(() {
+          _shopName = shopData?['name'] as String? ?? '';
+          _planCode = shopData?['plan_code'] as String? ?? 'trial';
+          _subscriptionStatus = shopData?['subscription_status'] as String? ?? 'trial';
+          _cycleEnd = cycleEnd;
+          _customerCount = (customersRes as List?)?.length ?? 0;
+          _orderCount = (ordersRes as List?)?.length ?? 0;
+          _measurementCount = (measurementsRes as List?)?.length ?? 0;
+          _undeliveredCount = undelivered;
+          _unpaidBalance = unpaid;
+          _isLoadingSummary = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingSummary = false);
+    }
   }
 
   Future<void> _animateToStep(int step) async {
@@ -317,7 +374,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Warning box — what will be deleted
+        // Real Data Impact Warning box
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -328,54 +385,87 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'This will permanently delete:',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFFF3A58),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...[
-                '🗑️  Your shop profile and login',
-                '👥  All your customers and their measurements',
-                '📦  All your orders and order history',
-                '🖼️  Your shop logo and uploaded images',
-              ].map((item) => Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      item,
-                      style: GoogleFonts.inter(fontSize: 12.5, color: t1),
+              Row(
+                children: [
+                  const Icon(Icons.delete_forever_rounded, color: Color(0xFFFF3A58), size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Real Data Deletion Impact:',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFFF3A58),
                     ),
-                  )),
-              const SizedBox(height: 12),
-              Container(height: 1, color: const Color(0x22FF3A58)),
+                  ),
+                ],
+              ),
               const SizedBox(height: 10),
-              Text(
-                'The following will be anonymized (kept for accounting/legal reasons):',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFFD97706),
+              if (_isLoadingSummary)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('Calculating records to be deleted...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                )
+              else ...[
+                Text(
+                  'This action will permanently delete:',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: t1),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '📋  Payment and subscription history',
-                style: GoogleFonts.inter(fontSize: 12, color: t1),
-              ),
-              const SizedBox(height: 10),
-              Container(height: 1, color: const Color(0x22FF3A58)),
-              const SizedBox(height: 10),
-              Text(
-                '💸  Any pending or unpaid invite earnings will be forfeited.',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFFFF3A58),
+                const SizedBox(height: 6),
+                Text(
+                  '• $_customerCount Customer records & contacts\n'
+                  '• $_orderCount Total orders & order items\n'
+                  '• $_measurementCount Measurement / Naap profiles\n'
+                  '• Shop logo, cloth images, and design sketches',
+                  style: GoogleFonts.inter(fontSize: 12.5, height: 1.5, color: t1),
                 ),
-              ),
+                if (_undeliveredCount > 0) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0x18D97706),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0x44D97706)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, size: 18, color: Color(0xFFD97706)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '⚠️ $_undeliveredCount orders are still undelivered with Rs ${_unpaidBalance.toStringAsFixed(0)} in unpaid balances.',
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFD97706)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0x0FFFFFFF) : const Color(0x06000000),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Current Plan: ${_planCode.toUpperCase()} (${_subscriptionStatus == 'active' || _subscriptionStatus == 'lifetime' ? 'Paid' : 'Trial/Unpaid'}${_cycleEnd != null ? ' until ${_cycleEnd!.toIso8601String().split('T')[0]}' : ''})',
+                    style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: t2),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(height: 1, color: const Color(0x22FF3A58)),
+                const SizedBox(height: 10),
+                Text(
+                  'Deleting your account does not cancel or refund any active paid subscription. If you only want to stop paying, go to Subscription settings and let your plan expire without deleting your customer records.',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFFF3A58),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

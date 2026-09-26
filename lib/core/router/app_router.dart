@@ -15,7 +15,6 @@ import '../../features/printing/token_card_screen.dart';
 import '../../features/printing/print_preview_screen.dart';
 
 import '../../features/reports/reports_screen.dart';
-import '../../features/settings/upgrade_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
 import '../../features/admin/admin_shell.dart';
@@ -242,7 +241,7 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/upgrade',
-          builder: (context, state) => const UpgradeScreen(),
+          redirect: (context, state) => '/subscription',
         ),
         GoRoute(
           path: AppRoutes.profile,

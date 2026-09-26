@@ -236,22 +236,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 ),
                               ],
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0x1410CBA0),
-                                border: Border.all(color: const Color(0x2810CBA0)),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                isUrdu ? 'کل سے 12٪ زیادہ' : '+12% vs yesterday',
-                                style: GoogleFonts.inter(
-                                  color: const Color(0xFF10CBA0),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                         const Spacer(),
@@ -275,28 +259,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isUrdu ? 'کل کے مقابلے میں' : 'vs yesterday',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: context.text2,
+                        if (stats.dailyRevenue > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            isUrdu ? 'کل کے مقابلے میں' : 'vs yesterday',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: context.text2,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
-                  Positioned(
-                    bottom: 16,
-                    right: 16,
-                    child: Opacity(
-                      opacity: 0.8,
-                      child: CustomPaint(
-                        size: const Size(100, 36),
-                        painter: _SparklinePainter(),
+                  if (stats.dailyRevenue > 0)
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: Opacity(
+                        opacity: 0.8,
+                        child: CustomPaint(
+                          size: const Size(100, 36),
+                          painter: _SparklinePainter(),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             );
@@ -632,8 +619,26 @@ class _WeeklyBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) return const SizedBox.shrink();
-    final maxVal = values.reduce((a, b) => a > b ? a : b);
+    final total = values.fold<double>(0, (sum, item) => sum + item);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (total == 0) {
+      return SizedBox(
+        height: 80,
+        child: Center(
+          child: Text(
+            'Data will appear once there are orders',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: isDark ? const Color(0x66FFFFFF) : const Color(0x66000000),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final maxVal = values.reduce((a, b) => a > b ? a : b);
 
     return SizedBox(
       height: 80,
@@ -643,8 +648,9 @@ class _WeeklyBarChart extends StatelessWidget {
         children: List.generate(values.length, (index) {
           final val = values[index];
           final label = index < labels.length ? labels[index] : '';
-          final heightPct = maxVal > 0 ? (val / maxVal).clamp(0.1, 1.0) : 0.1;
+          final heightPct = maxVal > 0 ? (val / maxVal).clamp(0.0, 1.0) : 0.0;
           final isToday = index == values.length - 1;
+          final hasTodayValue = isToday && val > 0;
 
           return Expanded(
             child: Column(
@@ -658,15 +664,15 @@ class _WeeklyBarChart extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
-                        gradient: isToday
+                        gradient: hasTodayValue
                             ? const LinearGradient(
                                 colors: [Color(0xFFF5A623), Color(0xFFD97706)],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                               )
                             : null,
-                        color: isToday ? null : (isDark ? const Color(0x12FFFFFF) : context.border),
-                        boxShadow: isToday
+                        color: hasTodayValue ? null : (isDark ? const Color(0x12FFFFFF) : context.border),
+                        boxShadow: hasTodayValue
                             ? [
                                 const BoxShadow(
                                   color: Color(0x66F5A623),
@@ -725,18 +731,12 @@ class _KpiGrid extends StatelessWidget {
           emoji: '📋',
           value: '${stats.totalOrders}',
           label: 'Total Orders',
-          trend: '+8',
-          trendColor: const Color(0xFF10CBA0),
-          trendBg: const Color(0x1410CBA0),
           accentColor: const Color(0xFF5B72F5),
         ),
         _KpiCard(
           emoji: '⏳',
           value: '${stats.pendingOrders}',
           label: 'Pending',
-          trend: '+3',
-          trendColor: const Color(0xFFF5A623),
-          trendBg: const Color(0x1FD97706),
           accentColor: const Color(0xFFD97706),
           valueColor: const Color(0xFFF5A623),
         ),
@@ -744,9 +744,6 @@ class _KpiGrid extends StatelessWidget {
           emoji: '✅',
           value: '${stats.readyOrders}',
           label: 'Ready',
-          trend: '↑2',
-          trendColor: const Color(0xFF10CBA0),
-          trendBg: const Color(0x1410CBA0),
           accentColor: const Color(0xFF10CBA0),
           valueColor: const Color(0xFF10CBA0),
         ),
@@ -754,9 +751,6 @@ class _KpiGrid extends StatelessWidget {
           emoji: '💰',
           value: formattedIncome,
           label: 'Income',
-          trend: '▲12%',
-          trendColor: const Color(0xFF9B5CF5),
-          trendBg: const Color(0x1F9B5CF5),
           accentColor: const Color(0xFF9B5CF5),
           valueColor: const Color(0xFF9B5CF5),
         ),
@@ -769,9 +763,9 @@ class _KpiCard extends StatelessWidget {
   final String emoji;
   final String value;
   final String label;
-  final String trend;
-  final Color trendColor;
-  final Color trendBg;
+  final String? trend;
+  final Color? trendColor;
+  final Color? trendBg;
   final Color accentColor;
   final Color? valueColor;
 
@@ -779,9 +773,9 @@ class _KpiCard extends StatelessWidget {
     required this.emoji,
     required this.value,
     required this.label,
-    required this.trend,
-    required this.trendColor,
-    required this.trendBg,
+    this.trend,
+    this.trendColor,
+    this.trendBg,
     required this.accentColor,
     this.valueColor,
   });
@@ -823,21 +817,22 @@ class _KpiCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(emoji, style: const TextStyle(fontSize: 18)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: trendBg,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        trend,
-                        style: GoogleFonts.inter(
-                          color: trendColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
+                    if (trend != null && trend!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: trendBg ?? const Color(0x1410CBA0),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          trend!,
+                          style: GoogleFonts.inter(
+                            color: trendColor ?? const Color(0xFF10CBA0),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 const Spacer(),
