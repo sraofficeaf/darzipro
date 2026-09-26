@@ -17,16 +17,18 @@ const List<MeasurementFieldConfig> k15MeasurementFields = [
   MeasurementFieldConfig(key: 'lambai', nameUrdu: 'لمبائی', nameEng: 'Length'),
   MeasurementFieldConfig(key: 'teerwa', nameUrdu: 'تیرو', nameEng: 'Shoulder'),
   MeasurementFieldConfig(key: 'bazo', nameUrdu: 'بازو', nameEng: 'Sleeve'),
-  MeasurementFieldConfig(key: 'chaati', nameUrdu: 'چھاتی', nameEng: 'Chest'),
+  MeasurementFieldConfig(key: 'chhaati', nameUrdu: 'چھاتی', nameEng: 'Chest'),
   MeasurementFieldConfig(key: 'baghal', nameUrdu: 'بغل / کمول', nameEng: 'Arm Hole'),
   MeasurementFieldConfig(key: 'kamar', nameUrdu: 'کمر', nameEng: 'Waist'),
   MeasurementFieldConfig(key: 'daman', nameUrdu: 'دامن', nameEng: 'Hem'),
   MeasurementFieldConfig(key: 'collar', nameUrdu: 'کالر / گلا', nameEng: 'Collar'),
+  MeasurementFieldConfig(key: 'gala', nameUrdu: 'گلا / کالر', nameEng: 'Neck'),
   MeasurementFieldConfig(key: 'shalwar', nameUrdu: 'شلوار لمبائی', nameEng: 'Trouser Length'),
   MeasurementFieldConfig(key: 'panche', nameUrdu: 'پانچے', nameEng: 'Bottom'),
   MeasurementFieldConfig(key: 'kaf', nameUrdu: 'کف', nameEng: 'Cuff'),
   MeasurementFieldConfig(key: 'jeb', nameUrdu: 'جیب / پٹی', nameEng: 'Pocket'),
   MeasurementFieldConfig(key: 'gol', nameUrdu: 'گول / ہپ', nameEng: 'Gol / Hip'),
+  MeasurementFieldConfig(key: 'hip', nameUrdu: 'ہپ / گول', nameEng: 'Hip'),
   MeasurementFieldConfig(key: 'asan', nameUrdu: 'آسن', nameEng: 'Asan'),
   MeasurementFieldConfig(key: 'gareban', nameUrdu: 'گریبان', nameEng: 'Gareban'),
 ];
@@ -37,28 +39,39 @@ const List<MeasurementFieldConfig> k15MeasurementFields = [
 const Map<String, List<String>> kGarmentFieldKeys = {
   // شلوار قمیض: Upper + Lower sab fields
   'شلوار قمیض': [
-    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'lambai', 'teerwa', 'bazo', 'chhaati', 'baghal',
     'kamar', 'daman', 'collar', 'shalwar', 'panche', 'kaf',
+  ],
+  'Shalwar Kameez (Men)': [
+    'lambai', 'teerwa', 'bazo', 'chhaati', 'baghal',
+    'kamar', 'daman', 'collar', 'shalwar', 'panche',
   ],
   // کرتا پاجامہ: Upper + Lower (collar optional)
   'کرتا پاجامہ': [
-    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'lambai', 'teerwa', 'bazo', 'chhaati', 'baghal',
     'kamar', 'daman', 'shalwar', 'panche', 'kaf',
+  ],
+  'Kurti / Suit (Women)': [
+    'lambai', 'teerwa', 'bazo', 'chhaati',
+    'kamar', 'hip', 'daman', 'gala', 'shalwar', 'panche',
   ],
   // واسکٹ: Sirf upper body, shalwar nahi
   'واسکٹ': [
-    'lambai', 'chaati', 'kamar', 'baghal', 'daman',
+    'lambai', 'teerwa', 'chhaati', 'kamar', 'collar',
+  ],
+  'Waistcoat (Men)': [
+    'lambai', 'teerwa', 'chhaati', 'kamar', 'collar',
   ],
   // شیروانی: Upper body + collar + asan
   'شیروانی': [
-    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'lambai', 'teerwa', 'bazo', 'chhaati', 'baghal',
     'kamar', 'daman', 'collar', 'kaf', 'asan', 'gareban',
   ],
   // پینٹ کوٹ: Coat (upper) + trouser (lower)
   'پینٹ کوٹ': [
-    'lambai', 'teerwa', 'bazo', 'chaati', 'baghal',
+    'lambai', 'teerwa', 'bazo', 'chhaati', 'baghal',
     'kamar', 'daman', 'collar', 'shalwar', 'panche',
-    'gol', 'asan', 'kaf',
+    'hip', 'asan', 'kaf',
   ],
 };
 
@@ -76,10 +89,12 @@ const List<String> kUpperBodyKeys = [
   'teerwa',
   'bazo',
   'chaati',
+  'chhaati',
   'baghal',
   'kamar',
   'daman',
   'collar',
+  'gala',
 ];
 
 const List<String> kLowerBodyKeys = [
@@ -88,6 +103,7 @@ const List<String> kLowerBodyKeys = [
   'kaf',
   'jeb',
   'gol',
+  'hip',
   'asan',
   'gareban',
 ];
@@ -158,6 +174,7 @@ class MeasurementShapePainter extends CustomPainter {
         break;
 
       case 'chaati':
+      case 'chhaati':
         _scale(canvas, size, 26, 20);
         canvas.drawOval(
           Rect.fromCenter(center: const Offset(13, 10), width: 20, height: 14),
@@ -192,6 +209,7 @@ class MeasurementShapePainter extends CustomPainter {
         break;
 
       case 'collar':
+      case 'gala':
         _scale(canvas, size, 28, 16);
         final p = Path()
           ..moveTo(2, 12)
@@ -238,6 +256,7 @@ class MeasurementShapePainter extends CustomPainter {
         break;
 
       case 'gol':
+      case 'hip':
         _scale(canvas, size, 26, 18);
         final p = Path()
           ..moveTo(2, 16)

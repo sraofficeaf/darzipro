@@ -60,3 +60,5 @@ bin/
 tailor_management_prd.md
 node_modules/
 backups/
+*.sql
+*.sql.gz

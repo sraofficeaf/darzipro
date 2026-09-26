@@ -995,6 +995,14 @@ List<Map<String, dynamic>> get _defaultMeasurementTemplates => [
     'fields': ['lambai', 'teerwa', 'bazo', 'chhaati', 'kamar', 'hip', 'daman', 'gala', 'shalwar', 'panche'],
     'created_at': DateTime.now().toIso8601String(),
   },
+  {
+    'id': 'temp_men_waistcoat',
+    'shop_id': 'default',
+    'name': 'Waistcoat (Men)',
+    'category': 'men',
+    'fields': ['lambai', 'teerwa', 'chhaati', 'kamar', 'collar'],
+    'created_at': DateTime.now().toIso8601String(),
+  },
 ];
 
 // ── Measurement Templates Provider ──────────────────────────────────────
