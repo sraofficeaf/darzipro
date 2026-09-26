@@ -272,7 +272,6 @@ class AdminDashboardScreen extends ConsumerWidget {
                                 standardTier:  standardTier,
                                 unlimitedTier: unlimitedTier,
                                 foundingTier:  foundingTier,
-                                lifetimeTier:  lifetimeTier,
                                 planPrices:    planPrices,
                               );
                               if (wide) {
@@ -1942,7 +1941,6 @@ class _RevenuePanel extends StatelessWidget {
   final Map<String, dynamic> standardTier;
   final Map<String, dynamic> unlimitedTier;
   final Map<String, dynamic> foundingTier;
-  final Map<String, dynamic> lifetimeTier;
   final Map<String, dynamic> planPrices;
 
   const _RevenuePanel({
@@ -1950,7 +1948,6 @@ class _RevenuePanel extends StatelessWidget {
     required this.standardTier,
     required this.unlimitedTier,
     required this.foundingTier,
-    required this.lifetimeTier,
     required this.planPrices,
   });
 
@@ -1965,8 +1962,7 @@ class _RevenuePanel extends StatelessWidget {
     final standardAmt  = (standardTier['amount']  as num?)?.toInt() ?? 0;
     final unlimitedAmt = (unlimitedTier['amount'] as num?)?.toInt() ?? 0;
     final foundingAmt  = (foundingTier['amount']  as num?)?.toInt() ?? 0;
-    final lifetimeAmt  = (lifetimeTier['amount']  as num?)?.toInt() ?? 0;
-    final total = basicAmt + standardAmt + unlimitedAmt + foundingAmt + lifetimeAmt;
+    final total = basicAmt + standardAmt + unlimitedAmt + foundingAmt;
 
     double pct(int v) => total == 0 ? 0 : v / total;
 
@@ -2041,13 +2037,6 @@ class _RevenuePanel extends StatelessWidget {
               dotColor: const Color(0xFFD97706),
               amount: foundingAmt,
               pct: pct(foundingAmt),
-            ),
-            const SizedBox(height: 10),
-            _RevenueRow(
-              label: 'Lifetime (Legacy)',
-              dotColor: _C.text3,
-              amount: lifetimeAmt,
-              pct: pct(lifetimeAmt),
             ),
             const SizedBox(height: 18),
 
