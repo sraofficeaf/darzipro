@@ -763,9 +763,6 @@ class _KpiCard extends StatelessWidget {
   final String emoji;
   final String value;
   final String label;
-  final String? trend;
-  final Color? trendColor;
-  final Color? trendBg;
   final Color accentColor;
   final Color? valueColor;
 
@@ -773,9 +770,6 @@ class _KpiCard extends StatelessWidget {
     required this.emoji,
     required this.value,
     required this.label,
-    this.trend,
-    this.trendColor,
-    this.trendBg,
     required this.accentColor,
     this.valueColor,
   });
@@ -817,22 +811,6 @@ class _KpiCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(emoji, style: const TextStyle(fontSize: 18)),
-                    if (trend != null && trend!.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: trendBg ?? const Color(0x1410CBA0),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          trend!,
-                          style: GoogleFonts.inter(
-                            color: trendColor ?? const Color(0xFF10CBA0),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
                 const Spacer(),

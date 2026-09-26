@@ -117,12 +117,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen>
 
       int undelivered = 0;
       double unpaid = 0.0;
-      if (ordersRes is List) {
-        for (final o in ordersRes) {
-          if (o['status'] != 'delivered') {
-            undelivered++;
-            unpaid += (o['remaining_amount'] as num?)?.toDouble() ?? 0.0;
-          }
+      for (final o in ordersRes) {
+        if (o['status'] != 'delivered') {
+          undelivered++;
+          unpaid += (o['remaining_amount'] as num?)?.toDouble() ?? 0.0;
         }
       }
 
@@ -137,9 +135,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen>
           _planCode = shopData?['plan_code'] as String? ?? 'trial';
           _subscriptionStatus = shopData?['subscription_status'] as String? ?? 'trial';
           _cycleEnd = cycleEnd;
-          _customerCount = (customersRes as List?)?.length ?? 0;
-          _orderCount = (ordersRes as List?)?.length ?? 0;
-          _measurementCount = (measurementsRes as List?)?.length ?? 0;
+          _customerCount = customersRes.length;
+          _orderCount = ordersRes.length;
+          _measurementCount = measurementsRes.length;
           _undeliveredCount = undelivered;
           _unpaidBalance = unpaid;
           _isLoadingSummary = false;
