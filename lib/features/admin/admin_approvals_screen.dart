@@ -151,8 +151,8 @@ class _RegistrationsQueueTab extends ConsumerWidget {
     final text1 = context.text1;
     final text2 = context.text2;
 
-    final plan = reg['plan_selected'] as String? ?? 'mobile_only';
-    final (planLabel, planPrice, planColor) = _getPlanDetails(plan);
+    final plan = reg['plan_selected'] as String? ?? 'trial';
+    final (planLabel, planColor) = _getPlanBadge(plan);
     final dateStr = reg['created_at'] as String? ?? '';
     final formattedDate = dateStr.isNotEmpty ? DateFormat('MMM dd, yyyy · hh:mm a').format(DateTime.parse(dateStr)) : '';
 
@@ -181,7 +181,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
                       style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1),
                     ),
                     const SizedBox(width: 8),
-                    AdminBadge(label: '$planLabel ($planPrice)', color: planColor),
+                    AdminBadge(label: planLabel, color: planColor),
                   ],
                 ),
                 const SizedBox(height: 5),
@@ -234,8 +234,8 @@ class _RegistrationsQueueTab extends ConsumerWidget {
     final text1 = context.text1;
     final text2 = context.text2;
 
-    final plan = reg['plan_selected'] as String? ?? 'mobile_only';
-    final (planLabel, planPrice, planColor) = _getPlanDetails(plan);
+    final plan = reg['plan_selected'] as String? ?? 'trial';
+    final (planLabel, planColor) = _getPlanBadge(plan);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -264,7 +264,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
           const SizedBox(height: 6),
           Text('Owner: ${reg['owner_name'] ?? 'N/A'} (${reg['phone'] ?? 'N/A'})', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           Text('Address: ${reg['address'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-          Text('Tx ID: ${reg['transaction_id'] ?? 'N/A'}  ·  Amount: $planPrice', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+          Text('Tx ID: ${reg['transaction_id'] ?? 'N/A'}', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -298,11 +298,15 @@ class _RegistrationsQueueTab extends ConsumerWidget {
     );
   }
 
-  (String, String, Color) _getPlanDetails(String plan) => switch (plan) {
-        'mobile_only' => ('📱 Basic Plan', 'Rs 12,000', AdminColors.blue),
-        'full_access' => ('🚀 Pro Plan', 'Rs 35,000', AdminColors.amber),
-        'full_access_3yr' => ('👑 Enterprise', 'Rs 70,000', AdminColors.emerald),
-        _ => ('📱 Basic Plan', 'Rs 12,000', AdminColors.blue),
+  (String, Color) _getPlanBadge(String plan) => switch (plan.toLowerCase()) {
+        'trial' => ('⏳ Free Trial', AdminColors.blue),
+        'basic' => ('⚡ Basic Plan', AdminColors.blue),
+        'standard' => ('🚀 Standard Plan', AdminColors.violet),
+        'unlimited' => ('💎 Unlimited Plan', AdminColors.emerald),
+        'founding' => ('👑 Founding Member', AdminColors.amber),
+        'mobile_only' => ('⚡ Basic Plan (Legacy)', AdminColors.blue),
+        'full_access' => ('💎 Unlimited Plan (Legacy)', AdminColors.emerald),
+        _ => ('⚡ $plan Plan', AdminColors.blue),
       };
 
   void _handleApproveReg(BuildContext context, WidgetRef ref, Map<String, dynamic> reg) async {
@@ -328,7 +332,7 @@ class _RegistrationsQueueTab extends ConsumerWidget {
     final shopName = reg['shop_name'] as String? ?? 'Shop';
     final ownerName = reg['owner_name'] as String? ?? 'Owner';
     final email = reg['email'] as String? ?? '';
-    final plan = reg['plan_selected'] as String? ?? 'mobile_only';
+    final plan = reg['plan_selected'] as String? ?? 'trial';
     final inviteCodeUsed = reg['invite_code_used'] as String?;
 
     final res = await AdminService.instance.approveRegistration(
@@ -436,8 +440,8 @@ class _UpgradesQueueTab extends ConsumerWidget {
     final text2 = context.text2;
 
     final shopName = upg['shops']?['name'] as String? ?? 'Shop';
-    final currentPlan = upg['current_plan'] as String? ?? 'mobile_only';
-    final targetPlan = upg['target_plan'] as String? ?? 'full_access';
+    final currentPlan = upg['current_plan'] as String? ?? 'basic';
+    final targetPlan = upg['target_plan'] as String? ?? 'standard';
     final upgradeType = upg['upgrade_type'] as String? ?? '';
     final amount = upg['amount'] as int? ?? 0;
 
@@ -506,7 +510,7 @@ class _UpgradesQueueTab extends ConsumerWidget {
     final text2 = context.text2;
 
     final shopName = upg['shops']?['name'] as String? ?? 'Shop';
-    final targetPlan = upg['target_plan'] as String? ?? 'full_access';
+    final targetPlan = upg['target_plan'] as String? ?? 'standard';
     final amount = upg['amount'] as int? ?? 0;
 
     return Container(
@@ -683,7 +687,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
 
     final shopName = s['shops']?['name'] as String? ?? 'Shop';
     final addonType = s['addon_type'] as String? ?? 'monthly';
-    final amount = s['amount'] as int? ?? 1200;
+    final amount = s['amount'] as int? ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -708,7 +712,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
                     Text(shopName, style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: text1)),
                     const SizedBox(width: 8),
                     AdminBadge(
-                      label: addonType == 'annual' ? 'Annual Storage (Rs 10,000)' : 'Monthly Storage (Rs 1,200)',
+                      label: addonType == 'annual' ? 'Annual Storage Add-on' : 'Monthly Storage Add-on',
                       color: AdminColors.emerald,
                     ),
                   ],
@@ -747,7 +751,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
 
     final shopName = s['shops']?['name'] as String? ?? 'Shop';
     final addonType = s['addon_type'] as String? ?? 'monthly';
-    final amount = s['amount'] as int? ?? 1200;
+    final amount = s['amount'] as int? ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -765,7 +769,7 @@ class _StorageAddonsQueueTab extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(child: Text(shopName, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: text1))),
-              AdminBadge(label: addonType == 'annual' ? 'Annual (10k)' : 'Monthly (1.2k)', color: AdminColors.emerald),
+              AdminBadge(label: addonType == 'annual' ? 'Annual Add-on' : 'Monthly Add-on', color: AdminColors.emerald),
             ],
           ),
           const SizedBox(height: 6),

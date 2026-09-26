@@ -29,12 +29,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Future<void> _loadUsers() async {
     setState(() => _loading = true);
     final users = await AdminService.instance.fetchAllShopUsers();
-    final authUsers = await AdminService.instance.fetchAuthUsers();
 
     if (mounted) {
       setState(() {
         _users = users;
-        _authUsers = authUsers;
+        _authUsers = users;
         _applyFilter();
         _loading = false;
       });
@@ -105,6 +104,35 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       await _loadUsers();
     } else {
       _showSnack('❌ Action failed', error: true);
+    }
+  }
+
+  Future<void> _resendConfirmation(Map<String, dynamic> user) async {
+    final email = user['email'] as String? ?? '';
+    if (email.isEmpty) return;
+    final ok = await AdminService.instance.resendConfirmationEmail(email);
+    if (ok) {
+      _showSnack('✉️ Confirmation email sent to $email');
+    } else {
+      _showSnack('❌ Failed to resend confirmation email', error: true);
+    }
+  }
+
+  Future<void> _confirmEmail(Map<String, dynamic> user) async {
+    final userId = user['id'] as String;
+    final name = user['full_name'] ?? 'User';
+    final confirmed = await _showConfirmDialog(
+      title: 'Confirm Email',
+      message: 'Manually mark email as verified for $name?',
+      confirmLabel: 'Confirm Email',
+    );
+    if (!confirmed) return;
+    final ok = await AdminService.instance.confirmUserEmail(userId);
+    if (ok) {
+      _showSnack('✅ Email marked as verified');
+      await _loadUsers();
+    } else {
+      _showSnack('❌ Failed to confirm email', error: true);
     }
   }
 
@@ -381,6 +409,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     final authUser = _getAuthUser(userId);
     final email = authUser?['email'] as String? ?? 'No email available';
     final isBlocked = _isBlocked(userId);
+    final emailConfirmedAt = user['email_confirmed_at'] as String?;
+    final isEmailConfirmed = emailConfirmedAt != null && emailConfirmedAt.isNotEmpty;
 
     String dateStr = 'Unknown';
     if (createdAt != null) {
@@ -449,6 +479,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       ),
                     ),
                     AdminBadge(
+                      label: isEmailConfirmed ? 'VERIFIED' : 'UNCONFIRMED',
+                      color: isEmailConfirmed ? AdminColors.emerald : AdminColors.amber,
+                    ),
+                    const SizedBox(width: 6),
+                    AdminBadge(
                       label: isBlocked ? 'BLOCKED' : 'ACTIVE',
                       color: isBlocked ? AdminColors.rose : AdminColors.emerald,
                     ),
@@ -507,6 +542,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if ((user['email_confirmed_at'] as String?) == null) ...[
+                AdminIconBtn(
+                  icon: Icons.mark_email_read_rounded,
+                  tooltip: 'Manually Mark Verified',
+                  color: AdminColors.emerald,
+                  onPressed: () => _confirmEmail(user),
+                ),
+                const SizedBox(width: 6),
+                AdminIconBtn(
+                  icon: Icons.forward_to_inbox_rounded,
+                  tooltip: 'Resend Confirmation Email',
+                  color: AdminColors.blue,
+                  onPressed: () => _resendConfirmation(user),
+                ),
+                const SizedBox(width: 6),
+              ],
               AdminIconBtn(
                 icon: isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
                 tooltip: isBlocked ? 'Unblock Account' : 'Block Account',

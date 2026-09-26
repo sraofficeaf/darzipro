@@ -13,11 +13,11 @@ class AdminSettingsScreen extends StatefulWidget {
 }
 
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
-  final _thresholdCtrl = TextEditingController(text: '1000');
-  final _delayCtrl = TextEditingController(text: '0');
-  final _storageMonthlyCtrl = TextEditingController(text: '1200');
-  final _storageAnnualCtrl = TextEditingController(text: '10000');
-  final _storageGbCtrl = TextEditingController(text: '1');
+  final _thresholdCtrl = TextEditingController();
+  final _delayCtrl = TextEditingController();
+  final _storageMonthlyCtrl = TextEditingController();
+  final _storageAnnualCtrl = TextEditingController();
+  final _storageGbCtrl = TextEditingController();
 
   bool _storageMonthlyActive = true;
   bool _storageAnnualActive = true;
@@ -37,13 +37,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     final config = await AdminService.instance.getStorageAddonConfig();
     if (mounted) {
       setState(() {
-        _thresholdCtrl.text = threshold.toString();
+        _thresholdCtrl.text = threshold > 0 ? threshold.toString() : '';
         _delayCtrl.text = delayDays.toString();
-        _storageMonthlyCtrl.text = config['storage_monthly_price']?.toString() ?? '250';
+        _storageMonthlyCtrl.text = config['storage_monthly_price']?.toString() ?? '';
         _storageMonthlyActive = config['storage_monthly_active'] as bool? ?? true;
-        _storageAnnualCtrl.text = config['storage_annual_price']?.toString() ?? '2500';
+        _storageAnnualCtrl.text = config['storage_annual_price']?.toString() ?? '';
         _storageAnnualActive = config['storage_annual_active'] as bool? ?? true;
-        _storageGbCtrl.text = config['storage_addon_gb']?.toString() ?? '1';
+        _storageGbCtrl.text = config['storage_addon_gb']?.toString() ?? '';
         _isLoading = false;
       });
     }

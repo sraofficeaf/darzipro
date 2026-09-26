@@ -5,6 +5,7 @@ import '../../core/theme/theme_extensions.dart';
 import '../../shared/providers/admin_providers.dart';
 import '../../core/services/admin_service.dart';
 import 'widgets/admin_ui_kit.dart';
+import 'admin_create_user_modal.dart';
 
 class AdminShopsScreen extends ConsumerStatefulWidget {
   const AdminShopsScreen({super.key});
@@ -268,122 +269,7 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
     );
   }
 
-  void _showCreateManualModal(BuildContext context) async {
-    final rawPlans = await AdminService.instance.fetchSubscriptionPlans();
-    final plans = rawPlans.isNotEmpty
-        ? rawPlans
-        : [
-            {'code': 'basic', 'name': 'Basic Plan', 'price_pkr': 1200},
-            {'code': 'standard', 'name': 'Standard Plan', 'price_pkr': 2500},
-            {'code': 'unlimited', 'name': 'Unlimited Plan', 'price_pkr': 5000},
-          ];
 
-    if (!context.mounted) return;
-
-    final shopNameCtrl = TextEditingController();
-    final ownerCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    String planSelected = plans.first['code']?.toString() ?? 'basic';
-    int durationDays = 30;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Create Manual Shop License', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: shopNameCtrl, decoration: const InputDecoration(labelText: 'Shop Name')),
-                const SizedBox(height: 10),
-                TextField(controller: ownerCtrl, decoration: const InputDecoration(labelText: 'Owner Name')),
-                const SizedBox(height: 10),
-                TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Phone Number')),
-                const SizedBox(height: 10),
-                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email Address')),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  initialValue: planSelected,
-                  decoration: const InputDecoration(labelText: 'Select Plan'),
-                  items: plans.map((p) {
-                    final code = p['code']?.toString() ?? '';
-                    final name = p['name']?.toString() ?? code;
-                    final price = (p['price_pkr'] as num?)?.toInt() ?? 0;
-                    final priceStr = code == 'founding'
-                        ? 'Rs 35,000 one-time'
-                        : (price > 0 ? 'Rs $price/mo' : 'Free');
-                    return DropdownMenuItem<String>(
-                      value: code,
-                      child: Text('$name ($priceStr)'),
-                    );
-                  }).toList(),
-                  onChanged: (v) {
-                    if (v != null) setModalState(() => planSelected = v);
-                  },
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<int>(
-                  initialValue: durationDays,
-                  decoration: const InputDecoration(labelText: 'Duration'),
-                  items: const [
-                    DropdownMenuItem(value: 30, child: Text('1 Month (30 days)')),
-                    DropdownMenuItem(value: 90, child: Text('3 Months (90 days)')),
-                    DropdownMenuItem(value: 180, child: Text('6 Months (180 days)')),
-                    DropdownMenuItem(value: 365, child: Text('1 Year (365 days)')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setModalState(() => durationDays = v);
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            AdminButton.primary(
-              label: 'Create License',
-              onPressed: () async {
-                if (shopNameCtrl.text.isEmpty || phoneCtrl.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter Shop Name & Phone.')));
-                  return;
-                }
-
-                final selectedPlan = plans.firstWhere(
-                  (p) => p['code'] == planSelected,
-                  orElse: () => plans.first,
-                );
-                final monthlyPrice = (selectedPlan['price_pkr'] as num?)?.toInt() ?? 0;
-                final months = (durationDays / 30).round().clamp(1, 12);
-                final amount = planSelected == 'founding' ? 35000 : (monthlyPrice * months);
-
-                final ok = await AdminService.instance.createLicense(
-                  shopName: shopNameCtrl.text.trim(),
-                  ownerName: ownerCtrl.text.trim(),
-                  city: 'Manual Admin Entry',
-                  whatsapp: phoneCtrl.text.trim(),
-                  plan: planSelected,
-                  durationDays: durationDays,
-                  key: 'MANUAL-${DateTime.now().millisecondsSinceEpoch}',
-                  paymentMethod: 'Manual Cash / Transfer',
-                  amount: amount,
-                  transactionId: 'MANUAL-ADMIN',
-                );
-
-                if (ok && context.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Manual License created successfully!')));
-                  ref.invalidate(adminLicensesProvider);
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -416,9 +302,17 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
                     ),
                     const SizedBox(width: 8),
                     AdminButton.primary(
-                      label: 'Create License',
-                      icon: Icons.add_rounded,
-                      onPressed: () => _showCreateManualModal(context),
+                      label: 'Add Shop Owner',
+                      icon: Icons.person_add_rounded,
+                      onPressed: () async {
+                        final created = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => const AdminCreateUserModal(),
+                        );
+                        if (created == true) {
+                          ref.invalidate(adminLicensesProvider);
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -833,20 +727,47 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AdminColors.amber),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.workspace_premium_rounded, color: AdminColors.amber, size: 24),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('👑 Lifetime Unlimited Access Active',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: AdminColors.amber)),
-                  Text('Permanent unlimited access. No monthly fees or renewals.',
-                      style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                ],
-              ),
+            Row(
+              children: [
+                const Icon(Icons.workspace_premium_rounded, color: AdminColors.amber, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('👑 Lifetime Unlimited Access Active',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: AdminColors.amber)),
+                      Text('Permanent unlimited access. No monthly fees or renewals.',
+                          style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                AdminButton.danger(
+                  label: 'Revoke Lifetime',
+                  icon: Icons.remove_circle_outline_rounded,
+                  onPressed: () {
+                    if (onDone != null) onDone();
+                    _showRevokeLifetimeDialog(context, shop);
+                  },
+                ),
+                const SizedBox(width: 8),
+                AdminButton.ghost(
+                  label: 'Change Plan',
+                  icon: Icons.swap_horiz_rounded,
+                  onPressed: () {
+                    if (onDone != null) onDone();
+                    _showChangePlanDialog(context, shop);
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -861,30 +782,157 @@ class _AdminShopsScreenState extends ConsumerState<AdminShopsScreen> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: context.border),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('👑 Lifetime Access',
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: text1)),
-                Text('Override subscription with permanent unlimited access.',
-                    style: GoogleFonts.inter(fontSize: 11, color: text2)),
-              ],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('👑 Lifetime Access',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: text1)),
+                    Text('Override subscription with permanent unlimited access.',
+                        style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          AdminButton.amber(
-            label: 'Grant Lifetime',
-            icon: Icons.workspace_premium_rounded,
-            onPressed: () {
-              if (onDone != null) onDone();
-              _showGrantLifetimeDialog(context, shop);
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              AdminButton.amber(
+                label: 'Grant Lifetime',
+                icon: Icons.workspace_premium_rounded,
+                onPressed: () {
+                  if (onDone != null) onDone();
+                  _showGrantLifetimeDialog(context, shop);
+                },
+              ),
+              const SizedBox(width: 8),
+              AdminButton.ghost(
+                label: 'Change Plan',
+                icon: Icons.swap_horiz_rounded,
+                onPressed: () {
+                  if (onDone != null) onDone();
+                  _showChangePlanDialog(context, shop);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRevokeLifetimeDialog(BuildContext context, Map<String, dynamic> shop) {
+    final shopId = _str(shop['id'], '');
+    final shopName = _getShopName(shop);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AdminColors.rose, size: 26),
+            const SizedBox(width: 8),
+            Text('Revoke Lifetime Access', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Text('Are you sure you want to revoke lifetime access for "$shopName"? The shop will revert to standard trial/active plan rules.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          AdminButton.danger(
+            label: 'Revoke Lifetime',
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final ok = await AdminService.instance.revokeLifetimeAccess(shopId, newPlan: 'trial');
+              if (context.mounted) {
+                if (ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lifetime access revoked for $shopName')));
+                  ref.invalidate(adminLicensesProvider);
+                  setState(() => _selectedShop = null);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to revoke lifetime access')));
+                }
+              }
             },
           ),
         ],
+      ),
+    );
+  }
+
+  void _showChangePlanDialog(BuildContext context, Map<String, dynamic> shop) {
+    final shopId = _str(shop['id'], '');
+    final shopName = _getShopName(shop);
+    String selectedPlan = _str(shop['plan_code'] ?? shop['plan'], 'trial');
+    String selectedStatus = _str(shop['subscription_status'], 'active');
+
+    final availablePlans = ['trial', 'basic', 'standard', 'unlimited', 'founding'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Change Plan for $shopName', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Select New Plan Tier:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: availablePlans.contains(selectedPlan) ? selectedPlan : 'standard',
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: availablePlans.map((p) => DropdownMenuItem(value: p, child: Text(p.toUpperCase()))).toList(),
+                onChanged: (v) => setDialogState(() => selectedPlan = v ?? 'standard'),
+              ),
+              const SizedBox(height: 14),
+              Text('Subscription Status:', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: ['active', 'trial', 'past_due', 'cancelled'].contains(selectedStatus) ? selectedStatus : 'active',
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'active', child: Text('Active')),
+                  DropdownMenuItem(value: 'trial', child: Text('Trial')),
+                  DropdownMenuItem(value: 'past_due', child: Text('Past Due')),
+                  DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                ],
+                onChanged: (v) => setDialogState(() => selectedStatus = v ?? 'active'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            AdminButton.primary(
+              label: 'Apply Plan Change',
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final ok = await AdminService.instance.updateShopPlan(
+                  shopId,
+                  newPlan: selectedPlan,
+                  newStatus: selectedStatus,
+                );
+                if (context.mounted) {
+                  if (ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Plan updated to ${selectedPlan.toUpperCase()}!')));
+                    ref.invalidate(adminLicensesProvider);
+                    setState(() => _selectedShop = null);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update shop plan')));
+                  }
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

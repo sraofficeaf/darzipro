@@ -57,11 +57,11 @@ class _AdminSubscriptionPlansScreenState
     setState(() {
       _foundingShopsCount     = count;
       _foundingSettingsLoaded = true;
-      _feeCtrl.text          = settings['founding_activation_fee']   ?? '35000';
-      _freeMonthsCtrl.text   = settings['founding_free_months']      ?? '6';
-      _monthlyFixedCtrl.text = settings['founding_monthly_fixed']    ?? '500';
-      _storageGbCtrl.text    = settings['founding_storage_limit_gb'] ?? '5';
-      _slotsCtrl.text        = settings['founding_slots_total']      ?? '50';
+      _feeCtrl.text          = settings['founding_activation_fee']   ?? '';
+      _freeMonthsCtrl.text   = settings['founding_free_months']      ?? '';
+      _monthlyFixedCtrl.text = settings['founding_monthly_fixed']    ?? '';
+      _storageGbCtrl.text    = settings['founding_storage_limit_gb'] ?? '';
+      _slotsCtrl.text        = settings['founding_slots_total']      ?? '';
       _endDateCtrl.text      = settings['founding_offer_end_date']   ?? '';
       _monthlyMode           = settings['founding_monthly_mode']     ?? 'linked';
       _offerEnabled          = (settings['founding_offer_enabled']   ?? 'true') == 'true';
@@ -421,15 +421,16 @@ class _PlanEditCard extends StatelessWidget {
     Color accentColor;
     switch (code) {
       case 'unlimited':
-      case 'enterprise':
         accentColor = AdminColors.emerald;
         break;
       case 'standard':
-      case 'pro':
-        accentColor = AdminColors.amber;
+        accentColor = AdminColors.violet;
         break;
       case 'basic':
         accentColor = AdminColors.blue;
+        break;
+      case 'founding':
+        accentColor = AdminColors.amber;
         break;
       default:
         accentColor = AdminColors.indigo;

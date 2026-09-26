@@ -146,12 +146,14 @@ class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScr
 
                     // Target Group Filter
                     final targetShops = licenses.where((shop) {
-                      final plan = _str(shop['plan'] ?? shop['plan_type'], 'mobile_only').toLowerCase();
+                      final plan = _str(shop['plan_code'] ?? shop['plan'] ?? shop['plan_type'], 'trial').toLowerCase();
+                      final isLifetime = shop['lifetime_access'] == true || shop['subscription_status'] == 'lifetime';
 
-                      if (_targetGroup == 'pro') return plan == 'full_access' || plan == 'pro' || plan == 'full_access_3yr';
-                      if (_targetGroup == 'free') return plan == 'mobile_only' || plan == 'free';
+                      if (_targetGroup == 'paid') return plan == 'basic' || plan == 'standard' || plan == 'unlimited';
+                      if (_targetGroup == 'trial') return plan == 'trial';
+                      if (_targetGroup == 'founding') return plan == 'founding' || isLifetime;
                       if (_targetGroup == 'expiring') {
-                        final expStr = shop['expires_at'] ?? shop['bundled_storage_expires_at'];
+                        final expStr = shop['billing_cycle_end'] ?? shop['expires_at'] ?? shop['bundled_storage_expires_at'];
                         if (expStr == null) return false;
                         final exp = DateTime.tryParse(expStr.toString());
                         if (exp == null) return false;
@@ -194,16 +196,22 @@ class _AdminNotificationsScreenState extends ConsumerState<AdminNotificationsScr
                                   onTap: () => setState(() => _targetGroup = 'all'),
                                 ),
                                 AdminChip(
-                                  label: 'FULL ACCESS / PRO',
-                                  isSelected: _targetGroup == 'pro',
-                                  color: AdminColors.amber,
-                                  onTap: () => setState(() => _targetGroup = 'pro'),
+                                  label: 'PAID PLANS',
+                                  isSelected: _targetGroup == 'paid',
+                                  color: AdminColors.emerald,
+                                  onTap: () => setState(() => _targetGroup = 'paid'),
                                 ),
                                 AdminChip(
-                                  label: 'MOBILE ONLY',
-                                  isSelected: _targetGroup == 'free',
+                                  label: 'FREE TRIAL',
+                                  isSelected: _targetGroup == 'trial',
                                   color: AdminColors.blue,
-                                  onTap: () => setState(() => _targetGroup = 'free'),
+                                  onTap: () => setState(() => _targetGroup = 'trial'),
+                                ),
+                                AdminChip(
+                                  label: 'FOUNDING / LIFETIME',
+                                  isSelected: _targetGroup == 'founding',
+                                  color: AdminColors.amber,
+                                  onTap: () => setState(() => _targetGroup = 'founding'),
                                 ),
                                 AdminChip(
                                   label: 'EXPIRING SOON',

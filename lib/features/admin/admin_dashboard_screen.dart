@@ -2214,7 +2214,7 @@ class _ActivityPanel extends StatelessWidget {
           iconColor: _C.blue,
           title: 'New Registration · ${r['shop_name'] ?? 'Shop'}',
           subtitle:
-              '${r['plan_selected'] ?? 'mobile_only'} · ${r['owner_name'] ?? 'N/A'}',
+              '${r['plan_selected'] ?? 'trial'} · ${r['owner_name'] ?? 'N/A'}',
           time: '2 min',
           actionLabel: 'Approve',
           onAction: onViewAll,
@@ -2228,7 +2228,7 @@ class _ActivityPanel extends StatelessWidget {
           iconColor: _C.amber,
           title: 'Upgrade Request · ${u['shops']?['name'] ?? 'Shop'}',
           subtitle:
-              'Target: ${u['target_plan'] ?? 'full_access'} · Rs ${u['amount'] ?? 0}',
+              'Target: ${u['target_plan'] ?? 'standard'} · Rs ${u['amount'] ?? 0}',
           time: '18 min',
           actionLabel: 'Review',
           onAction: onViewAll,

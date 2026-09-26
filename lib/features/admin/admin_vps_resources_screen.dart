@@ -75,13 +75,13 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
     final text2 = context.text2;
 
     int totalVpsBytes = 0;
-    int totalDbOps = 0;
-    double totalCpu = 0.0;
+    int totalDbRecords = 0;
+    int activeShopsCount = 0;
 
     for (var s in _allShops) {
       totalVpsBytes += (s['storage_used_bytes'] as int? ?? 0);
-      totalDbOps += (s['est_db_ops'] as int? ?? 0);
-      totalCpu += (s['est_cpu_pct'] as double? ?? 0.0);
+      totalDbRecords += (s['total_records'] as int? ?? 0);
+      if (s['is_active'] == true) activeShopsCount++;
     }
 
     return Scaffold(
@@ -92,8 +92,8 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
             // Top Header (RepaintBoundary for zero scroll cost)
             RepaintBoundary(
               child: AdminPageHeader(
-                title: 'VPS Server & Shop Resource Usage',
-                subtitle: 'Monitor real-time VPS CPU load, database storage, and feature usage per shop',
+                title: 'VPS & Database Resources',
+                subtitle: 'Monitor real database storage, total records, and per-shop usage',
                 action: AdminIconBtn(
                   icon: Icons.refresh_rounded,
                   tooltip: 'Refresh Analytics',
@@ -112,7 +112,7 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
-                          // Live VPS System Hardware Health Panel
+                          // Live VPS System & Backend Status Panel
                           RepaintBoundary(
                             child: Container(
                               padding: const EdgeInsets.all(16),
@@ -141,12 +141,12 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            'VPS Server Health: ONLINE & HEALTHY (99.9% Uptime)',
+                                            'Backend Services: ONLINE & HEALTHY',
                                             style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AdminColors.emerald),
                                           ),
                                         ],
                                       ),
-                                      Text('Host: Supabase Cloud VPS', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                                      Text('Host: Darzi Pro VPS (Coolify)', style: GoogleFonts.inter(fontSize: 11, color: text2)),
                                     ],
                                   ),
                                   const SizedBox(height: 12),
@@ -157,30 +157,30 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
                                       Expanded(
                                         child: Row(
                                           children: [
-                                            const Icon(Icons.memory_rounded, size: 16, color: AdminColors.blue),
+                                            const Icon(Icons.storage_rounded, size: 16, color: AdminColors.blue),
                                             const SizedBox(width: 6),
-                                            Text('Server RAM: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Text('1.8 GB / 4.0 GB (45%)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
+                                            Text('Database: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Text('PostgreSQL 15', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
                                           ],
                                         ),
                                       ),
                                       Expanded(
                                         child: Row(
                                           children: [
-                                            const Icon(Icons.dns_rounded, size: 16, color: AdminColors.violet),
+                                            const Icon(Icons.security_rounded, size: 16, color: AdminColors.violet),
                                             const SizedBox(width: 6),
-                                            Text('SSD Disk: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Text('12.4 GB / 80.0 GB (15%)', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
+                                            Text('Auth Engine: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Text('GoTrue Active', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
                                           ],
                                         ),
                                       ),
                                       Expanded(
                                         child: Row(
                                           children: [
-                                            const Icon(Icons.speed_rounded, size: 16, color: AdminColors.emerald),
+                                            const Icon(Icons.dns_rounded, size: 16, color: AdminColors.emerald),
                                             const SizedBox(width: 6),
-                                            Text('CPU Cores: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
-                                            Text('4 Cores @ 2.4 GHz', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
+                                            Text('Gateway: ', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+                                            Text('Kong Proxy', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: text1)),
                                           ],
                                         ),
                                       ),
@@ -205,18 +205,18 @@ class _AdminVpsResourcesScreenState extends State<AdminVpsResourcesScreen> {
                                     subtitle: 'Across ${_allShops.length} registered shops',
                                   ),
                                   AdminStatCard(
-                                    icon: Icons.memory_rounded,
+                                    icon: Icons.folder_copy_rounded,
                                     color: AdminColors.emerald,
-                                    title: 'Estimated VPS CPU Load',
-                                    value: '${totalCpu.toStringAsFixed(1)}%',
-                                    subtitle: 'Current system usage',
+                                    title: 'Total Database Records',
+                                    value: '$totalDbRecords',
+                                    subtitle: 'Clients, orders & measurements',
                                   ),
                                   AdminStatCard(
-                                    icon: Icons.data_usage_rounded,
+                                    icon: Icons.store_rounded,
                                     color: AdminColors.violet,
-                                    title: 'Daily Database Ops',
-                                    value: '$totalDbOps',
-                                    subtitle: 'Read/Write queries',
+                                    title: 'Active Shops',
+                                    value: '$activeShopsCount / ${_allShops.length}',
+                                    subtitle: 'Operational tailoring businesses',
                                   ),
                                 ];
 
@@ -333,19 +333,20 @@ class _ShopResourceCard extends StatelessWidget {
     final text2 = context.text2;
 
     final name = shop['name'] ?? 'Unnamed Shop';
-    final plan = shop['plan'] ?? 'mobile_only';
-    final city = shop['city'] ?? 'N/A';
+    final plan = shop['plan'] ?? shop['plan_code'] ?? 'trial';
     final phone = shop['phone'] ?? 'N/A';
 
     final bytes = (shop['storage_used_bytes'] as int? ?? 0);
     final quotaBytes = (shop['storage_allowance_bytes'] as int?) ??
         (shop['founding_storage_limit_bytes'] as int?) ??
         (shop['lifetime_storage_limit_bytes'] as int?) ??
-        1;
+        (5 * 1024 * 1024 * 1024);
     final pctUsed = (bytes / quotaBytes).clamp(0.0, 1.0);
 
-    final dbOps = shop['est_db_ops'] as int? ?? 0;
-    final cpuPct = shop['est_cpu_pct'] as double? ?? 0.0;
+    final cCount = shop['customer_count'] as int? ?? 0;
+    final mCount = shop['measurement_count'] as int? ?? 0;
+    final oCount = shop['order_count'] as int? ?? 0;
+    final totalRecords = shop['total_records'] as int? ?? (cCount + mCount + oCount);
 
     final (planLabel, planColor) = _getPlanDetails(plan);
 
@@ -374,7 +375,7 @@ class _ShopResourceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text('$city · $phone', style: GoogleFonts.inter(fontSize: 12, color: text2)),
+          Text('Phone: $phone · Total Records: $totalRecords', style: GoogleFonts.inter(fontSize: 12, color: text2)),
           const SizedBox(height: 12),
 
           // Resource meters
@@ -407,16 +408,24 @@ class _ShopResourceCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Est. CPU', style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                  Text('${cpuPct.toStringAsFixed(1)}%', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.emerald)),
+                  Text('Clients', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                  Text('$cCount', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.blue)),
                 ],
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('DB Ops', style: GoogleFonts.inter(fontSize: 11, color: text2)),
-                  Text('$dbOps', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.violet)),
+                  Text('Measures', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                  Text('$mCount', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.emerald)),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('Orders', style: GoogleFonts.inter(fontSize: 11, color: text2)),
+                  Text('$oCount', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AdminColors.violet)),
                 ],
               ),
             ],

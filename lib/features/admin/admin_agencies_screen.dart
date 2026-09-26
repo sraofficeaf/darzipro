@@ -166,6 +166,80 @@ class _AdminAgenciesScreenState extends ConsumerState<AdminAgenciesScreen> {
     }
   }
 
+  Future<void> _showAssignShopAgencyDialog(List<Map<String, dynamic>> agencies) async {
+    final shopIdCtrl = TextEditingController();
+    String? selectedAgencyId = agencies.isNotEmpty ? agencies.first['shop_id']?.toString() : null;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Assign Shop to Agency', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Enter the UUID of the tailor shop to assign to an agency reseller:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: shopIdCtrl,
+                decoration: const InputDecoration(labelText: 'Shop UUID', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 14),
+              const Text('Select Agency Reseller:', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: selectedAgencyId,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: agencies.map((a) {
+                  final id = a['shop_id']?.toString() ?? '';
+                  final name = a['display_name'] ?? a['agency_code'] ?? id;
+                  return DropdownMenuItem(value: id, child: Text(name));
+                }).toList(),
+                onChanged: (v) => setDialogState(() => selectedAgencyId = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D9488)),
+              child: const Text('Assign Shop', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+    final shopId = shopIdCtrl.text.trim();
+    if (shopId.isEmpty || selectedAgencyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shop UUID and Agency are required.')));
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+    try {
+      final client = Supabase.instance.client;
+      await client.rpc('admin_assign_shop_agency', params: {
+        'p_shop_id': shopId,
+        'p_agency_shop_id': selectedAgencyId,
+      });
+      if (mounted) {
+        ref.invalidate(adminAgenciesProvider);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Shop successfully assigned to agency!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final agenciesAsync = ref.watch(adminAgenciesProvider);
@@ -189,16 +263,44 @@ class _AdminAgenciesScreenState extends ConsumerState<AdminAgenciesScreen> {
                     Text('Manage agency reseller roles, assign shops, set monthly profit shares, and oversee payouts.', style: GoogleFonts.inter(fontSize: 13, color: context.text2)),
                   ],
                 ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add_business_rounded, size: 18),
-                  label: const Text('Grant Agency Role'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D9488),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: _isProcessing ? null : _showGrantAgencyDialog,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.link_rounded, size: 18),
+                      label: const Text('Assign Shop to Agency'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6366F1),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _isProcessing
+                          ? null
+                          : () {
+                              final currentAgencies = agenciesAsync.valueOrNull ?? [];
+                              if (currentAgencies.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('No active agencies available to assign to.')),
+                                );
+                                return;
+                              }
+                              _showAssignShopAgencyDialog(currentAgencies);
+                            },
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_business_rounded, size: 18),
+                      label: const Text('Grant Agency Role'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0D9488),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _isProcessing ? null : _showGrantAgencyDialog,
+                    ),
+                  ],
                 ),
               ],
             ),
